@@ -1,0 +1,187 @@
+---
+title: "Weed biomass"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# **Load libraries**
+
+```{r message=FALSE, warning=FALSE}
+#Set work directory
+setwd("/Users/ey239/Github/Mowtivation/rmarkdowns")
+
+#Load packages 
+library(tidyverse) ##install.packages("tidyverse")
+library(knitr)
+library(patchwork) ##install.packages("patchwork")
+library(skimr)     ##install.packages("skimr")
+library(readxl)
+library(janitor) ##install.packages("janitor")
+
+library(kableExtra) ##install.packages("kableExtra")
+library(webshot) ##install.packages("webshot")
+webshot::install_phantomjs()
+library(viridis) ##install.packages("viridis")
+library(lme4) ##install.packages("lme4")
+library(lmerTest) ##install.packages("lmerTest")
+library(emmeans) ##install.packages("emmeans")
+library(rstatix) ##install.packages("rstatix")
+#library(Matrix) ##install.packages("Matrix")
+library(multcomp) ##install.packages("multcomp")
+library(multcompView) ##install.packages("multcompView")
+library(ggResidpanel) ##install.packages("ggResidpanel")
+#library(car)
+#library(TMB)  ##install.packages("TMB")
+#library(glmmTMB)  ##install.packages("glmmTMB")
+#library(DHARMa)  ##install.packages("DHARMa")
+
+#Load Functions
+MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
+
+find_logw0=function(x){c=trunc(log(min(x[x>0],na.rm=T)))
+d=exp(c)
+return(d)}
+```
+<br>
+
+# **Load and Clean Data**
+
+### **Load individual datasets**
+
+``` {r}
+cu_raw_all <- read_excel("~/Github/Mowtivation/raw-data/cornell_raw_all.xlsx")
+kable(head(cu_raw_all))
+
+```
+
+
+```{r}
+
+
+#Standardaze column names, convert to factors, check for outliers of variable**
+clean_all <- clean_names(cu_raw_all) |>  
+  rename ('cultivation'= trt) |> 
+  mutate(across(c(cultivation, block, pllot, loc, year), as.factor)) #|> 
+  #mutate(is_outlier = totwbm < (quantile(totwbm, 0.25) - 1.5 * IQR(totwbm)) |
+                       #wbm > (quantile(totwbm, 0.75) + 1.5 * IQR(totwbm)))
+
+#select and convert data for wbm analysis
+totwbm_clean_all <-clean_all |>              
+  mutate(totwbm_grams_meter = (totwbm * 2)) |> 
+  mutate(totwbm_kg_ha = ((totwbm/0.5) *(10000))/(1000)) |>
+  mutate(totwbm_lbs_ac = (((totwbm/0.5) *(10000))/(1000))* 0.892179)
+kable(head(totwbm_clean_all)) 
+```
+<br>
+### **block is fixed**
+```{r}
+totwbm_fixed <- lmer(totwbm_kg_ha  ~ loc*year*cultivation + block 
+                     +(1 | year/loc) , data = totwbm_clean_all)
+
+resid_panel(totwbm_fixed)
+```
+### **block is random**
+```{r}
+totwbm_ran <- lmer(totwbm_kg_ha  ~ cultivation + (1|block)  , data = totwbm_clean_all)
+
+resid_panel(totwbm_ran)
+```
+
+##**Joint test**
+```{r}
+ totwbm_fixed |> 
+  joint_tests() |> 
+  kable()  
+```
+<br>
+
+# **Means comparison of totwbm**
+
+```{r message=FALSE}
+totwbm_means_all <- 
+ emmeans(totwbm_fixed, ~  cultivation)
+# Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
+
+pairwise_comparisons<- pairs(totwbm_means_all) 
+kable(head(pairwise_comparisons))
+```
+### **Fisher's method for comparing means**
+
+```{r}
+#mowing
+cld_cultivation_fisher <-cld(emmeans(totwbm_fixed, ~  cultivation , type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
+cld_cultivation_fisher
+```
+
+```{r}
+#mowing
+cld_cultivation_year_fisher <-cld(emmeans(totwbm_fixed, ~  cultivation|year , type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
+cld_cultivation_year_fisher
+```
+
+# **FIGURES**
+
+## **Cultivation**
+
+```{r message=FALSE}
+totwbm_clean_all |> 
+  left_join(cld_cultivation_fisher) |> 
+  ggplot(aes(x = cultivation, y = totwbm_kg_ha, fill = cultivation)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Interrow weed control method",
+    y = expression("Weed biomass" ~ (kg ~ ha^{-1})),
+    title = str_c("The influence of interrow weed control method on weed biomass"),
+    subtitle = expression(italic("P < 0.005"))) +
+  
+  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nno additional\nweed control",
+                          "Tilled,\nstandard\ncultivation",
+                              "Tilled,\ninterrow\nmowing")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+ggsave("wbm_all_plot_mowing.png", width = 8, height = 6, dpi = 300)
+```
+
+## **Cultivation:year**
+
+```{r message=FALSE}
+totwbm_clean_all |> 
+  left_join(cld_cultivation_year_fisher) |> 
+  ggplot(aes(x = cultivation, y = totwbm_kg_ha, fill = cultivation)) +
+  facet_wrap(~year )+
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Interrow weed control method",
+    y = expression("Weed biomass" ~ (kg ~ ha^{-1})),
+    title = str_c("The influence of interrow weed control method on weed biomass"),
+    subtitle = expression(italic("P < 0.005"))) +
+  
+  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nno additional\nweed control",
+                          "Tilled,\nstandard\ncultivation",
+                              "Tilled,\ninterrow\nmowing")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+ggsave("wbm_all_plot_mowing_year.png", width = 12, height = 6, dpi = 300)
+```
