@@ -6,7 +6,7 @@ output: github_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
+# **Load libraries**
 
 ```{r message=FALSE, warning=FALSE}
 #Set work directory
@@ -95,6 +95,7 @@ resid_panel(totwbm_ran)
   kable()  
 ```
 <br>
+
 # **Means comparison of totwbm**
 
 ```{r message=FALSE}
