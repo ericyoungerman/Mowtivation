@@ -168,7 +168,7 @@ totwbm_clean_all |>
     x = "Interrow weed control method",
     y = expression("Weed biomass" ~ (kg ~ ha^{-1})),
     title = str_c("The influence of interrow weed control method on weed biomass"),
-    subtitle = expression(italic("P < 0.005"))) +
+    subtitle = expression(italic("P = 0.01"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
                               "Rolled,\ninterrow\nmowing",
