@@ -102,8 +102,8 @@ fixed <- lmer(weed_biomass_kg_ha  ~ location*weed_control + block
 resid_panel(fixed)
 ```
 
-![](totweed_biomass_all_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
-\### **block is random**
+![](weed_biomass_files/figure-gfm/unnamed-chunk-4-1.png)<!-- --> \###
+**block is random**
 
 ``` r
 random <- lmer(weed_biomass_kg_ha  ~ weed_control + (1|block)  , data = weed_biomass_clean)
@@ -115,7 +115,7 @@ random <- lmer(weed_biomass_kg_ha  ~ weed_control + (1|block)  , data = weed_bio
 resid_panel(random)
 ```
 
-![](totweed_biomass_all_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+![](weed_biomass_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
 
 \##**Joint test**
 
@@ -224,6 +224,9 @@ cld_weed_control_location_fisher
 
 ## **Cultivation**
 
+\#For these figures, why doesn’t it let my use weed_biomass_kg_ha for my
+Y value?
+
 ``` r
 clean_combined |> 
   left_join(cld_weed_control_fisher) |> 
@@ -252,7 +255,7 @@ clean_combined |>
   )
 ```
 
-![](totweed_biomass_all_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+![](weed_biomass_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
 
 ``` r
 ggsave("weed_biomass_weed_control.png", width = 8, height = 6, dpi = 300)
@@ -289,7 +292,7 @@ clean_combined |>
   )
 ```
 
-![](totweed_biomass_all_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](weed_biomass_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
 
 ``` r
 ggsave("weed_biomass_weed_control_location.png", width = 12, height = 6, dpi = 300)

@@ -126,6 +126,7 @@ cld_weed_control_location_fisher
 # **FIGURES**
 
 ## **Cultivation**
+#For these figures, why doesn't it let my use weed_biomass_kg_ha for my Y value?
 
 ```{r message=FALSE}
 clean_combined |> 
