@@ -46,43 +46,55 @@ return(d)}
 ### **Load individual datasets**
 
 ``` r
-cu_raw_2023 <- read_excel("~/Github/Mowtivation/raw-data/cornell_raw_2023.xlsx")
-kable(head(cu_raw_2023))
+combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
+kable(head(combined_raw))
 ```
 
-| id | loc | year | trt | block | pllot | emerge | bbm | intrabm | interbm | totwbm | totmbm | beanden | beanyd |
-|:---|:---|---:|:---|---:|---:|---:|---:|---:|---:|---:|:---|---:|---:|
-| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | Na | 34.5 | 417.21 |
-| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | Na | 39.5 | 565.54 |
-| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 3.920 | 285.95 | 37.5 | 449.93 |
-| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 241.03 | 35.0 | 412.59 |
-| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 306.64 | 39.0 | 473.79 |
-| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 370.94499999999999 | 33.5 | 484.04 |
+| id | location | year | treatment | block | plot | bean_emergence | bean_biomass | intrarow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield |
+|:---|:---|---:|:---|---:|---:|---:|---:|---:|---:|---:|:---|:---|
+| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 |
+| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 |
+| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 3.920 | 37.5 | 449.93 |
+| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 |
+| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 |
+| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 |
 
 ``` r
 #Standardaze column names, convert to factors, check for outliers of variable**
-clean_2023 <- clean_names(cu_raw_2023) |>  
-  rename ('cultivation'= trt) |> 
-  mutate(across(c(cultivation, block, pllot, loc), as.factor)) #|> 
+clean_combined <- clean_names(combined_raw) |>  
+  rename ('weed_control'= treatment) |> 
+  mutate(across(c(weed_control, block, plot, location, year), as.factor)) #|> 
   #mutate(is_outlier = totwbm < (quantile(totwbm, 0.25) - 1.5 * IQR(totwbm)) |
                        #wbm > (quantile(totwbm, 0.75) + 1.5 * IQR(totwbm)))
 
 #select and convert data for wbm analysis
-beanyd_clean_2023 <-clean_2023 |>              
-  mutate(beanyd_adj_bu_acre = (((beanyd/454)/(16.4/43560))/60)* ((100-0.00001)/(100-14)))   |> 
-  mutate(beanyd_adj_lbs_acre = ((beanyd/454)/(16.4/43560))* ((100-0.00001)/(100-14))) |>
-  mutate(beanyd_adj_kg_ha = ((beanyd/454)/(16.4/43560))* 1.12085 *((100-0.00001)/(100-14)))
-kable(head(beanyd_clean_2023)) 
+  bean_yield_clean <- clean_combined |>  
+  mutate(bean_yield = as.numeric(bean_yield)) |>  # Convert beanyd to numeric
+  filter(!is.na(bean_yield)) |>  # Exclude rows with NA in beanyd
+  mutate(
+    bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 14)),
+    bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 14)),
+    bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 * ((100 - 0.00001) / (100 - 14))
+  )
 ```
 
-| id | loc | year | cultivation | block | pllot | emerge | bbm | intrabm | interbm | totwbm | totmbm | beanden | beanyd | beanyd_adj_bu_acre | beanyd_adj_lbs_acre | beanyd_adj_kg_ha |
-|:---|:---|---:|:---|:---|:---|---:|---:|---:|---:|---:|:---|---:|---:|---:|---:|---:|
-| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | Na | 34.5 | 417.21 | 47.30348 | 2838.209 | 3181.207 |
-| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | Na | 39.5 | 565.54 | 64.12122 | 3847.273 | 4312.216 |
-| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 3.920 | 285.95 | 37.5 | 449.93 | 51.01330 | 3060.798 | 3430.695 |
-| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 241.03 | 35.0 | 412.59 | 46.77967 | 2806.780 | 3145.979 |
-| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 306.64 | 39.0 | 473.79 | 53.71855 | 3223.113 | 3612.626 |
-| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 370.94499999999999 | 33.5 | 484.04 | 54.88070 | 3292.842 | 3690.782 |
+    ## Warning: There was 1 warning in `mutate()`.
+    ## ℹ In argument: `bean_yield = as.numeric(bean_yield)`.
+    ## Caused by warning:
+    ## ! NAs introduced by coercion
+
+``` r
+kable(head(bean_yield_clean)) 
+```
+
+| id | location | year | weed_control | block | plot | bean_emergence | bean_biomass | intrarow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | bean_yield_adj_bu_acre | bean_yield_adj_lbs_acre | bean_yield_adj_kg_ha |
+|:---|:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|:---|---:|---:|---:|---:|
+| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 47.30348 | 2838.209 | 3181.207 |
+| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 64.12122 | 3847.273 | 4312.216 |
+| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 3.920 | 37.5 | 449.93 | 51.01330 | 3060.798 | 3430.695 |
+| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 | 46.77967 | 2806.780 | 3145.979 |
+| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 | 53.71855 | 3223.113 | 3612.626 |
+| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 54.88070 | 3292.842 | 3690.782 |
 
 <br>
 
@@ -90,10 +102,21 @@ kable(head(beanyd_clean_2023))
 
 ### **block is fixed**
 
-``` r
-beanyd_fixed <- lm(beanyd_adj_kg_ha  ~ cultivation + block  , data = beanyd_clean_2023)
+\#Ask tyler about model format, should block always be fixed, etc.
+should location be nested in year?
 
-resid_panel(beanyd_fixed)
+``` r
+fixed <- lmer(bean_yield_adj_kg_ha ~ year*weed_control*location + block 
+                     +(1 | year/location), data = bean_yield_clean)
+```
+
+    ## fixed-effect model matrix is rank deficient so dropping 15 columns / coefficients
+
+    ## Warning in as_lmerModLT(model, devfun): Model may not have converged with 2
+    ## eigenvalues close to zero: 2.2e-09 8.1e-10
+
+``` r
+resid_panel(fixed)
 ```
 
 ![](bean_yield_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
@@ -101,9 +124,13 @@ resid_panel(beanyd_fixed)
 ### **block is random**
 
 ``` r
-beanyd_ran <- lmer(beanyd_adj_kg_ha  ~ cultivation + (1|block)  , data = beanyd_clean_2023)
+random <- lmer(bean_yield_adj_kg_ha  ~ weed_control + (1|block)  , data = bean_yield_clean)
+```
 
-resid_panel(beanyd_ran)
+    ## boundary (singular) fit: see help('isSingular')
+
+``` r
+resid_panel(random)
 ```
 
 ![](bean_yield_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
@@ -113,54 +140,69 @@ resid_panel(beanyd_ran)
 \##**Joint test**
 
 ``` r
- beanyd_fixed |> 
+ fixed |> 
   joint_tests() |> 
   kable()  
 ```
 
-| model term  | df1 | df2 | F.ratio |   p.value |
-|:------------|----:|----:|--------:|----------:|
-| cultivation |   4 |  12 |   1.208 | 0.3575539 |
-| block       |   3 |  12 |   1.291 | 0.3223078 |
+    ## NOTE: A nesting structure was detected in the fitted model:
+    ##     location %in% year
+
+|     | model term                 | df1 |      df2 | F.ratio |   p.value | note |
+|:----|:---------------------------|----:|---------:|--------:|----------:|:-----|
+| 1   | year                       |   1 | 90870.37 |   1.452 | 0.2282015 |      |
+| 5   | weed_control               |   4 |    41.00 |   1.335 | 0.2734328 |      |
+| 6   | block                      |   3 |    41.00 |   0.123 | 0.9458155 |      |
+| 2   | year:weed_control          |   4 |    41.00 |   0.652 | 0.6290763 |      |
+| 4   | year:location              |   1 | 16912.91 |   0.074 | 0.7852912 | e    |
+| 3   | year:weed_control:location |   4 |    41.00 |   1.679 | 0.1733297 | e    |
 
 <br>
 
 # **Means comparison**
 
 ``` r
-beanyd_means_2023 <- 
- emmeans(beanyd_fixed, ~  cultivation)
+means <- emmeans(fixed, ~  weed_control)
 # Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
 
-pairwise_comparisons<- pairs(beanyd_means_2023) 
+pairwise_comparisons<- pairs(means) 
 kable(head(pairwise_comparisons))
 ```
 
-| contrast  |   estimate |      SE |  df |    t.ratio |   p.value |
-|:----------|-----------:|--------:|----:|-----------:|----------:|
-| RIC - RIM | -294.55193 | 345.403 |  12 | -0.8527775 | 0.9580254 |
-| RIC - RNO |   87.40102 | 345.403 |  12 |  0.2530407 | 0.9999442 |
-| RIC - TIC | -168.39709 | 345.403 |  12 | -0.4875379 | 0.9976223 |
-| RIC - TIM |  406.96280 | 345.403 |  12 |  1.1782259 | 0.8378381 |
-| RIM - RNO |  381.95296 | 345.403 |  12 |  1.1058181 | 0.8724211 |
-| RIM - TIC |  126.15485 | 345.403 |  12 |  0.3652395 | 0.9995313 |
+| contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
+|:----------|-----------:|---------:|----:|-----------:|----------:|
+| RIC - RIM |  -81.02477 | 206.4819 |  41 | -0.3924062 | 0.9992229 |
+| RIC - RNO |   96.12206 | 203.4762 |  41 |  0.4723996 | 0.9977921 |
+| RIC - TIC | -127.08890 | 203.4762 |  41 | -0.6245887 | 0.9899819 |
+| RIC - TIM |  293.07460 | 203.4762 |  41 |  1.4403388 | 0.6420372 |
+| RIM - RNO |  177.14683 | 206.4819 |  41 |  0.8579292 | 0.9514074 |
+| RIM - TIC |  -46.06413 | 206.4819 |  41 | -0.2230904 | 0.9999709 |
 
 ### **Fisher’s method for comparing means**
 
 ``` r
-#mowing
-cld_cultivation_fisher <-cld(emmeans(beanyd_fixed, ~  cultivation, type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
-cld_cultivation_fisher
+#weed_control
+cld_weed_control_fisher <-cld(emmeans(fixed, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
 ```
 
-    ##  cultivation emmean  SE df lower.CL upper.CL .group
-    ##  RIM           4163 244 12     3630     4695  a    
-    ##  TIC           4036 244 12     3504     4569  a    
-    ##  RIC           3868 244 12     3336     4400  a    
-    ##  RNO           3781 244 12     3248     4313  a    
-    ##  TIM           3461 244 12     2929     3993  a    
+    ## NOTE: A nesting structure was detected in the fitted model:
+    ##     location %in% year
+
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_weed_control_fisher
+```
+
+    ##  weed_control emmean  SE   df lower.CL upper.CL .group
+    ##  TIC            4560 462 4371     3654     5467  a    
+    ##  RIM            4514 464 3939     3605     5423  ab   
+    ##  RIC            4433 462 4371     3527     5339  ab   
+    ##  RNO            4337 462 4371     3431     5243  ab   
+    ##  TIM            4140 462 4371     3234     5046   b   
     ## 
-    ## Results are averaged over the levels of: block 
+    ## Results are averaged over the levels of: block, location, year 
+    ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
     ## significance level used: alpha = 0.05 
     ## NOTE: If two or more means share the same grouping symbol,
@@ -172,17 +214,17 @@ cld_cultivation_fisher
 ## **Cultivation**
 
 ``` r
-beanyd_clean_2023 |> 
-  left_join(cld_cultivation_fisher) |> 
-  ggplot(aes(x = cultivation, y = beanyd_adj_kg_ha, fill = cultivation)) +
+bean_yield_clean |> 
+  left_join(cld_weed_control_fisher) |> 
+  ggplot(aes(x = weed_control, y = bean_yield_adj_kg_ha, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Interrow weed control method",
+    x = "Method of interrow weed control",
     y = expression("Soybean yield" ~ (kg ~ ha^{-1})),
-    title = str_c("The influence of interrow weed control method on soybean yield"),
-    subtitle = expression(italic("P = 0.01"))) +
+    title = str_c("The influence of the method of interrow weed control on soybean yield"),
+    subtitle = expression(italic("Not signficant"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
                               "Rolled,\ninterrow\nmowing",
@@ -202,5 +244,5 @@ beanyd_clean_2023 |>
 ![](bean_yield_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
 
 ``` r
-ggsave("beanyd_plot_cutivation.png", width = 8, height = 6, dpi = 300)
+ggsave("beanydall_plot_cutivation.png", width = 8, height = 6, dpi = 300)
 ```
