@@ -78,6 +78,8 @@ kable(head(weed_biomass_clean))
 ### **block is random**
 #Ask tyler about model format, should block always be fixed, etc. should location be nested in year? Do i need to transform data if zeros are present? How to separate year from location? 
 
+Last meeting we updated the model and determined that for most of mhy work, block should be random using model below and that post hoc comparisons should use TUKEY ratther the Fischer. 
+
 ```{r}
 random <- lmer(weed_biomass_kg_ha  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
 
@@ -91,16 +93,10 @@ weed_biomass_clean |> count(year,location
 
 ```
 
-### **block is random**
-```{r}
-random <- lmer(weed_biomass_kg_ha  ~ weed_control + (1|block)  , data = weed_biomass_clean)
-
-resid_panel(random)
-```
 
 ##**Joint test**
 ```{r}
-fixed |> 
+random |> 
   joint_tests() |> 
   kable()  
 ```
@@ -110,26 +106,32 @@ fixed |>
 
 ```{r message=FALSE}
 means <- 
- emmeans(fixed, ~  weed_control)
+ emmeans(random, ~  weed_control)
 # Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
 
 pairwise_comparisons<- pairs(means) 
 kable(head(pairwise_comparisons))
 ```
-### **Fisher's method for comparing means**
+### **Tukey's method for comparing means**
 
 ```{r}
 #mowing
-cld_weed_control_fisher <-cld(emmeans(fixed, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_weed_control_fisher
+cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_tukey
 ```
 
 
 
 ```{r}
-#mowing
-cld_weed_control_location_fisher <-cld(emmeans(fixed, ~  weed_control|location , type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
-cld_weed_control_location_fisher
+#location
+cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_location_tukey
+```
+
+```{r}
+#weed_control|location
+cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_location_tukey
 ```
 
 # **FIGURES**
@@ -138,8 +140,8 @@ cld_weed_control_location_fisher
 #For these figures, why doesn't it let my use weed_biomass_kg_ha for my Y value?
 
 ```{r message=FALSE}
-clean_combined |> 
-  left_join(cld_weed_control_fisher) |> 
+weed_biomass_clean |> 
+  left_join(cld_weed_control_tukey) |> 
   ggplot(aes(x = weed_control, y = emmean, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
@@ -166,12 +168,11 @@ clean_combined |>
 ggsave("weed_biomass_weed_control.png", width = 8, height = 6, dpi = 300)
 ```
 
-## **weed_control:location**
-
+## **weed_control:location*
 ```{r message=FALSE}
-clean_combined |> 
-  left_join(cld_weed_control_location_fisher) |> 
-  ggplot(aes(x = weed_control, y = emmean, fill = weed_control)) +
+weed_biomass_clean |> 
+  left_join(cld_weed_control_location_tukey) |> 
+  ggplot(aes(x = weed_control, y = weed_biomass_kg_ha, fill = weed_control)) +
   facet_wrap(~location )+
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
@@ -197,3 +198,5 @@ clean_combined |>
   )
 ggsave("weed_biomass_weed_control_location.png", width = 12, height = 6, dpi = 300)
 ```
+
+#Ask tyler if a transformation may be appopriate due to such low values and number of zeros for weeds in field O2 East and O2 West
