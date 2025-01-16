@@ -72,8 +72,9 @@ clean_combined <- clean_names(combined_raw) |>
 
 #select and convert data for wbm analysis
   bean_yield_clean <- clean_combined |>  
+    filter(!is.na(bean_yield)) |>
   mutate(bean_yield = as.numeric(bean_yield)) |>  # Convert beanyd to numeric
-  filter(!is.na(bean_yield)) |>  # Exclude rows with NA in beanyd
+    # Exclude rows with NA in beanyd
   mutate(
     bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 14)),
     bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 14)),
@@ -86,18 +87,13 @@ kable(head(bean_yield_clean))
 
 ## **Model testing**
 
-### **block is fixed** 
-#Ask tyler about model format, should block always be fixed, etc. should location be nested in year?
-```{r}
-fixed <- lmer(bean_yield_adj_kg_ha ~ year*weed_control*location + block 
-                     +(1 | year/location), data = bean_yield_clean)
-
-resid_panel(fixed)
-```
-
 ### **block is random**
+#Ask tyler about model format, should block always be fixed, etc. should location be nested in year? Do i need to transform data if zeros are present? How to separate year from location? 
+
+Last meeting we updated the model and determined that for most of mhy work, block should be random using model below and that post hoc comparisons should use TUKEY ratther the Fischer. 
+
 ```{r}
-random <- lmer(bean_yield_adj_kg_ha  ~ weed_control + (1|block)  , data = bean_yield_clean)
+random <- lmer( bean_yield_adj_kg_ha  ~ location+weed_control + location:weed_control +(1|location:block) , data =  bean_yield_clean)
 
 resid_panel(random)
 ```
@@ -106,7 +102,7 @@ resid_panel(random)
 
 ##**Joint test**
 ```{r}
- fixed |> 
+ random |> 
   joint_tests() |> 
   kable()  
 ```
@@ -115,7 +111,7 @@ resid_panel(random)
 
 # **Means comparison**
 ```{r message=FALSE}
-means <- emmeans(fixed, ~  weed_control)
+means <- emmeans(random, ~  weed_control)
 # Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
 
 pairwise_comparisons<- pairs(means) 
@@ -126,16 +122,28 @@ kable(head(pairwise_comparisons))
 
 ```{r}
 #weed_control
-cld_weed_control_fisher <-cld(emmeans(fixed, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
-cld_weed_control_fisher
+cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_tukey
 ```
-# **FIGURES**
 
-## **Cultivation**
+
+```{r}
+#location
+cld_location_tukey <-cld(emmeans(random, ~  location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_location_tukey
+```
+```{r}
+#weed_control|location
+cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_location_tukey
+```
+# **FIGURES** only location was significant
+
+## **weed_control**
 
 ```{r message=FALSE}
 bean_yield_clean |> 
-  left_join(cld_weed_control_fisher) |> 
+  left_join(cld_weed_control_tukey) |> 
   ggplot(aes(x = weed_control, y = bean_yield_adj_kg_ha, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
@@ -160,4 +168,32 @@ bean_yield_clean |>
     strip.text = element_text(face = "bold", size = 12)
   )
 ggsave("beanydall_plot_cutivation.png", width = 8, height = 6, dpi = 300)
+```
+
+## **location**
+
+```{r message=FALSE}
+bean_yield_clean |> 
+  left_join(cld_location_tukey) |> 
+  ggplot(aes(x = location, y = bean_yield_adj_kg_ha, fill = location)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Field location",
+    y = expression("Soybean yield" ~ (kg ~ ha^{-1})),
+    title = str_c("The influence of location on soybean yield"),
+    subtitle = expression(italic("P < 0.005"))) +
+   scale_x_discrete(labels = c("Field O2 East ",
+                              "Field O2 West",
+                              "Field X")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+ggsave("beanydall_location.png", width = 8, height = 6, dpi = 300)
 ```

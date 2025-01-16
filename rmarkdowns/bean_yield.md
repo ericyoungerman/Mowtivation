@@ -69,8 +69,9 @@ clean_combined <- clean_names(combined_raw) |>
 
 #select and convert data for wbm analysis
   bean_yield_clean <- clean_combined |>  
+    filter(!is.na(bean_yield)) |>
   mutate(bean_yield = as.numeric(bean_yield)) |>  # Convert beanyd to numeric
-  filter(!is.na(bean_yield)) |>  # Exclude rows with NA in beanyd
+    # Exclude rows with NA in beanyd
   mutate(
     bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 14)),
     bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 14)),
@@ -100,122 +101,160 @@ kable(head(bean_yield_clean))
 
 ## **Model testing**
 
-### **block is fixed**
-
-\#Ask tyler about model format, should block always be fixed, etc.
-should location be nested in year?
-
-``` r
-fixed <- lmer(bean_yield_adj_kg_ha ~ year*weed_control*location + block 
-                     +(1 | year/location), data = bean_yield_clean)
-```
-
-    ## fixed-effect model matrix is rank deficient so dropping 15 columns / coefficients
-
-    ## Warning in as_lmerModLT(model, devfun): Model may not have converged with 2
-    ## eigenvalues close to zero: 2.2e-09 8.1e-10
-
-``` r
-resid_panel(fixed)
-```
-
-![](bean_yield_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
-
 ### **block is random**
 
-``` r
-random <- lmer(bean_yield_adj_kg_ha  ~ weed_control + (1|block)  , data = bean_yield_clean)
-```
+\#Ask tyler about model format, should block always be fixed, etc.
+should location be nested in year? Do i need to transform data if zeros
+are present? How to separate year from location?
 
-    ## boundary (singular) fit: see help('isSingular')
+Last meeting we updated the model and determined that for most of mhy
+work, block should be random using model below and that post hoc
+comparisons should use TUKEY ratther the Fischer.
 
 ``` r
+random <- lmer( bean_yield_adj_kg_ha  ~ location+weed_control + location:weed_control +(1|location:block) , data =  bean_yield_clean)
+
 resid_panel(random)
 ```
 
-![](bean_yield_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+![](bean_yield_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
 
 <br>
 
 \##**Joint test**
 
 ``` r
- fixed |> 
+ random |> 
   joint_tests() |> 
   kable()  
 ```
 
-    ## NOTE: A nesting structure was detected in the fitted model:
-    ##     location %in% year
-
-|     | model term                 | df1 |      df2 | F.ratio |   p.value | note |
-|:----|:---------------------------|----:|---------:|--------:|----------:|:-----|
-| 1   | year                       |   1 | 90870.37 |   1.452 | 0.2282015 |      |
-| 5   | weed_control               |   4 |    41.00 |   1.335 | 0.2734328 |      |
-| 6   | block                      |   3 |    41.00 |   0.123 | 0.9458155 |      |
-| 2   | year:weed_control          |   4 |    41.00 |   0.652 | 0.6290763 |      |
-| 4   | year:location              |   1 | 16912.91 |   0.074 | 0.7852912 | e    |
-| 3   | year:weed_control:location |   4 |    41.00 |   1.679 | 0.1733297 | e    |
+|     | model term            | df1 |   df2 | F.ratio |   p.value |
+|:----|:----------------------|----:|------:|--------:|----------:|
+| 1   | location              |   2 |  8.67 |  34.446 | 0.0000752 |
+| 3   | weed_control          |   4 | 35.03 |   1.135 | 0.3562477 |
+| 2   | location:weed_control |   8 | 35.03 |   1.248 | 0.3013225 |
 
 <br>
 
 # **Means comparison**
 
 ``` r
-means <- emmeans(fixed, ~  weed_control)
+means <- emmeans(random, ~  weed_control)
 # Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
 
 pairwise_comparisons<- pairs(means) 
 kable(head(pairwise_comparisons))
 ```
 
-| contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
-|:----------|-----------:|---------:|----:|-----------:|----------:|
-| RIC - RIM |  -81.02477 | 206.4819 |  41 | -0.3924062 | 0.9992229 |
-| RIC - RNO |   96.12206 | 203.4762 |  41 |  0.4723996 | 0.9977921 |
-| RIC - TIC | -127.08890 | 203.4762 |  41 | -0.6245887 | 0.9899819 |
-| RIC - TIM |  293.07460 | 203.4762 |  41 |  1.4403388 | 0.6420372 |
-| RIM - RNO |  177.14683 | 206.4819 |  41 |  0.8579292 | 0.9514074 |
-| RIM - TIC |  -46.06413 | 206.4819 |  41 | -0.2230904 | 0.9999709 |
+| contrast  |   estimate |       SE |       df |    t.ratio |   p.value |
+|:----------|-----------:|---------:|---------:|-----------:|----------:|
+| RIC - RIM |  -10.10058 | 189.5939 | 35.73048 | -0.0532748 | 1.0000000 |
+| RIC - RNO |   99.02908 | 184.0104 | 35.03121 |  0.5381710 | 0.9955121 |
+| RIC - TIC | -113.31951 | 184.0104 | 35.03121 | -0.6158319 | 0.9907685 |
+| RIC - TIM |  255.11187 | 184.0104 | 35.03121 |  1.3863988 | 0.6832901 |
+| RIM - RNO |  109.12966 | 189.5939 | 35.73048 |  0.5755969 | 0.9935448 |
+| RIM - TIC | -103.21893 | 189.5939 | 35.73048 | -0.5444212 | 0.9952174 |
 
 ### **Fisher’s method for comparing means**
 
 ``` r
 #weed_control
-cld_weed_control_fisher <-cld(emmeans(fixed, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
+cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 ```
-
-    ## NOTE: A nesting structure was detected in the fitted model:
-    ##     location %in% year
 
     ## NOTE: Results may be misleading due to involvement in interactions
 
 ``` r
-cld_weed_control_fisher
+cld_weed_control_tukey
 ```
 
     ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  TIC            4560 462 4371     3654     5467  a    
-    ##  RIM            4514 464 3939     3605     5423  ab   
-    ##  RIC            4433 462 4371     3527     5339  ab   
-    ##  RNO            4337 462 4371     3431     5243  ab   
-    ##  TIM            4140 462 4371     3234     5046   b   
+    ##  TIC            4735 132 43.9     4470     5000  a    
+    ##  RIM            4632 139 44.0     4351     4912  a    
+    ##  RIC            4621 132 43.9     4356     4887  a    
+    ##  RNO            4522 132 43.9     4257     4788  a    
+    ##  TIM            4366 132 43.9     4101     4631  a    
     ## 
-    ## Results are averaged over the levels of: block, location, year 
+    ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
+    ## P value adjustment: tukey method for comparing a family of 5 estimates 
     ## significance level used: alpha = 0.05 
     ## NOTE: If two or more means share the same grouping symbol,
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-# **FIGURES**
+``` r
+#location
+cld_location_tukey <-cld(emmeans(random, ~  location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+```
 
-## **Cultivation**
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_location_tukey
+```
+
+    ##  location      emmean  SE   df lower.CL upper.CL .group
+    ##  field O2 east   5025 106 8.67     4783     5266  a    
+    ##  field O2 west   4839 110 9.54     4593     5085  a    
+    ##  field x         3862 106 8.67     3620     4103   b   
+    ## 
+    ## Results are averaged over the levels of: weed_control 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## P value adjustment: tukey method for comparing a family of 3 estimates 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+``` r
+#weed_control|location
+cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_location_tukey
+```
+
+    ## location = field O2 east:
+    ##  weed_control emmean  SE   df lower.CL upper.CL .group
+    ##  RIC            5231 228 43.9     4772     5690  a    
+    ##  RNO            5151 228 43.9     4691     5610  a    
+    ##  RIM            5059 228 43.9     4600     5518  a    
+    ##  TIM            4865 228 43.9     4406     5324  a    
+    ##  TIC            4819 228 43.9     4360     5278  a    
+    ## 
+    ## location = field O2 west:
+    ##  weed_control emmean  SE   df lower.CL upper.CL .group
+    ##  TIC            5349 228 43.9     4890     5808  a    
+    ##  TIM            4773 228 43.9     4314     5232  a    
+    ##  RIC            4766 228 43.9     4306     5225  a    
+    ##  RIM            4673 266 44.0     4137     5209  a    
+    ##  RNO            4636 228 43.9     4177     5095  a    
+    ## 
+    ## location = field x:
+    ##  weed_control emmean  SE   df lower.CL upper.CL .group
+    ##  RIM            4163 228 43.9     3703     4622  a    
+    ##  TIC            4036 228 43.9     3577     4496  a    
+    ##  RIC            3868 228 43.9     3409     4327  a    
+    ##  RNO            3781 228 43.9     3321     4240  a    
+    ##  TIM            3461 228 43.9     3002     3920  a    
+    ## 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## P value adjustment: tukey method for comparing a family of 5 estimates 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+# **FIGURES** only location was significant
+
+## **weed_control**
 
 ``` r
 bean_yield_clean |> 
-  left_join(cld_weed_control_fisher) |> 
+  left_join(cld_weed_control_tukey) |> 
   ggplot(aes(x = weed_control, y = bean_yield_adj_kg_ha, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
@@ -241,8 +280,53 @@ bean_yield_clean |>
   )
 ```
 
-![](bean_yield_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+    ## Warning: Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
+    ## Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
+
+![](bean_yield_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
 
 ``` r
 ggsave("beanydall_plot_cutivation.png", width = 8, height = 6, dpi = 300)
 ```
+
+    ## Warning: Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
+    ## Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
+
+## **location**
+
+``` r
+bean_yield_clean |> 
+  left_join(cld_location_tukey) |> 
+  ggplot(aes(x = location, y = bean_yield_adj_kg_ha, fill = location)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Field location",
+    y = expression("Soybean yield" ~ (kg ~ ha^{-1})),
+    title = str_c("The influence of location on soybean yield"),
+    subtitle = expression(italic("P < 0.005"))) +
+   scale_x_discrete(labels = c("Field O2 East ",
+                              "Field O2 West",
+                              "Field X")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+```
+
+    ## Warning: Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
+    ## Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
+
+![](bean_yield_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+
+``` r
+ggsave("beanydall_location.png", width = 8, height = 6, dpi = 300)
+```
+
+    ## Warning: Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
+    ## Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
