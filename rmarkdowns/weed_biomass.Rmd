@@ -75,15 +75,22 @@ weed_biomass_clean <-clean_combined |>
 kable(head(weed_biomass_clean)) 
 ```
 <br>
-### **block is fixed**
+### **block is random**
 #Ask tyler about model format, should block always be fixed, etc. should location be nested in year? Do i need to transform data if zeros are present? How to separate year from location? 
 
 ```{r}
-fixed <- lmer(weed_biomass_kg_ha  ~ location*weed_control + block 
-                     +(1 | year/location) , data = weed_biomass_clean)
+random <- lmer(weed_biomass_kg_ha  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
 
-resid_panel(fixed)
+resid_panel(random)
 ```
+
+```{r}
+summary(random)
+weed_biomass_clean |> count(year,location
+                            ,weed_control)
+
+```
+
 ### **block is random**
 ```{r}
 random <- lmer(weed_biomass_kg_ha  ~ weed_control + (1|block)  , data = weed_biomass_clean)
@@ -113,9 +120,11 @@ kable(head(pairwise_comparisons))
 
 ```{r}
 #mowing
-cld_weed_control_fisher <-cld(emmeans(fixed, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
+cld_weed_control_fisher <-cld(emmeans(fixed, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_weed_control_fisher
 ```
+
+
 
 ```{r}
 #mowing
