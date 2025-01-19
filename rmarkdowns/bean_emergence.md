@@ -164,7 +164,7 @@ bean_emergence_clean |>
   
   labs(
     x = "Location",
-    y = expression("Soybean population" ~ (plants ~ A^{-1})),
+    y = expression("Soybean emergence" ~ (plants ~ A^{-1})),
     title = str_c("The influence of location on soybean emergence"),
     subtitle = expression(italic("P < 0.005"))) +
    scale_x_discrete(labels = c("Field O2 East ",
