@@ -372,7 +372,7 @@ weed_biomass_clean |>
   labs(
     x = "Method of interrow weed control",
     y = expression("Weed biomass" ~ (lb ~ A^{-1})),
-    title = str_c("Influence of interrow weed control on weed biomass"),
+    title = str_c("Influence of interrow weed control and location on weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
