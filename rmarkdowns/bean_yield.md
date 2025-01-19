@@ -112,7 +112,7 @@ work, block should be random using model below and that post hoc
 comparisons should use TUKEY ratther the Fischer.
 
 ``` r
-random <- lmer( bean_yield_adj_kg_ha  ~ location+weed_control + location:weed_control +(1|location:block) , data =  bean_yield_clean)
+random <- lmer( bean_yield_adj_bu_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data =  bean_yield_clean)
 
 resid_panel(random)
 ```
@@ -149,12 +149,12 @@ kable(head(pairwise_comparisons))
 
 | contrast  |   estimate |       SE |       df |    t.ratio |   p.value |
 |:----------|-----------:|---------:|---------:|-----------:|----------:|
-| RIC - RIM |  -10.10058 | 189.5939 | 35.73048 | -0.0532748 | 1.0000000 |
-| RIC - RNO |   99.02908 | 184.0104 | 35.03121 |  0.5381710 | 0.9955121 |
-| RIC - TIC | -113.31951 | 184.0104 | 35.03121 | -0.6158319 | 0.9907685 |
-| RIC - TIM |  255.11187 | 184.0104 | 35.03121 |  1.3863988 | 0.6832901 |
-| RIM - RNO |  109.12966 | 189.5939 | 35.73048 |  0.5755969 | 0.9935448 |
-| RIM - TIC | -103.21893 | 189.5939 | 35.73048 | -0.5444212 | 0.9952174 |
+| RIC - RIM | -0.1501923 | 2.819198 | 35.73048 | -0.0532748 | 1.0000000 |
+| RIC - RNO |  1.4725294 | 2.736174 | 35.03121 |  0.5381710 | 0.9955121 |
+| RIC - TIC | -1.6850234 | 2.736174 | 35.03121 | -0.6158319 | 0.9907685 |
+| RIC - TIM |  3.7934286 | 2.736174 | 35.03121 |  1.3863988 | 0.6832901 |
+| RIM - RNO |  1.6227217 | 2.819198 | 35.73048 |  0.5755969 | 0.9935448 |
+| RIM - TIC | -1.5348311 | 2.819198 | 35.73048 | -0.5444212 | 0.9952174 |
 
 ### **Fisher’s method for comparing means**
 
@@ -169,12 +169,12 @@ cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response")
 cld_weed_control_tukey
 ```
 
-    ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  TIC            4735 132 43.9     4470     5000  a    
-    ##  RIM            4632 139 44.0     4351     4912  a    
-    ##  RIC            4621 132 43.9     4356     4887  a    
-    ##  RNO            4522 132 43.9     4257     4788  a    
-    ##  TIM            4366 132 43.9     4101     4631  a    
+    ##  weed_control emmean   SE   df lower.CL upper.CL .group
+    ##  TIC            70.4 1.96 43.9     66.5     74.3  a    
+    ##  RIM            68.9 2.07 44.0     64.7     73.0  a    
+    ##  RIC            68.7 1.96 43.9     64.8     72.7  a    
+    ##  RNO            67.2 1.96 43.9     63.3     71.2  a    
+    ##  TIM            64.9 1.96 43.9     61.0     68.9  a    
     ## 
     ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
@@ -196,10 +196,10 @@ cld_location_tukey <-cld(emmeans(random, ~  location, type = "response"), Letter
 cld_location_tukey
 ```
 
-    ##  location      emmean  SE   df lower.CL upper.CL .group
-    ##  field O2 east   5025 106 8.67     4783     5266  a    
-    ##  field O2 west   4839 110 9.54     4593     5085  a    
-    ##  field x         3862 106 8.67     3620     4103   b   
+    ##  location      emmean   SE   df lower.CL upper.CL .group
+    ##  field O2 east   74.7 1.58 8.67     71.1     78.3  a    
+    ##  field O2 west   72.0 1.63 9.54     68.3     75.6  a    
+    ##  field x         57.4 1.58 8.67     53.8     61.0   b   
     ## 
     ## Results are averaged over the levels of: weed_control 
     ## Degrees-of-freedom method: kenward-roger 
@@ -217,28 +217,28 @@ cld_weed_control_location_tukey
 ```
 
     ## location = field O2 east:
-    ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  RIC            5231 228 43.9     4772     5690  a    
-    ##  RNO            5151 228 43.9     4691     5610  a    
-    ##  RIM            5059 228 43.9     4600     5518  a    
-    ##  TIM            4865 228 43.9     4406     5324  a    
-    ##  TIC            4819 228 43.9     4360     5278  a    
+    ##  weed_control emmean   SE   df lower.CL upper.CL .group
+    ##  RIC            77.8 3.39 43.9     71.0     84.6  a    
+    ##  RNO            76.6 3.39 43.9     69.8     83.4  a    
+    ##  RIM            75.2 3.39 43.9     68.4     82.1  a    
+    ##  TIM            72.3 3.39 43.9     65.5     79.2  a    
+    ##  TIC            71.7 3.39 43.9     64.8     78.5  a    
     ## 
     ## location = field O2 west:
-    ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  TIC            5349 228 43.9     4890     5808  a    
-    ##  TIM            4773 228 43.9     4314     5232  a    
-    ##  RIC            4766 228 43.9     4306     5225  a    
-    ##  RIM            4673 266 44.0     4137     5209  a    
-    ##  RNO            4636 228 43.9     4177     5095  a    
+    ##  weed_control emmean   SE   df lower.CL upper.CL .group
+    ##  TIC            79.5 3.39 43.9     72.7     86.4  a    
+    ##  TIM            71.0 3.39 43.9     64.1     77.8  a    
+    ##  RIC            70.9 3.39 43.9     64.0     77.7  a    
+    ##  RIM            69.5 3.95 44.0     61.5     77.5  a    
+    ##  RNO            68.9 3.39 43.9     62.1     75.8  a    
     ## 
     ## location = field x:
-    ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  RIM            4163 228 43.9     3703     4622  a    
-    ##  TIC            4036 228 43.9     3577     4496  a    
-    ##  RIC            3868 228 43.9     3409     4327  a    
-    ##  RNO            3781 228 43.9     3321     4240  a    
-    ##  TIM            3461 228 43.9     3002     3920  a    
+    ##  weed_control emmean   SE   df lower.CL upper.CL .group
+    ##  RIM            61.9 3.39 43.9     55.1     68.7  a    
+    ##  TIC            60.0 3.39 43.9     53.2     66.8  a    
+    ##  RIC            57.5 3.39 43.9     50.7     64.3  a    
+    ##  RNO            56.2 3.39 43.9     49.4     63.0  a    
+    ##  TIM            51.5 3.39 43.9     44.6     58.3  a    
     ## 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
@@ -255,13 +255,13 @@ cld_weed_control_location_tukey
 ``` r
 bean_yield_clean |> 
   left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = weed_control, y = bean_yield_adj_kg_ha, fill = weed_control)) +
+  ggplot(aes(x = weed_control, y = bean_yield_adj_bu_acre, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Method of interrow weed control",
-    y = expression("Soybean yield" ~ (kg ~ ha^{-1})),
+    y = expression("Soybean yield" ~ (bu ~ acre^{-1})),
     title = str_c("The influence of the method of interrow weed control on soybean yield"),
     subtitle = expression(italic("Not signficant"))) +
   
@@ -297,13 +297,13 @@ ggsave("beanydall_plot_cutivation.png", width = 8, height = 6, dpi = 300)
 ``` r
 bean_yield_clean |> 
   left_join(cld_location_tukey) |> 
-  ggplot(aes(x = location, y = bean_yield_adj_kg_ha, fill = location)) +
+  ggplot(aes(x = location, y = bean_yield_adj_bu_acre, fill = location)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Field location",
-    y = expression("Soybean yield" ~ (kg ~ ha^{-1})),
+    x = "Location",
+    y = expression("Soybean yield" ~ (bu ~ A^{-1})),
     title = str_c("The influence of location on soybean yield"),
     subtitle = expression(italic("P < 0.005"))) +
    scale_x_discrete(labels = c("Field O2 East ",

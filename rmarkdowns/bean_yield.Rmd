@@ -93,7 +93,7 @@ kable(head(bean_yield_clean))
 Last meeting we updated the model and determined that for most of mhy work, block should be random using model below and that post hoc comparisons should use TUKEY ratther the Fischer. 
 
 ```{r}
-random <- lmer( bean_yield_adj_kg_ha  ~ location+weed_control + location:weed_control +(1|location:block) , data =  bean_yield_clean)
+random <- lmer( bean_yield_adj_bu_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data =  bean_yield_clean)
 
 resid_panel(random)
 ```
@@ -144,13 +144,13 @@ cld_weed_control_location_tukey
 ```{r message=FALSE}
 bean_yield_clean |> 
   left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = weed_control, y = bean_yield_adj_kg_ha, fill = weed_control)) +
+  ggplot(aes(x = weed_control, y = bean_yield_adj_bu_acre, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Method of interrow weed control",
-    y = expression("Soybean yield" ~ (kg ~ ha^{-1})),
+    y = expression("Soybean yield" ~ (bu ~ acre^{-1})),
     title = str_c("The influence of the method of interrow weed control on soybean yield"),
     subtitle = expression(italic("Not signficant"))) +
   
@@ -175,13 +175,13 @@ ggsave("beanydall_plot_cutivation.png", width = 8, height = 6, dpi = 300)
 ```{r message=FALSE}
 bean_yield_clean |> 
   left_join(cld_location_tukey) |> 
-  ggplot(aes(x = location, y = bean_yield_adj_kg_ha, fill = location)) +
+  ggplot(aes(x = location, y = bean_yield_adj_bu_acre, fill = location)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Field location",
-    y = expression("Soybean yield" ~ (kg ~ ha^{-1})),
+    x = "Location",
+    y = expression("Soybean yield" ~ (bu ~ A^{-1})),
     title = str_c("The influence of location on soybean yield"),
     subtitle = expression(italic("P < 0.005"))) +
    scale_x_discrete(labels = c("Field O2 East ",
