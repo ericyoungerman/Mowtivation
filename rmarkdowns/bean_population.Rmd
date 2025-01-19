@@ -112,7 +112,7 @@ kable(head(pairwise_comparisons))
 cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_location_tukey
 ```
-
+#FIGURES
 ## **location**
 
 ```{r message=FALSE, warning=FALSE}
