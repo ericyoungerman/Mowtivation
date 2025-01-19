@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "Soybean emergence"
 output: github_document
 ---
 
@@ -98,13 +98,6 @@ pairwise_comparisons<- pairs(means)
 kable(head(pairwise_comparisons))
 ```
 
-### **Tukey's method for comparing means**
-
-```{r}
-#weed control
-cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_weed_control_tukey
-```
 
 
 ```{r}
@@ -112,31 +105,26 @@ cld_weed_control_tukey
 cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_location_tukey
 ```
+#FIGURES
+## **location**
 
-# **FIGURES**
-
-## **Cultivation**
-#For these figures, why doesn't it let my use weed_biomass_kg_ha for my Y value?
-
-```{r message=FALSE}
+```{r message=FALSE, warning=FALSE}
 bean_emergence_clean |> 
-  left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = weed_control, y = bean_emergence_acre, fill = weed_control)) +
+  left_join(cld_location_tukey) |> 
+  ggplot(aes(x = location, y = bean_emergence_acre, fill = location)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
-  labs(
-    x = "Interrow weed control",
-    y = expression("Soybean emergence" ~ (plants ~ A)),
-    title = str_c("Influence of interrow weed control on weed biomass"),
-    subtitle = expression(italic("P < 0.005"))) +
   
-  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
-                              "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nno additional\nweed control",
-                          "Tilled,\nstandard\ncultivation",
-                              "Tilled,\ninterrow\nmowing")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  labs(
+    x = "Location",
+    y = expression("Soybean population" ~ (plants ~ A^{-1})),
+    title = str_c("The influence of location on soybean emergence"),
+    subtitle = expression(italic("P < 0.005"))) +
+   scale_x_discrete(labels = c("Field O2 East ",
+                              "Field O2 West",
+                              "Field X")) +
+  scale_y_continuous(labels = scales::label_comma(),expand = expansion(mult = c(0.05, 0.3))) +
   scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
    theme_bw() +
   theme(
@@ -144,5 +132,5 @@ bean_emergence_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("bean_emergence_weed_control_A.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_emergence_location_Ac.png", width = 8, height = 6, dpi = 300)
 ```

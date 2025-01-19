@@ -1,4 +1,4 @@
-Untitled
+Soybean emergence
 ================
 
 ------------------------------------------------------------------------
@@ -127,35 +127,6 @@ kable(head(pairwise_comparisons))
 | RIM - RNO |   9072.874 | 7484.258 |  36 |  1.2122611 | 0.7968936 |
 | RIM - TIC | -15711.563 | 7484.258 |  36 | -2.0992813 | 0.2311649 |
 
-### **Tukey’s method for comparing means**
-
-``` r
-#weed control
-cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-```
-
-    ## NOTE: Results may be misleading due to involvement in interactions
-
-``` r
-cld_weed_control_tukey
-```
-
-    ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  TIM          243640 5430 44.6   232706   254574  a    
-    ##  TIC          243640 5430 44.6   232706   254574  a    
-    ##  RIM          227928 5430 44.6   216995   238862  ab   
-    ##  RIC          225494 5430 44.6   214560   236428  ab   
-    ##  RNO          218855 5430 44.6   207922   229789   b   
-    ## 
-    ## Results are averaged over the levels of: location 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## Confidence level used: 0.95 
-    ## P value adjustment: tukey method for comparing a family of 5 estimates 
-    ## significance level used: alpha = 0.05 
-    ## NOTE: If two or more means share the same grouping symbol,
-    ##       then we cannot show them to be different.
-    ##       But we also did not show them to be the same.
-
 ``` r
 #location
 cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
@@ -181,32 +152,25 @@ cld_location_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-# **FIGURES**
-
-## **Cultivation**
-
-\#For these figures, why doesn’t it let my use weed_biomass_kg_ha for my
-Y value?
+\#FIGURES \## **location**
 
 ``` r
 bean_emergence_clean |> 
-  left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = weed_control, y = bean_emergence_acre, fill = weed_control)) +
+  left_join(cld_location_tukey) |> 
+  ggplot(aes(x = location, y = bean_emergence_acre, fill = location)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
-  labs(
-    x = "Interrow weed control",
-    y = expression("Soybean emergence" ~ (plants ~ A)),
-    title = str_c("Influence of interrow weed control on weed biomass"),
-    subtitle = expression(italic("P < 0.005"))) +
   
-  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
-                              "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nno additional\nweed control",
-                          "Tilled,\nstandard\ncultivation",
-                              "Tilled,\ninterrow\nmowing")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  labs(
+    x = "Location",
+    y = expression("Soybean population" ~ (plants ~ A^{-1})),
+    title = str_c("The influence of location on soybean emergence"),
+    subtitle = expression(italic("P < 0.005"))) +
+   scale_x_discrete(labels = c("Field O2 East ",
+                              "Field O2 West",
+                              "Field X")) +
+  scale_y_continuous(labels = scales::label_comma(),expand = expansion(mult = c(0.05, 0.3))) +
   scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
    theme_bw() +
   theme(
@@ -216,8 +180,8 @@ bean_emergence_clean |>
   )
 ```
 
-![](bean_emergence_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](bean_emergence_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
 
 ``` r
-ggsave("bean_emergence_weed_control_A.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_emergence_location_Ac.png", width = 8, height = 6, dpi = 300)
 ```
