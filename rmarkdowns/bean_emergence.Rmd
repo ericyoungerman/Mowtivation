@@ -1,0 +1,49 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# **Load libraries**
+
+```{r message=FALSE, warning=FALSE}
+#Set work directory
+setwd("/Users/ey239/Github/Mowtivation/rmarkdowns")
+
+#Load packages 
+library(tidyverse) ##install.packages("tidyverse")
+library(knitr)
+library(patchwork) ##install.packages("patchwork")
+library(skimr)     ##install.packages("skimr")
+library(readxl)
+library(janitor) ##install.packages("janitor")
+
+library(kableExtra) ##install.packages("kableExtra")
+library(webshot) ##install.packages("webshot")
+webshot::install_phantomjs()
+library(viridis) ##install.packages("viridis")
+library(lme4) ##install.packages("lme4")
+library(lmerTest) ##install.packages("lmerTest")
+library(emmeans) ##install.packages("emmeans")
+library(rstatix) ##install.packages("rstatix")
+#library(Matrix) ##install.packages("Matrix")
+library(multcomp) ##install.packages("multcomp")
+library(multcompView) ##install.packages("multcompView")
+library(ggResidpanel) ##install.packages("ggResidpanel")
+#library(car)
+#library(TMB)  ##install.packages("TMB")
+#library(glmmTMB)  ##install.packages("glmmTMB")
+#library(DHARMa)  ##install.packages("DHARMa")
+
+#Load Functions
+MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
+
+find_logw0=function(x){c=trunc(log(min(x[x>0],na.rm=T)))
+d=exp(c)
+return(d)}
+```
+<br>
