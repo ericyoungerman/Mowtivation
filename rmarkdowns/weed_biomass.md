@@ -95,7 +95,7 @@ work, block should be random using model below and that post hoc
 comparisons should use TUKEY ratther the Fischer.
 
 ``` r
-random <- lmer(weed_biomass_kg_ha  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
+random <- lmer(weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
 
 resid_panel(random)
 ```
@@ -109,11 +109,11 @@ summary(random)
     ## Linear mixed model fit by REML. t-tests use Satterthwaite's method [
     ## lmerModLmerTest]
     ## Formula: 
-    ## weed_biomass_kg_ha ~ location + weed_control + location:weed_control +  
+    ## weed_biomass_lbs_ac ~ location + weed_control + location:weed_control +  
     ##     (1 | location:block)
     ##    Data: weed_biomass_clean
     ## 
-    ## REML criterion at convergence: 639.7
+    ## REML criterion at convergence: 629.4
     ## 
     ## Scaled residuals: 
     ##      Min       1Q   Median       3Q      Max 
@@ -121,27 +121,27 @@ summary(random)
     ## 
     ## Random effects:
     ##  Groups         Name        Variance Std.Dev.
-    ##  location:block (Intercept)  2151     46.38  
-    ##  Residual                   52991    230.20  
+    ##  location:block (Intercept)  1712     41.38  
+    ##  Residual                   42180    205.38  
     ## Number of obs: 60, groups:  location:block, 12
     ## 
     ## Fixed effects:
-    ##                                       Estimate Std. Error       df t value
-    ## (Intercept)                              2.275    117.412   44.728   0.019
-    ## locationfield O2 west                  269.975    166.045   44.728   1.626
-    ## locationfield x                        423.625    166.045   44.728   2.551
-    ## weed_controlRIM                         21.950    162.774   36.000   0.135
-    ## weed_controlRNO                        122.475    162.774   36.000   0.752
-    ## weed_controlTIC                         91.450    162.774   36.000   0.562
-    ## weed_controlTIM                        130.575    162.774   36.000   0.802
-    ## locationfield O2 west:weed_controlRIM -206.425    230.197   36.000  -0.897
-    ## locationfield x:weed_controlRIM       -209.700    230.197   36.000  -0.911
-    ## locationfield O2 west:weed_controlRNO -147.525    230.197   36.000  -0.641
-    ## locationfield x:weed_controlRNO       -128.825    230.197   36.000  -0.560
-    ## locationfield O2 west:weed_controlTIC -351.550    230.197   36.000  -1.527
-    ## locationfield x:weed_controlTIC        336.375    230.197   36.000   1.461
-    ## locationfield O2 west:weed_controlTIM -207.825    230.197   36.000  -0.903
-    ## locationfield x:weed_controlTIM        627.875    230.197   36.000   2.728
+    ##                                       Estimate Std. Error      df t value
+    ## (Intercept)                               2.03     104.75   44.73   0.019
+    ## locationfield O2 west                   240.87     148.14   44.73   1.626
+    ## locationfield x                         377.95     148.14   44.73   2.551
+    ## weed_controlRIM                          19.58     145.22   36.00   0.135
+    ## weed_controlRNO                         109.27     145.22   36.00   0.752
+    ## weed_controlTIC                          81.59     145.22   36.00   0.562
+    ## weed_controlTIM                         116.50     145.22   36.00   0.802
+    ## locationfield O2 west:weed_controlRIM  -184.17     205.38   36.00  -0.897
+    ## locationfield x:weed_controlRIM        -187.09     205.38   36.00  -0.911
+    ## locationfield O2 west:weed_controlRNO  -131.62     205.38   36.00  -0.641
+    ## locationfield x:weed_controlRNO        -114.94     205.38   36.00  -0.560
+    ## locationfield O2 west:weed_controlTIC  -313.65     205.38   36.00  -1.527
+    ## locationfield x:weed_controlTIC         300.11     205.38   36.00   1.461
+    ## locationfield O2 west:weed_controlTIM  -185.42     205.38   36.00  -0.903
+    ## locationfield x:weed_controlTIM         560.18     205.38   36.00   2.728
     ##                                       Pr(>|t|)   
     ## (Intercept)                             0.9846   
     ## locationfield O2 west                   0.1110   
@@ -217,14 +217,14 @@ pairwise_comparisons<- pairs(means)
 kable(head(pairwise_comparisons))
 ```
 
-| contrast  |   estimate |      SE |  df |    t.ratio |   p.value |
-|:----------|-----------:|--------:|----:|-----------:|----------:|
-| RIC - RIM |  116.75833 | 93.9776 |  36 |  1.2424060 | 0.7784467 |
-| RIC - RNO |  -30.35833 | 93.9776 |  36 | -0.3230380 | 0.9997472 |
-| RIC - TIC |  -86.39167 | 93.9776 |  36 | -0.9192793 | 0.9338602 |
-| RIC - TIM | -270.59167 | 93.9776 |  36 | -2.8793208 | 0.0393548 |
-| RIM - RNO | -147.11667 | 93.9776 |  36 | -1.5654439 | 0.5549704 |
-| RIM - TIC | -203.15000 | 93.9776 |  36 | -2.1616853 | 0.2042768 |
+| contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
+|:----------|-----------:|---------:|----:|-----------:|----------:|
+| RIC - RIM |  104.16933 | 83.84484 |  36 |  1.2424060 | 0.7784467 |
+| RIC - RNO |  -27.08507 | 83.84484 |  36 | -0.3230380 | 0.9997472 |
+| RIC - TIC |  -77.07683 | 83.84484 |  36 | -0.9192793 | 0.9338602 |
+| RIC - TIM | -241.41620 | 83.84484 |  36 | -2.8793208 | 0.0393548 |
+| RIM - RNO | -131.25440 | 83.84484 |  36 | -1.5654439 | 0.5549704 |
+| RIM - TIC | -181.24616 | 83.84484 |  36 | -2.1616853 | 0.2042768 |
 
 ### **Tukey’s method for comparing means**
 
@@ -240,11 +240,11 @@ cld_weed_control_tukey
 ```
 
     ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  TIM             504 67.8 44.7    367.5      641  a    
-    ##  TIC             320 67.8 44.7    183.3      456  ab   
-    ##  RNO             264 67.8 44.7    127.3      400  ab   
-    ##  RIC             233 67.8 44.7     96.9      370   b   
-    ##  RIM             117 67.8 44.7    -19.8      253   b   
+    ##  TIM             450 60.5 44.7    327.9      572  a    
+    ##  TIC             285 60.5 44.7    163.5      407  ab   
+    ##  RNO             235 60.5 44.7    113.6      357  ab   
+    ##  RIC             208 60.5 44.7     86.5      330   b   
+    ##  RIM             104 60.5 44.7    -17.7      226   b   
     ## 
     ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
@@ -267,9 +267,9 @@ cld_location_tukey
 ```
 
     ##  location      emmean   SE df lower.CL upper.CL .group
-    ##  field x        624.3 56.5  9    496.6      752  a    
-    ##  field O2 west  162.9 56.5  9     35.2      291   b   
-    ##  field O2 east   75.6 56.5  9    -52.1      203   b   
+    ##  field x        557.0 50.4  9    443.1      671  a    
+    ##  field O2 west  145.3 50.4  9     31.4      259   b   
+    ##  field O2 east   67.4 50.4  9    -46.5      181   b   
     ## 
     ## Results are averaged over the levels of: weed_control 
     ## Degrees-of-freedom method: kenward-roger 
@@ -288,27 +288,27 @@ cld_weed_control_location_tukey
 
     ## location = field O2 east:
     ##  weed_control  emmean  SE   df lower.CL upper.CL .group
-    ##  TIM           132.85 117 44.7  -103.67      369  a    
-    ##  RNO           124.75 117 44.7  -111.77      361  a    
-    ##  TIC            93.72 117 44.7  -142.79      330  a    
-    ##  RIM            24.23 117 44.7  -212.29      261  a    
-    ##  RIC             2.27 117 44.7  -234.24      239  a    
+    ##  TIM           118.53 105 44.7   -92.49      330  a    
+    ##  RNO           111.30 105 44.7   -99.72      322  a    
+    ##  TIC            83.62 105 44.7  -127.40      295  a    
+    ##  RIM            21.61 105 44.7  -189.40      233  a    
+    ##  RIC             2.03 105 44.7  -208.99      213  a    
     ## 
     ## location = field O2 west:
     ##  weed_control  emmean  SE   df lower.CL upper.CL .group
-    ##  RIC           272.25 117 44.7    35.73      509  a    
-    ##  RNO           247.20 117 44.7    10.68      484  a    
-    ##  TIM           195.00 117 44.7   -41.52      432  a    
-    ##  RIM            87.78 117 44.7  -148.74      324  a    
-    ##  TIC            12.15 117 44.7  -224.37      249  a    
+    ##  RIC           242.90 105 44.7    31.88      454  a    
+    ##  RNO           220.55 105 44.7     9.53      432  a    
+    ##  TIM           173.97 105 44.7   -37.04      385  a    
+    ##  RIM            78.31 105 44.7  -132.71      289  a    
+    ##  TIC            10.84 105 44.7  -200.18      222  a    
     ## 
     ## location = field x:
     ##  weed_control  emmean  SE   df lower.CL upper.CL .group
-    ##  TIM          1184.35 117 44.7   947.83     1421  a    
-    ##  TIC           853.73 117 44.7   617.21     1090  ab   
-    ##  RIC           425.90 117 44.7   189.38      662   bc  
-    ##  RNO           419.55 117 44.7   183.03      656   bc  
-    ##  RIM           238.15 117 44.7     1.63      475    c  
+    ##  TIM          1056.65 105 44.7   845.64     1268  a    
+    ##  TIC           761.68 105 44.7   550.66      973  ab   
+    ##  RIC           379.98 105 44.7   168.96      591   bc  
+    ##  RNO           374.31 105 44.7   163.30      585   bc  
+    ##  RIM           212.47 105 44.7     1.46      423    c  
     ## 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
@@ -328,14 +328,14 @@ Y value?
 ``` r
 weed_biomass_clean |> 
   left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = weed_control, y = emmean, fill = weed_control)) +
+  ggplot(aes(x = weed_control, y = weed_biomass_lbs_ac, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Interrow weed control method",
-    y = expression("Weed biomass" ~ (kg ~ ha^{-1})),
-    title = str_c("The influence of interrow weed control method on weed biomass"),
+    x = "Interrow weed control",
+    y = expression("Weed biomass" ~ (lb ~ A^{-1})),
+    title = str_c("Influence of interrow weed control on weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
@@ -356,7 +356,7 @@ weed_biomass_clean |>
 ![](weed_biomass_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
 
 ``` r
-ggsave("weed_biomass_weed_control.png", width = 8, height = 6, dpi = 300)
+ggsave("weed_biomass_weed_control_lbA.png", width = 8, height = 6, dpi = 300)
 ```
 
 ## \*\*weed_control:location\*
@@ -364,15 +364,15 @@ ggsave("weed_biomass_weed_control.png", width = 8, height = 6, dpi = 300)
 ``` r
 weed_biomass_clean |> 
   left_join(cld_weed_control_location_tukey) |> 
-  ggplot(aes(x = weed_control, y = weed_biomass_kg_ha, fill = weed_control)) +
+  ggplot(aes(x = weed_control, y = weed_biomass_lbs_ac, fill = weed_control)) +
   facet_wrap(~location )+
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Method of interrow weed control",
-    y = expression("Weed biomass" ~ (kg ~ ha^{-1})),
-    title = str_c("Influence of the method of interrow weed control on weed biomass"),
+    y = expression("Weed biomass" ~ (lb ~ A^{-1})),
+    title = str_c("Influence of interrow weed control on weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
@@ -393,7 +393,7 @@ weed_biomass_clean |>
 ![](weed_biomass_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
 
 ``` r
-ggsave("weed_biomass_weed_control_location.png", width = 12, height = 6, dpi = 300)
+ggsave("weed_biomass_weed_control_location_lbA.png", width = 12, height = 6, dpi = 300)
 ```
 
 \#Ask tyler if a transformation may be appopriate due to such low values

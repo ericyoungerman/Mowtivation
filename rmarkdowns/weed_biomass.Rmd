@@ -81,7 +81,7 @@ kable(head(weed_biomass_clean))
 Last meeting we updated the model and determined that for most of mhy work, block should be random using model below and that post hoc comparisons should use TUKEY ratther the Fischer. 
 
 ```{r}
-random <- lmer(weed_biomass_kg_ha  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
+random <- lmer(weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
 
 resid_panel(random)
 ```
@@ -142,14 +142,14 @@ cld_weed_control_location_tukey
 ```{r message=FALSE}
 weed_biomass_clean |> 
   left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = weed_control, y = emmean, fill = weed_control)) +
+  ggplot(aes(x = weed_control, y = weed_biomass_lbs_ac, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Interrow weed control method",
-    y = expression("Weed biomass" ~ (kg ~ ha^{-1})),
-    title = str_c("The influence of interrow weed control method on weed biomass"),
+    x = "Interrow weed control",
+    y = expression("Weed biomass" ~ (lb ~ A^{-1})),
+    title = str_c("Influence of interrow weed control on weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
@@ -165,22 +165,22 @@ weed_biomass_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("weed_biomass_weed_control.png", width = 8, height = 6, dpi = 300)
+ggsave("weed_biomass_weed_control_lbA.png", width = 8, height = 6, dpi = 300)
 ```
 
 ## **weed_control:location*
 ```{r message=FALSE}
 weed_biomass_clean |> 
   left_join(cld_weed_control_location_tukey) |> 
-  ggplot(aes(x = weed_control, y = weed_biomass_kg_ha, fill = weed_control)) +
+  ggplot(aes(x = weed_control, y = weed_biomass_lbs_ac, fill = weed_control)) +
   facet_wrap(~location )+
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Method of interrow weed control",
-    y = expression("Weed biomass" ~ (kg ~ ha^{-1})),
-    title = str_c("Influence of the method of interrow weed control on weed biomass"),
+    y = expression("Weed biomass" ~ (lb ~ A^{-1})),
+    title = str_c("Influence of interrow weed control on weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
@@ -196,7 +196,7 @@ weed_biomass_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("weed_biomass_weed_control_location.png", width = 12, height = 6, dpi = 300)
+ggsave("weed_biomass_weed_control_location_lbA.png", width = 12, height = 6, dpi = 300)
 ```
 
 #Ask tyler if a transformation may be appopriate due to such low values and number of zeros for weeds in field O2 East and O2 West
