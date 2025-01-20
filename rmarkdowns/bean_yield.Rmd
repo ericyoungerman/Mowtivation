@@ -150,7 +150,7 @@ cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location, 
 cld_weed_control_location_tukey
 ```
 <br>
-# FIGURES
+# Figures
 
 ## Weed-control (NS)
 

@@ -6,7 +6,7 @@ output: github_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-# **Load libraries**
+# Load libraries
 
 ```{r message=FALSE, warning=FALSE}
 #Set work directory
@@ -46,16 +46,16 @@ return(d)}
 ```
 <br>
 
-# **Load and Clean Data**
+# Load and clean data
 
-### **Load individual datasets**
+## Load data
 
 ``` {r}
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
 kable(head(combined_raw))
 
 ```
-
+##Clean data
 
 ```{r}
 
@@ -75,26 +75,25 @@ weed_biomass_clean <-clean_combined |>
 kable(head(weed_biomass_clean)) 
 ```
 <br>
-### **block is random**
-#Ask tyler about model format, should block always be fixed, etc. should location be nested in year? Do i need to transform data if zeros are present? How to separate year from location? 
+# Model testing
 
-Last meeting we updated the model and determined that for most of mhy work, block should be random using model below and that post hoc comparisons should use TUKEY ratther the Fischer. 
+Block is random
+Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
+## Lmer
 ```{r}
 random <- lmer(weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
 
 resid_panel(random)
 ```
-
+## Summary
 ```{r}
 summary(random)
-weed_biomass_clean |> count(year,location
-                            ,weed_control)
+weed_biomass_clean |> count(year,location,weed_control)
 
 ```
 
-
-##**Joint test**
+## Joint test (anova)
 ```{r}
 random |> 
   joint_tests() |> 
@@ -102,42 +101,57 @@ random |>
 ```
 <br>
 
-# **Means comparison of totwbm**
-
+## Means comparison
+### Weed-control (S)
 ```{r message=FALSE}
-means <- 
- emmeans(random, ~  weed_control)
-# Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
-
-pairwise_comparisons<- pairs(means) 
-kable(head(pairwise_comparisons))
+means_weed_control <- emmeans(random, ~  weed_control)
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
 ```
-### **Tukey's method for comparing means**
+<br>
+
+### Location (S)
+```{r message=FALSE}
+means_location <- emmeans(random, ~  location)
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+
+### Location|weed-control (S)
+```{r message=FALSE}
+means_weed_control_location <- emmeans(random, ~  weed_control|location)
+pairwise_comparisons_weed_control_location<- pairs(means_weed_control_location) 
+kable(head(pairwise_comparisons_weed_control_location))
+```
+
+
+<br>
+
+## Tukey compact letter display
+### Weed-control (S)
 
 ```{r}
-#mowing
 cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_weed_control_tukey
 ```
+<br>
 
-
-
+### Location (S)
 ```{r}
 #location
 cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_location_tukey
 ```
+<br>
 
+### Weed-control:Location (S)
 ```{r}
 #weed_control|location
 cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_weed_control_location_tukey
 ```
-
-# **FIGURES**
-
-## **Cultivation**
-#For these figures, why doesn't it let my use weed_biomass_kg_ha for my Y value?
+# Figures
+## Weed-control (S)
 
 ```{r message=FALSE}
 weed_biomass_clean |> 
@@ -168,7 +182,7 @@ weed_biomass_clean |>
 ggsave("weed_biomass_weed_control_lbA.png", width = 8, height = 6, dpi = 300)
 ```
 
-## **weed_control:location*
+## Weed_control:location (S)
 ```{r message=FALSE}
 weed_biomass_clean |> 
   left_join(cld_weed_control_location_tukey) |> 
@@ -178,7 +192,7 @@ weed_biomass_clean |>
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Method of interrow weed control",
+    x = "Interrow weed control",
     y = expression("Weed biomass" ~ (lb ~ A^{-1})),
     title = str_c("Influence of interrow weed control and location on weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +

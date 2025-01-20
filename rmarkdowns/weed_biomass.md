@@ -1,7 +1,7 @@
 Weed biomass
 ================
 
-# **Load libraries**
+# Load libraries
 
 ``` r
 #Set work directory
@@ -42,9 +42,9 @@ return(d)}
 
 <br>
 
-# **Load and Clean Data**
+# Load and clean data
 
-### **Load individual datasets**
+## Load data
 
 ``` r
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
@@ -59,6 +59,8 @@ kable(head(combined_raw))
 | CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 |
 | CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 |
 | CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 |
+
+\##Clean data
 
 ``` r
 #Standardaze column names, convert to factors, check for outliers of variable**
@@ -85,14 +87,13 @@ kable(head(weed_biomass_clean))
 | CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 | 45.04 | 450.4 | 401.83742 |
 | CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 51.71 | 517.1 | 461.34576 |
 
-<br> \### **block is random** \#Ask tyler about model format, should
-block always be fixed, etc. should location be nested in year? Do i need
-to transform data if zeros are present? How to separate year from
-location?
+<br> \# Model testing
 
-Last meeting we updated the model and determined that for most of mhy
-work, block should be random using model below and that post hoc
-comparisons should use TUKEY ratther the Fischer.
+Block is random Tyler is under the impression that block should always
+be random and that post-hoc comparisons should use TUKEY rather the
+Fischer. Fisher is bogus apparently.
+
+## Lmer
 
 ``` r
 random <- lmer(weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
@@ -100,7 +101,8 @@ random <- lmer(weed_biomass_lbs_ac  ~ location+weed_control + location:weed_cont
 resid_panel(random)
 ```
 
-![](weed_biomass_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+![](weed_biomass_files/figure-gfm/unnamed-chunk-4-1.png)<!-- --> \##
+Summary
 
 ``` r
 summary(random)
@@ -167,8 +169,7 @@ summary(random)
     ##     vcov(x)        if you need it
 
 ``` r
-weed_biomass_clean |> count(year,location
-                            ,weed_control)
+weed_biomass_clean |> count(year,location,weed_control)
 ```
 
     ## # A tibble: 15 × 4
@@ -190,7 +191,7 @@ weed_biomass_clean |> count(year,location
     ## 14 2024  field O2 west TIC              4
     ## 15 2024  field O2 west TIM              4
 
-\##**Joint test**
+## Joint test (anova)
 
 ``` r
 random |> 
@@ -206,15 +207,14 @@ random |>
 
 <br>
 
-# **Means comparison of totwbm**
+## Means comparison
+
+### Weed-control (S)
 
 ``` r
-means <- 
- emmeans(random, ~  weed_control)
-# Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
-
-pairwise_comparisons<- pairs(means) 
-kable(head(pairwise_comparisons))
+means_weed_control <- emmeans(random, ~  weed_control)
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
 ```
 
 | contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
@@ -226,10 +226,46 @@ kable(head(pairwise_comparisons))
 | RIM - RNO | -131.25440 | 83.84484 |  36 | -1.5654439 | 0.5549704 |
 | RIM - TIC | -181.24616 | 83.84484 |  36 | -2.1616853 | 0.2042768 |
 
-### **Tukey’s method for comparing means**
+<br>
+
+### Location (S)
 
 ``` r
-#mowing
+means_location <- emmeans(random, ~  location)
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+
+| contrast                      |   estimate |      SE |  df |   t.ratio |   p.value |
+|:------------------------------|-----------:|--------:|----:|----------:|----------:|
+| field O2 east - field O2 west |  -77.89615 | 71.2328 |   9 | -1.093543 | 0.6607478 |
+| field O2 east - field x       | -489.60107 | 71.2328 |   9 | -6.873253 | 0.0002184 |
+| field O2 west - field x       | -411.70492 | 71.2328 |   9 | -5.779710 | 0.0007983 |
+
+### Location\|weed-control (S)
+
+``` r
+means_weed_control_location <- emmeans(random, ~  weed_control|location)
+pairwise_comparisons_weed_control_location<- pairs(means_weed_control_location) 
+kable(head(pairwise_comparisons_weed_control_location))
+```
+
+| contrast  | location      |   estimate |       SE |  df |    t.ratio |   p.value |
+|:----------|:--------------|-----------:|---------:|----:|-----------:|----------:|
+| RIC - RIM | field O2 east |  -19.58333 | 145.2235 |  36 | -0.1348496 | 0.9999985 |
+| RIC - RNO | field O2 east | -109.26962 | 145.2235 |  36 | -0.7524237 | 0.9742786 |
+| RIC - TIC | field O2 east |  -81.58977 | 145.2235 |  36 | -0.5618220 | 0.9943296 |
+| RIC - TIM | field O2 east | -116.49627 | 145.2235 |  36 | -0.8021859 | 0.9648682 |
+| RIM - RNO | field O2 east |  -89.68629 | 145.2235 |  36 | -0.6175741 | 0.9906172 |
+| RIM - TIC | field O2 east |  -62.00644 | 145.2235 |  36 | -0.4269724 | 0.9987535 |
+
+<br>
+
+## Tukey compact letter display
+
+### Weed-control (S)
+
+``` r
 cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 ```
 
@@ -255,6 +291,10 @@ cld_weed_control_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
+<br>
+
+### Location (S)
+
 ``` r
 #location
 cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
@@ -279,6 +319,10 @@ cld_location_tukey
     ## NOTE: If two or more means share the same grouping symbol,
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
+
+<br>
+
+### Weed-control:Location (S)
 
 ``` r
 #weed_control|location
@@ -318,12 +362,9 @@ cld_weed_control_location_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-# **FIGURES**
+# Figures
 
-## **Cultivation**
-
-\#For these figures, why doesn’t it let my use weed_biomass_kg_ha for my
-Y value?
+## Weed-control (S)
 
 ``` r
 weed_biomass_clean |> 
@@ -353,13 +394,13 @@ weed_biomass_clean |>
   )
 ```
 
-![](weed_biomass_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](weed_biomass_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
 
 ``` r
 ggsave("weed_biomass_weed_control_lbA.png", width = 8, height = 6, dpi = 300)
 ```
 
-## \*\*weed_control:location\*
+## Weed_control:location (S)
 
 ``` r
 weed_biomass_clean |> 
@@ -370,7 +411,7 @@ weed_biomass_clean |>
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Method of interrow weed control",
+    x = "Interrow weed control",
     y = expression("Weed biomass" ~ (lb ~ A^{-1})),
     title = str_c("Influence of interrow weed control and location on weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
@@ -390,7 +431,7 @@ weed_biomass_clean |>
   )
 ```
 
-![](weed_biomass_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+![](weed_biomass_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
 
 ``` r
 ggsave("weed_biomass_weed_control_location_lbA.png", width = 12, height = 6, dpi = 300)
