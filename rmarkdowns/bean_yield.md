@@ -41,9 +41,9 @@ return(d)}
 
 <br>
 
-# Load and Clean Data
+# Load and clean data
 
-## Load Data
+## Load data
 
 ``` r
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
@@ -61,7 +61,7 @@ kable(head(combined_raw))
 
 <br>
 
-## Clean Data
+## Clean data
 
 ``` r
 #Standardaze column names, convert to factors, check for outliers of variable**
@@ -172,7 +172,7 @@ kable(head(pairwise_comparisons_location))
 
 <br>
 
-## Tukey Compact Letter Display
+## Tukey compact letter display
 
 ### Weed-control (NS)
 
