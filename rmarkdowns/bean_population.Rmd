@@ -10,7 +10,7 @@ Only location had a sigificant impact on soybean population.
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# **Load libraries**
+# Load libraries
 
 ```{r message=FALSE, warning=FALSE}
 #Set work directory
@@ -49,9 +49,9 @@ d=exp(c)
 return(d)}
 ```
 <br>
-# **Load and Clean Data**
+# Load and clean data**
 
-### **Load individual datasets**
+## Load data
 
 ``` {r}
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
@@ -61,7 +61,7 @@ kable(head(combined_raw))
 
 <br>
 
-summary(clean_combined)
+## Clean data
 
 ```{r}
 #Standardaze column names, convert to factors, check for outliers of variable**
@@ -79,41 +79,52 @@ bean_population_clean <-clean_combined |>
 
 kable(head(bean_population_clean)) 
 ```
-
-<br>
-
+# Model testing
+## Lmer
+Block is random
+Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently.
 ```{r}
 random <- lmer(bean_population_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data = bean_population_clean)
 
 resid_panel(random)
 ```
 
-##**Joint test**
+br>
+
+## Joint test (anova)
 ```{r}
 random |> 
   joint_tests() |> 
   kable()  
 ```
 
-# **Means comparison of totwbm**
-
+## Means comparison
+### Weed-control (NS)
 ```{r message=FALSE}
-means <- 
- emmeans(random, ~  weed_control)
-# Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
-
-pairwise_comparisons<- pairs(means) 
-kable(head(pairwise_comparisons))
+means_weed_control <- emmeans(random, ~  weed_control)
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
 ```
-
+<br>
+### Location (S)
+```{r message=FALSE}
+means_location <- emmeans(random, ~  location)
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+## Tukey compact letter display
+### Location (S)
 
 ```{r}
 #location
 cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_location_tukey
 ```
-#FIGURES
-## **location**
+
+<br>
+# Figures
+
+## Location (S)
 
 ```{r message=FALSE, warning=FALSE}
 bean_population_clean |> 

@@ -3,7 +3,7 @@ Soybean population
 
 Only location had a sigificant impact on soybean population.
 
-# **Load libraries**
+# Load libraries
 
 ``` r
 #Set work directory
@@ -42,9 +42,9 @@ d=exp(c)
 return(d)}
 ```
 
-<br> \# **Load and Clean Data**
+<br> \# Load and clean data\*\*
 
-### **Load individual datasets**
+## Load data
 
 ``` r
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
@@ -62,7 +62,7 @@ kable(head(combined_raw))
 
 <br>
 
-summary(clean_combined)
+## Clean data
 
 ``` r
 #Standardaze column names, convert to factors, check for outliers of variable**
@@ -98,7 +98,13 @@ kable(head(bean_population_clean))
 | CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 78 | 207127.1 |
 | CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 67 | 177916.9 |
 
-<br>
+# Model testing
+
+## Lmer
+
+Block is random Tyler is under the impression that block should always
+be random and that post-hoc comparisons should use TUKEY rather the
+Fischer. Fisher is bogus apparently.
 
 ``` r
 random <- lmer(bean_population_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data = bean_population_clean)
@@ -112,7 +118,9 @@ resid_panel(random)
 
 ![](bean_population_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
 
-\##**Joint test**
+br\>
+
+## Joint test (anova)
 
 ``` r
 random |> 
@@ -126,15 +134,14 @@ random |>
 | 3   | weed_control          |   4 | 35.04 |   0.547 | 0.7024482 |
 | 2   | location:weed_control |   8 | 35.04 |   1.232 | 0.3097339 |
 
-# **Means comparison of totwbm**
+## Means comparison
+
+### Weed-control (NS)
 
 ``` r
-means <- 
- emmeans(random, ~  weed_control)
-# Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
-
-pairwise_comparisons<- pairs(means) 
-kable(head(pairwise_comparisons))
+means_weed_control <- emmeans(random, ~  weed_control)
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
 ```
 
 | contrast  |    estimate |       SE |       df |    t.ratio |   p.value |
@@ -145,6 +152,24 @@ kable(head(pairwise_comparisons))
 | RIC - TIM |   3540.6339 | 8781.272 | 35.03704 |  0.4032028 | 0.9990995 |
 | RIM - RNO |   -590.1057 | 9043.958 | 35.78415 | -0.0652486 | 1.0000000 |
 | RIM - TIC | -11212.0074 | 9043.958 | 35.78415 | -1.2397235 | 0.7801963 |
+
+<br> \### Location (S)
+
+``` r
+means_location <- emmeans(random, ~  location)
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+
+| contrast                      |  estimate |       SE |       df |   t.ratio |   p.value |
+|:------------------------------|----------:|---------:|---------:|----------:|----------:|
+| field O2 east - field O2 west |  3673.408 | 6924.747 | 9.103669 | 0.5304753 | 0.9399834 |
+| field O2 east - field x       | 44213.666 | 6801.944 | 8.639269 | 6.5001511 | 0.0004016 |
+| field O2 west - field x       | 40540.258 | 6924.747 | 9.103669 | 5.8544027 | 0.0006955 |
+
+## Tukey compact letter display
+
+### Location (S)
 
 ``` r
 #location
@@ -171,7 +196,9 @@ cld_location_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-## **location**
+<br> \# Figures
+
+## Location (S)
 
 ``` r
 bean_population_clean |> 
@@ -199,7 +226,7 @@ bean_population_clean |>
   )
 ```
 
-![](bean_population_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+![](bean_population_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
 
 ``` r
 ggsave("bean_population_location_Ac.png", width = 8, height = 6, dpi = 300)
