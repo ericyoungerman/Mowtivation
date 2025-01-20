@@ -129,6 +129,12 @@ kable(head(pairwise_comparisons_weed_control_location))
 cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_weed_control_tukey
 ```
+## Fisher compact letter display
+### Weed-control (S)
+
+```{r}
+ cld_weed_control_fisher <-cld(emmeans(random,~  weed_control,type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
+```
 
 # Figures
 

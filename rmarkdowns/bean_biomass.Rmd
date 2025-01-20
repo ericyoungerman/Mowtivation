@@ -1,12 +1,14 @@
 ---
-title: "bean biomass"
+title: "Soybean biomass"
 output: github_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-# **Load libraries**
+
+# Load libraries
+
 ```{r message=FALSE, warning=FALSE}
 #Set work directory
 setwd("/Users/ey239/Github/Mowtivation/rmarkdowns")
@@ -43,61 +45,161 @@ find_logw0=function(x){c=trunc(log(min(x[x>0],na.rm=T)))
 d=exp(c)
 return(d)}
 ```
+
 <br>
 
-# **Load and Clean Data**
+# Load and clean data
 
-### **Load individual datasets**
+## Load data
 
 ``` {r}
-cu_raw_2023 <- read_excel("~/Github/Mowtivation/raw-data/cornell_raw_2023.xlsx")
-kable(head(cu_raw_2023))
+combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
+kable(head(combined_raw))
 
 ```
+
+#Clean data
 
 ```{r}
 
 
 #Standardaze column names, convert to factors, check for outliers of variable**
-clean_2023 <- clean_names(cu_raw_2023) |>  
-  rename ('cultivation'= trt) |> 
-  mutate(across(c(cultivation, block, pllot, loc), as.factor)) #|> 
-  #mutate(is_outlier = bbm < (quantile(bbm, 0.25) - 1.5 * IQR(bbm)) |
-                       #bbm > (quantile(bbm, 0.75) + 1.5 * IQR(bbm)))
+clean_combined <- clean_names(combined_raw) |>  
+  rename ('weed_control'= treatment) |> 
+  mutate(across(c(weed_control, block, plot, location, year), as.factor)) #|> 
+  #mutate(is_outlier = totwbm < (quantile(totwbm, 0.25) - 1.5 * IQR(totwbm)) |
+                       #wbm > (quantile(totwbm, 0.75) + 1.5 * IQR(totwbm)))
 
 #select and convert data for wbm analysis
-  
-bbm_clean_2023 <-clean_2023 |>              
-  
-  mutate(bbm_grams_meter = (bbm * 2)) |> 
-  mutate(bbm_kg_ha = ((bbm/0.5) *(10000))/(1000)) |>
-  mutate(bbm_lbs_ac = (((bbm/0.5) *(10000))/(1000))* 0.892179)
-kable(head(bbm_clean_2023)) 
+bean_biomass_clean <-clean_combined |>              
+  mutate(bean_biomass_grams_meter = (bean_biomass * 2)) |> 
+  mutate(bean_biomass_kg_ha = ((bean_biomass/0.5) *(10000))/(1000)) |>
+  mutate(bean_biomass_lbs_ac = (((bean_biomass/0.5) *(10000))/(1000))* 0.892179)
+kable(head(bean_biomass_clean)) 
+```
+<br>
+# Model testing
+
+Block is random
+Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
+
+## Lmer
+```{r}
+random <- lmer(bean_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data =bean_biomass_clean)
+
+resid_panel(random)
+```
+## Summary
+```{r}
+summary(random)
+bean_biomass_clean |> count(year,location,weed_control)
+
 ```
 
-# **Model Testing**
-
-### #
-#Block is Fixed, 
-#Block was included in all models as a fixed factor because blocks were used to control the different field conditions across sections, and thus to reduce variance between eu's
+## Joint test (anova)
 ```{r}
-#Block is fixed
-bbm_fixed <- lm(bbm_kg_ha  ~ cultivation + block  , data = bbm_clean_2023)
-
-resid_panel(bbm_fixed)
-
-#Block is Random
-bbm_ran <- lmer(bbm_kg_ha  ~ cultivation + (1|block)  , data = bbm_clean_2023)
-
-resid_panel(bbm_ran)
-```
-
-##**Joint test**
-
-```{r}
-bbm_fixed |> 
+random |> 
   joint_tests() |> 
   kable()  
 ```
 
-Interrow cultivation has no impact on weed biomass
+<br>
+
+## Means comparison
+### Weed-control (S)
+```{r message=FALSE}
+means_weed_control <- emmeans(random, ~  weed_control)
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
+```
+<br>
+
+### Location (S)
+```{r message=FALSE}
+means_location <- emmeans(random, ~  location)
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+## Tukey compact letter display
+### Weed-control (S)
+
+```{r}
+cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_tukey
+```
+<br>
+
+### Location (S)
+```{r}
+#location
+cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_location_tukey
+```
+### Weed-control:Location (NS)
+```{r}
+#weed_control|location
+cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_location_tukey
+```
+# Figures
+## Weed-control (S)
+
+```{r message=FALSE}
+bean_biomass_clean |> 
+  left_join(cld_weed_control_tukey) |> 
+  ggplot(aes(x = weed_control, y = bean_biomass_lbs_ac, fill = weed_control)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Interrow weed control",
+    y = expression("soybean biomass" ~ (lb ~ A^{-1})),
+    title = str_c("Influence of interrow weed control on soybean biomass at peak weed sampling"),
+    subtitle = expression(italic("P < 0.005"))) +
+  
+  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nno additional\nweed control",
+                          "Tilled,\nstandard\ncultivation",
+                              "Tilled,\ninterrow\nmowing")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+ggsave("bean_biomass_weed_control_lbA.png", width = 8, height = 6, dpi = 300)
+```
+
+## Weed_control:location (S)
+```{r message=FALSE}
+bean_biomass_clean |> 
+  left_join(cld_weed_control_location_tukey) |> 
+  ggplot(aes(x = weed_control, y = bean_biomass_lbs_ac, fill = weed_control)) +
+  facet_wrap(~location )+
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Interrow weed control",
+    y = expression("Soybean biomass" ~ (lb ~ A^{-1})),
+    title = str_c("Influence of interrow weed control and location on soybean biomass at peak weed sampling"),
+    subtitle = expression(italic("P < 0.005"))) +
+  
+  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nno additional\nweed control",
+                          "Tilled,\nstandard\ncultivation",
+                              "Tilled,\ninterrow\nmowing")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+ggsave("bean_biomass_weed_control_location_lbA.png", width = 12, height = 6, dpi = 300)
+```
