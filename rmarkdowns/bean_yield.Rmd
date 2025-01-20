@@ -7,7 +7,7 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# **Load libraries**
+# Load libraries
 
 
 ```{r message=FALSE, warning=FALSE}
@@ -48,18 +48,19 @@ return(d)}
 
 <br>
 
-# **Load and Clean Data**
+# Load and Clean Data
 
-### **Load individual datasets**
-
+ 
+## Load Data
 ``` {r}
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
 kable(head(combined_raw))
 
 ```
 
+<br>
 
-
+## Clean Data
 ```{r}
 
 
@@ -85,12 +86,10 @@ kable(head(bean_yield_clean))
 <br>
 
 
-## **Model testing**
+# Model testing
 
-### **block is random**
-#Ask tyler about model format, should block always be fixed, etc. should location be nested in year? Do i need to transform data if zeros are present? How to separate year from location? 
-
-Last meeting we updated the model and determined that for most of mhy work, block should be random using model below and that post hoc comparisons should use TUKEY ratther the Fischer. 
+Block is random
+Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
 ```{r}
 random <- lmer( bean_yield_adj_bu_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data =  bean_yield_clean)
@@ -100,7 +99,7 @@ resid_panel(random)
 
 <br>
 
-##**Joint test**
+## Joint test (anova)
 ```{r}
  random |> 
   joint_tests() |> 
@@ -109,37 +108,51 @@ resid_panel(random)
 
 <br>
 
-# **Means comparison**
+## Means comparison
+### Weed-control (NS)
 ```{r message=FALSE}
-means <- emmeans(random, ~  weed_control)
+means_weed_control <- emmeans(random, ~  weed_control)
 # Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
 
-pairwise_comparisons<- pairs(means) 
-kable(head(pairwise_comparisons))
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
 ```
 
-### **Fisher's method for comparing means**
+<br>
+### Location (S)
+```{r message=FALSE}
+means_location <- emmeans(random, ~  location)
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+<br>
 
+## Tukey Compact Letter Display
+### Weed-control (NS)
 ```{r}
-#weed_control
+
 cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_weed_control_tukey
 ```
+<br>
 
-
+### Location (S)
 ```{r}
-#location
+
 cld_location_tukey <-cld(emmeans(random, ~  location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_location_tukey
 ```
+<br>
+
+### Weed-control:Location (NS)
 ```{r}
-#weed_control|location
 cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_weed_control_location_tukey
 ```
-# **FIGURES** only location was significant
+<br>
+# FIGURES
 
-## **weed_control**
+## Weed-control (NS)
 
 ```{r message=FALSE}
 bean_yield_clean |> 
@@ -149,9 +162,9 @@ bean_yield_clean |>
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Method of interrow weed control",
+    x = "Interrow weed control",
     y = expression("Soybean yield" ~ (bu ~ acre^{-1})),
-    title = str_c("The influence of the method of interrow weed control on soybean yield"),
+    title = str_c("The influence of interrow weed control on soybean yield"),
     subtitle = expression(italic("Not signficant"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
@@ -167,18 +180,18 @@ bean_yield_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("beanydall_plot_cutivation.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_yield_weed_control_buA.png", width = 8, height = 6, dpi = 300)
 ```
 
-## **location**
+## Location (S)
 
-```{r message=FALSE}
+```{r message=FALSE, warning=FALSE}
 bean_yield_clean |> 
   left_join(cld_location_tukey) |> 
   ggplot(aes(x = location, y = bean_yield_adj_bu_acre, fill = location)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Location",
     y = expression("Soybean yield" ~ (bu ~ A^{-1})),
@@ -195,5 +208,5 @@ bean_yield_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("beanydall_location.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_yield_location_buA.png", width = 8, height = 6, dpi = 300)
 ```

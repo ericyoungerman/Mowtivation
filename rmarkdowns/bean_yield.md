@@ -1,7 +1,7 @@
 Bean Yield
 ================
 
-# **Load libraries**
+# Load libraries
 
 ``` r
 #Set work directory
@@ -41,9 +41,9 @@ return(d)}
 
 <br>
 
-# **Load and Clean Data**
+# Load and Clean Data
 
-### **Load individual datasets**
+## Load Data
 
 ``` r
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
@@ -58,6 +58,10 @@ kable(head(combined_raw))
 | CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 |
 | CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 |
 | CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 |
+
+<br>
+
+## Clean Data
 
 ``` r
 #Standardaze column names, convert to factors, check for outliers of variable**
@@ -99,17 +103,11 @@ kable(head(bean_yield_clean))
 
 <br>
 
-## **Model testing**
+# Model testing
 
-### **block is random**
-
-\#Ask tyler about model format, should block always be fixed, etc.
-should location be nested in year? Do i need to transform data if zeros
-are present? How to separate year from location?
-
-Last meeting we updated the model and determined that for most of mhy
-work, block should be random using model below and that post hoc
-comparisons should use TUKEY ratther the Fischer.
+Block is random Tyler is under the impression that block should always
+be random and that post-hoc comparisons should use TUKEY rather the
+Fischer. Fisher is bogus apparently.
 
 ``` r
 random <- lmer( bean_yield_adj_bu_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data =  bean_yield_clean)
@@ -121,7 +119,7 @@ resid_panel(random)
 
 <br>
 
-\##**Joint test**
+## Joint test (anova)
 
 ``` r
  random |> 
@@ -137,14 +135,16 @@ resid_panel(random)
 
 <br>
 
-# **Means comparison**
+## Means comparison
+
+### Weed-control (NS)
 
 ``` r
-means <- emmeans(random, ~  weed_control)
+means_weed_control <- emmeans(random, ~  weed_control)
 # Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
 
-pairwise_comparisons<- pairs(means) 
-kable(head(pairwise_comparisons))
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
 ```
 
 | contrast  |   estimate |       SE |       df |    t.ratio |   p.value |
@@ -156,10 +156,27 @@ kable(head(pairwise_comparisons))
 | RIM - RNO |  1.6227217 | 2.819198 | 35.73048 |  0.5755969 | 0.9935448 |
 | RIM - TIC | -1.5348311 | 2.819198 | 35.73048 | -0.5444212 | 0.9952174 |
 
-### **Fisher’s method for comparing means**
+<br> \### Location (S)
 
 ``` r
-#weed_control
+means_location <- emmeans(random, ~  location)
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+
+| contrast                      |  estimate |       SE |       df |  t.ratio |   p.value |
+|:------------------------------|----------:|---------:|---------:|---------:|----------:|
+| field O2 east - field O2 west |  2.758683 | 2.269573 | 9.102352 | 1.215508 | 0.5861020 |
+| field O2 east - field x       | 17.295801 | 2.232693 | 8.665443 | 7.746608 | 0.0001062 |
+| field O2 west - field x       | 14.537117 | 2.269573 | 9.102352 | 6.405221 | 0.0003553 |
+
+<br>
+
+## Tukey Compact Letter Display
+
+### Weed-control (NS)
+
+``` r
 cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 ```
 
@@ -185,8 +202,11 @@ cld_weed_control_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
+<br>
+
+### Location (S)
+
 ``` r
-#location
 cld_location_tukey <-cld(emmeans(random, ~  location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 ```
 
@@ -210,8 +230,11 @@ cld_location_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
+<br>
+
+### Weed-control:Location (NS)
+
 ``` r
-#weed_control|location
 cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_weed_control_location_tukey
 ```
@@ -248,9 +271,9 @@ cld_weed_control_location_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-# **FIGURES** only location was significant
+<br> \# FIGURES
 
-## **weed_control**
+## Weed-control (NS)
 
 ``` r
 bean_yield_clean |> 
@@ -260,9 +283,9 @@ bean_yield_clean |>
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Method of interrow weed control",
+    x = "Interrow weed control",
     y = expression("Soybean yield" ~ (bu ~ acre^{-1})),
-    title = str_c("The influence of the method of interrow weed control on soybean yield"),
+    title = str_c("The influence of interrow weed control on soybean yield"),
     subtitle = expression(italic("Not signficant"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
@@ -283,16 +306,16 @@ bean_yield_clean |>
     ## Warning: Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
     ## Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
 
-![](bean_yield_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+![](bean_yield_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
 
 ``` r
-ggsave("beanydall_plot_cutivation.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_yield_weed_control_buA.png", width = 8, height = 6, dpi = 300)
 ```
 
     ## Warning: Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
     ## Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
 
-## **location**
+## Location (S)
 
 ``` r
 bean_yield_clean |> 
@@ -300,7 +323,7 @@ bean_yield_clean |>
   ggplot(aes(x = location, y = bean_yield_adj_bu_acre, fill = location)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Location",
     y = expression("Soybean yield" ~ (bu ~ A^{-1})),
@@ -319,14 +342,8 @@ bean_yield_clean |>
   )
 ```
 
-    ## Warning: Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
-    ## Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
-
-![](bean_yield_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](bean_yield_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
 
 ``` r
-ggsave("beanydall_location.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_yield_location_buA.png", width = 8, height = 6, dpi = 300)
 ```
-
-    ## Warning: Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
-    ## Removed 1 row containing non-finite outside the scale range (`stat_summary()`).
