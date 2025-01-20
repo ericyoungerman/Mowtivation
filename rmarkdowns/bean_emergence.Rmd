@@ -3,12 +3,10 @@ title: "Soybean emergence"
 output: github_document
 ---
 
----
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-# **Load libraries**
+# Load libraries
 
 ```{r message=FALSE, warning=FALSE}
 #Set work directory
@@ -47,16 +45,16 @@ d=exp(c)
 return(d)}
 ```
 <br>
-# **Load and Clean Data**
+# Load and clean data
 
-### **Load individual datasets**
+##Load data
 
 ``` {r}
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
 kable(head(combined_raw))
 
 ```
-
+## Clean data
 ```{r}
 #Standardaze column names, convert to factors, check for outliers of variable**
 clean_combined <- clean_names(combined_raw) |>  
@@ -73,6 +71,7 @@ bean_emergence_clean <-clean_combined |>
 kable(head(bean_emergence_clean)) 
 ```
 
+#Model testing
 
 ```{r}
 random <- lmer(bean_emergence_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data = bean_emergence_clean)
@@ -80,33 +79,60 @@ random <- lmer(bean_emergence_acre  ~ location+weed_control + location:weed_cont
 resid_panel(random)
 ```
 
-##**Joint test**
+##Joint test (anova)
 ```{r}
 random |> 
   joint_tests() |> 
   kable()  
 ```
 
-# **Means comparison of totwbm**
+## Means comparison
+### Weed-control (S)
+However, since the interrow weed treatments were implemented after emergence. Significance is due to pre-emergent weed control brought about by rolling and no rolling
 
 ```{r message=FALSE}
-means <- 
+means_weed_control <- 
  emmeans(random, ~  weed_control)
-# Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
 
-pairwise_comparisons<- pairs(means) 
-kable(head(pairwise_comparisons))
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
+```
+### Location (S)
+
+
+```{r message=FALSE}
+means_location <- 
+ emmeans(random, ~  location)
+
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+## Tukey compact letter display
+
+### Weed-control (S)
+
+Significant but related to rolled vs. tilled rather than interrow weed control
+```{r}
+
+cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_tukey
 ```
 
 
-
+### Location (S)
 ```{r}
 #location
 cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_location_tukey
 ```
-#FIGURES
-## **location**
+### Weed-control:Location (NS)
+```{r}
+cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_location_tukey
+```
+
+#Figures
+## Location (S)
 
 ```{r message=FALSE, warning=FALSE}
 bean_emergence_clean |> 
@@ -120,7 +146,7 @@ bean_emergence_clean |>
     x = "Location",
     y = expression("Soybean emergence" ~ (plants ~ A^{-1})),
     title = str_c("The influence of location on soybean emergence"),
-    subtitle = expression(italic("P < 0.005"))) +
+    subtitle = expression(italic("P = 0.01"))) +
    scale_x_discrete(labels = c("Field O2 East ",
                               "Field O2 West",
                               "Field X")) +
@@ -132,5 +158,5 @@ bean_emergence_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("bean_emergence_location_Ac.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_emergence_location_plantsAc.png", width = 8, height = 6, dpi = 300)
 ```

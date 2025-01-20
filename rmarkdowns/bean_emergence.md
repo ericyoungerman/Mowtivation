@@ -1,9 +1,7 @@
 Soybean emergence
 ================
 
-------------------------------------------------------------------------
-
-# **Load libraries**
+# Load libraries
 
 ``` r
 #Set work directory
@@ -42,9 +40,9 @@ d=exp(c)
 return(d)}
 ```
 
-<br> \# **Load and Clean Data**
+<br> \# Load and clean data
 
-### **Load individual datasets**
+\##Load data
 
 ``` r
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
@@ -59,6 +57,8 @@ kable(head(combined_raw))
 | CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 |
 | CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 |
 | CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 |
+
+## Clean data
 
 ``` r
 #Standardaze column names, convert to factors, check for outliers of variable**
@@ -85,6 +85,8 @@ kable(head(bean_emergence_clean))
 | CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 | 82 | 217749.0 |
 | CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 73 | 193849.7 |
 
+\#Model testing
+
 ``` r
 random <- lmer(bean_emergence_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data = bean_emergence_clean)
 
@@ -93,7 +95,7 @@ resid_panel(random)
 
 ![](bean_emergence_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
 
-\##**Joint test**
+\##Joint test (anova)
 
 ``` r
 random |> 
@@ -107,15 +109,20 @@ random |>
 | 3   | weed_control          |   4 |  36 |   4.487 | 0.0048141 |
 | 2   | location:weed_control |   8 |  36 |   1.218 | 0.3165498 |
 
-# **Means comparison of totwbm**
+## Means comparison
+
+### Weed-control (S)
+
+However, since the interrow weed treatments were implemented after
+emergence. Significance is due to pre-emergent weed control brought
+about by rolling and no rolling
 
 ``` r
-means <- 
+means_weed_control <- 
  emmeans(random, ~  weed_control)
-# Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
 
-pairwise_comparisons<- pairs(means) 
-kable(head(pairwise_comparisons))
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
 ```
 
 | contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
@@ -126,6 +133,57 @@ kable(head(pairwise_comparisons))
 | RIC - TIM | -18145.749 | 7484.258 |  36 | -2.4245221 | 0.1167376 |
 | RIM - RNO |   9072.874 | 7484.258 |  36 |  1.2122611 | 0.7968936 |
 | RIM - TIC | -15711.563 | 7484.258 |  36 | -2.0992813 | 0.2311649 |
+
+### Location (S)
+
+``` r
+means_location <- 
+ emmeans(random, ~  location)
+
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+
+| contrast                      |  estimate |       SE |  df |    t.ratio |   p.value |
+|:------------------------------|----------:|---------:|----:|-----------:|----------:|
+| field O2 east - field O2 west | -4115.987 | 6502.753 |   9 | -0.6329607 | 0.9042459 |
+| field O2 east - field x       | 19783.292 | 6502.753 |   9 |  3.0422950 | 0.0413154 |
+| field O2 west - field x       | 23899.279 | 6502.753 |   9 |  3.6752557 | 0.0152606 |
+
+## Tukey compact letter display
+
+### Weed-control (S)
+
+Significant but related to rolled vs. tilled rather than interrow weed
+control
+
+``` r
+cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+```
+
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_weed_control_tukey
+```
+
+    ##  weed_control emmean   SE   df lower.CL upper.CL .group
+    ##  TIM          243640 5430 44.6   232706   254574  a    
+    ##  TIC          243640 5430 44.6   232706   254574  a    
+    ##  RIM          227928 5430 44.6   216995   238862  ab   
+    ##  RIC          225494 5430 44.6   214560   236428  ab   
+    ##  RNO          218855 5430 44.6   207922   229789   b   
+    ## 
+    ## Results are averaged over the levels of: location 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## P value adjustment: tukey method for comparing a family of 5 estimates 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+### Location (S)
 
 ``` r
 #location
@@ -152,7 +210,46 @@ cld_location_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-\#FIGURES \## **location**
+### Weed-control:Location (NS)
+
+``` r
+cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_location_tukey
+```
+
+    ## location = field O2 east:
+    ##  weed_control emmean   SE   df lower.CL upper.CL .group
+    ##  TIC          258909 9400 44.6   239971   277846  a    
+    ##  TIM          238329 9400 44.6   219391   257267  a    
+    ##  RIM          237001 9400 44.6   218064   255939  a    
+    ##  RNO          227043 9400 44.6   208106   245981  a    
+    ##  RIC          224388 9400 44.6   205450   243325  a    
+    ## 
+    ## location = field O2 west:
+    ##  weed_control emmean   SE   df lower.CL upper.CL .group
+    ##  TIM          253598 9400 44.6   234660   272536  a    
+    ##  RIM          244968 9400 44.6   226030   263905  a    
+    ##  RIC          242976 9400 44.6   224038   261914  a    
+    ##  TIC          240321 9400 44.6   221383   259258  a    
+    ##  RNO          224388 9400 44.6   205450   243325  a    
+    ## 
+    ## location = field x:
+    ##  weed_control emmean   SE   df lower.CL upper.CL .group
+    ##  TIM          238993 9400 44.6   220055   257930  a    
+    ##  TIC          231690 9400 44.6   212753   250628  a    
+    ##  RIC          209119 9400 44.6   190181   228056  a    
+    ##  RNO          205135 9400 44.6   186198   224073  a    
+    ##  RIM          201816 9400 44.6   182879   220754  a    
+    ## 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## P value adjustment: tukey method for comparing a family of 5 estimates 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+\#Figures \## Location (S)
 
 ``` r
 bean_emergence_clean |> 
@@ -166,7 +263,7 @@ bean_emergence_clean |>
     x = "Location",
     y = expression("Soybean emergence" ~ (plants ~ A^{-1})),
     title = str_c("The influence of location on soybean emergence"),
-    subtitle = expression(italic("P < 0.005"))) +
+    subtitle = expression(italic("P = 0.01"))) +
    scale_x_discrete(labels = c("Field O2 East ",
                               "Field O2 West",
                               "Field X")) +
@@ -180,8 +277,8 @@ bean_emergence_clean |>
   )
 ```
 
-![](bean_emergence_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+![](bean_emergence_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
 
 ``` r
-ggsave("bean_emergence_location_Ac.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_emergence_location_plantsAc.png", width = 8, height = 6, dpi = 300)
 ```
