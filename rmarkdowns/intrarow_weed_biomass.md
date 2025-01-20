@@ -1,7 +1,7 @@
 Intrarow weed biomass
 ================
 
-# **Load libraries**
+# Load libraries
 
 ``` r
 #Set work directory
@@ -42,9 +42,9 @@ return(d)}
 
 <br>
 
-# **Load and Clean Data**
+# Load and clean data
 
-### **Load individual datasets**
+## Load data
 
 ``` r
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
@@ -59,6 +59,8 @@ kable(head(combined_raw))
 | CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 |
 | CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 |
 | CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 |
+
+## Clean data
 
 ``` r
 #Standardaze column names, convert to factors, check for outliers of variable**
@@ -85,6 +87,14 @@ kable(head(intrarow_weed_biomass_clean))
 | CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 | 0.99 | 9.9 | 8.832572 |
 | CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 12.79 | 127.9 | 114.109694 |
 
+# Model testing
+
+Block is random Tyler is under the impression that block should always
+be random and that post-hoc comparisons should use TUKEY rather the
+Fischer. Fisher is bogus apparently.
+
+## Lmer
+
 ``` r
 random <- lmer(intrarow_weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = intrarow_weed_biomass_clean)
 
@@ -93,7 +103,7 @@ resid_panel(random)
 
 ![](intrarow_weed_biomass_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
 
-\##**Joint test**
+\##Joint test (anova)
 
 ``` r
 random |> 
@@ -107,15 +117,16 @@ random |>
 | 3   | weed_control          |   4 |  36 |  11.421 | 0.0000044 |
 | 2   | location:weed_control |   8 |  36 |  10.361 | 0.0000002 |
 
-# **Means comparison of totwbm**
+<br>
+
+## Means comparison
+
+### Weed-control (S)
 
 ``` r
-means <- 
- emmeans(random, ~  weed_control)
-# Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
-
-pairwise_comparisons<- pairs(means) 
-kable(head(pairwise_comparisons))
+means_weed_control <- emmeans(random, ~  weed_control)
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
 ```
 
 | contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
@@ -127,10 +138,43 @@ kable(head(pairwise_comparisons))
 | RIM - RNO |   41.73167 | 47.19779 |  36 |  0.8841871 | 0.9445400 |
 | RIM - TIC | -218.26416 | 47.19779 |  36 | -4.6244576 | 0.0002823 |
 
-### **Tukey’s method for comparing means**
+<br>
+
+### Location (S)
 
 ``` r
-#weed control
+means_location <- emmeans(random, ~  location)
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+
+| contrast | estimate | SE | df | t.ratio | p.value |
+|:---|---:|---:|---:|---:|---:|
+| field O2 east - field O2 west | -23.01376 | 47.11941 | 9 | -0.4884135 | 0.9521427 |
+| field O2 east - field x | -312.49908 | 47.11941 | 9 | -6.6320669 | 0.0002870 |
+| field O2 west - field x | -289.48532 | 47.11941 | 9 | -6.1436533 | 0.0005100 |
+| \### Location | weed-control (S) |  |  |  |  |
+
+``` r
+means_weed_control_location <- emmeans(random, ~  weed_control|location)
+pairwise_comparisons_weed_control_location<- pairs(means_weed_control_location) 
+kable(head(pairwise_comparisons_weed_control_location))
+```
+
+| contrast  | location      |    estimate |       SE |  df |    t.ratio |   p.value |
+|:----------|:--------------|------------:|---------:|----:|-----------:|----------:|
+| RIC - RIM | field O2 east |   0.3791761 | 81.74896 |  36 |  0.0046383 | 1.0000000 |
+| RIC - RNO | field O2 east |   0.4906985 | 81.74896 |  36 |  0.0060025 | 1.0000000 |
+| RIC - TIC | field O2 east | -56.0288412 | 81.74896 |  36 | -0.6853768 | 0.9838996 |
+| RIC - TIM | field O2 east | -14.5425177 | 81.74896 |  36 | -0.1778924 | 0.9999924 |
+| RIM - RNO | field O2 east |   0.1115224 | 81.74896 |  36 |  0.0013642 | 1.0000000 |
+| RIM - TIC | field O2 east | -56.4080173 | 81.74896 |  36 | -0.6900151 | 0.9833366 |
+
+## Tukey compact letter display
+
+### Weed-control (S)
+
+``` r
 cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 ```
 
@@ -156,6 +200,10 @@ cld_weed_control_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
+<br>
+
+### Location (S)
+
 ``` r
 #location
 cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
@@ -180,6 +228,10 @@ cld_location_tukey
     ## NOTE: If two or more means share the same grouping symbol,
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
+
+<br>
+
+### Weed-control:Location (S)
 
 ``` r
 #weed_control|location
@@ -219,9 +271,10 @@ cld_weed_control_location_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-# **FIGURES**
+\#Figures \## Weed-control
 
-## **weed control**
+This perhaps should be looked as an interaction between rolled cereal
+rye and interrow weed control.
 
 ``` r
 intrarow_weed_biomass_clean |> 
@@ -251,13 +304,13 @@ intrarow_weed_biomass_clean |>
   )
 ```
 
-![](intrarow_weed_biomass_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+![](intrarow_weed_biomass_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
 
 ``` r
 ggsave("intrarow_weed_biomass_weed_control_lbA.png", width = 8, height = 6, dpi = 300)
 ```
 
-## \*\*weed_control:location\*
+## Weed-control:location
 
 ``` r
 intrarow_weed_biomass_clean |> 
@@ -288,7 +341,7 @@ intrarow_weed_biomass_clean |>
   )
 ```
 
-![](intrarow_weed_biomass_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](intrarow_weed_biomass_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
 
 ``` r
 ggsave("intrarow_weed_biomass_weed_control_location_lbA.png", width = 12, height = 6, dpi = 300)
