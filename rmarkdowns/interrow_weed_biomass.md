@@ -1,7 +1,7 @@
 interrow weed biomass
 ================
 
-# **Load libraries**
+# Load libraries
 
 ``` r
 #Set work directory
@@ -42,9 +42,9 @@ return(d)}
 
 <br>
 
-# **Load and Clean Data**
+# Load and Clean Data
 
-### **Load individual datasets**
+## Load data
 
 ``` r
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
@@ -59,6 +59,8 @@ kable(head(combined_raw))
 | CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 |
 | CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 |
 | CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 |
+
+## Clean data
 
 ``` r
 #Standardaze column names, convert to factors, check for outliers of variable**
@@ -85,6 +87,14 @@ kable(head(interrow_weed_biomass_clean))
 | CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 | 44.05 | 440.5 | 393.00485 |
 | CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 38.92 | 389.2 | 347.23607 |
 
+# Model testing
+
+Block is random Tyler is under the impression that block should always
+be random and that post-hoc comparisons should use TUKEY rather the
+Fischer. Fisher is bogus apparently.
+
+## Lmer
+
 ``` r
 random <- lmer(interrow_weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = interrow_weed_biomass_clean)
 
@@ -93,7 +103,7 @@ resid_panel(random)
 
 ![](interrow_weed_biomass_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
 
-\##**Joint test**
+\##Joint test (anova)
 
 ``` r
 random |> 
@@ -107,15 +117,16 @@ random |>
 | 3   | weed_control          |   4 |  36 |   4.136 | 0.0073744 |
 | 2   | location:weed_control |   8 |  36 |   1.079 | 0.3996164 |
 
-# **Means comparison of interrow weed biomass**
+<br>
+
+## Means comparison
+
+### Weed-control (S)
 
 ``` r
-means <- 
- emmeans(random, ~  weed_control)
-# Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
-
-pairwise_comparisons<- pairs(means) 
-kable(head(pairwise_comparisons))
+means_weed_control <- emmeans(random, ~  weed_control)
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
 ```
 
 | contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
@@ -127,7 +138,41 @@ kable(head(pairwise_comparisons))
 | RIM - RNO | -167.15717 | 69.04058 |  36 | -2.4211438 | 0.1176228 |
 | RIM - TIC |   42.84690 | 69.04058 |  36 |  0.6206045 | 0.9903726 |
 
-### **Tukey’s method for comparing means**
+br\>
+
+### Location (NS)
+
+``` r
+means_location <- emmeans(random, ~  location)
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+
+| contrast | estimate | SE | df | t.ratio | p.value |
+|:---|---:|---:|---:|---:|---:|
+| field O2 east - field O2 west | -54.88239 | 68.73638 | 9 | -0.7984475 | 0.8292015 |
+| field O2 east - field x | -187.28175 | 68.73638 | 9 | -2.7246379 | 0.0686539 |
+| field O2 west - field x | -132.39936 | 68.73638 | 9 | -1.9261904 | 0.2369423 |
+| \### Location | weed-control (S) |  |  |  |  |
+
+``` r
+means_weed_control_location <- emmeans(random, ~  weed_control|location)
+pairwise_comparisons_weed_control_location<- pairs(means_weed_control_location) 
+kable(head(pairwise_comparisons_weed_control_location))
+```
+
+| contrast  | location      |    estimate |       SE |  df |    t.ratio |   p.value |
+|:----------|:--------------|------------:|---------:|----:|-----------:|----------:|
+| RIC - RIM | field O2 east |  -19.962505 | 119.5818 |  36 | -0.1669360 | 0.9999948 |
+| RIC - RNO | field O2 east | -109.760322 | 119.5818 |  36 | -0.9178682 | 0.9343134 |
+| RIC - TIC | field O2 east |  -25.560928 | 119.5818 |  36 | -0.2137527 | 0.9999775 |
+| RIC - TIM | field O2 east | -101.953755 | 119.5818 |  36 | -0.8525859 | 0.9531223 |
+| RIM - RNO | field O2 east |  -89.797816 | 119.5818 |  36 | -0.7509322 | 0.9745292 |
+| RIM - TIC | field O2 east |   -5.598423 | 119.5818 |  36 | -0.0468167 | 1.0000000 |
+
+## Tukey compact letter display
+
+### Weed-control (S)
 
 ``` r
 #weed control
@@ -156,34 +201,9 @@ cld_weed_control_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-``` r
-#location
-cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-```
+# Figures
 
-    ## NOTE: Results may be misleading due to involvement in interactions
-
-``` r
-cld_location_tukey
-```
-
-    ##  location      emmean   SE df lower.CL upper.CL .group
-    ##  field x          240 48.6  9   130.32      350  a    
-    ##  field O2 west    108 48.6  9    -2.08      218  a    
-    ##  field O2 east     53 48.6  9   -56.96      163  a    
-    ## 
-    ## Results are averaged over the levels of: weed_control 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## Confidence level used: 0.95 
-    ## P value adjustment: tukey method for comparing a family of 3 estimates 
-    ## significance level used: alpha = 0.05 
-    ## NOTE: If two or more means share the same grouping symbol,
-    ##       then we cannot show them to be different.
-    ##       But we also did not show them to be the same.
-
-# **FIGURES**
-
-## **weed control**
+## Weed control
 
 ``` r
 interrow_weed_biomass_clean |> 
@@ -213,7 +233,7 @@ interrow_weed_biomass_clean |>
   )
 ```
 
-![](interrow_weed_biomass_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](interrow_weed_biomass_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
 
 ``` r
 ggsave("interrow_weed_biomass_weed_control_lbA.png", width = 8, height = 6, dpi = 300)

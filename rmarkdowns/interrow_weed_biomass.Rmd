@@ -7,7 +7,7 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# **Load libraries**
+# Load libraries
 
 ```{r message=FALSE, warning=FALSE}
 #Set work directory
@@ -47,9 +47,9 @@ return(d)}
 ```
 <br>
 
-# **Load and Clean Data**
+# Load and Clean Data
 
-### **Load individual datasets**
+## Load data
 
 ``` {r}
 combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
@@ -57,6 +57,7 @@ kable(head(combined_raw))
 
 ```
 
+## Clean data
 ```{r}
 
 
@@ -74,31 +75,54 @@ interrow_weed_biomass_clean <-clean_combined |>
   mutate(interrow_weed_biomass_lbs_ac = (((interrow_weed_biomass/0.5) *(10000))/(1000))* 0.892179)
 kable(head(interrow_weed_biomass_clean)) 
 ```
+# Model testing
+
+Block is random
+Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
+
+## Lmer
 ```{r}
 random <- lmer(interrow_weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = interrow_weed_biomass_clean)
 
 resid_panel(random)
 ```
 
-##**Joint test**
+##Joint test (anova)
 ```{r}
 random |> 
   joint_tests() |> 
   kable()  
 ```
 
-# **Means comparison of interrow weed biomass**
 
+<br>
+
+## Means comparison
+### Weed-control (S)
 ```{r message=FALSE}
-means <- 
- emmeans(random, ~  weed_control)
-# Optional: Adjust for multiple comparisons (e.g., using Tukey's method)
+means_weed_control <- emmeans(random, ~  weed_control)
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
+```
+br>
 
-pairwise_comparisons<- pairs(means) 
-kable(head(pairwise_comparisons))
+### Location (NS)
+```{r message=FALSE}
+means_location <- emmeans(random, ~  location)
+pairwise_comparisons_location<- pairs(means_location) 
+kable(head(pairwise_comparisons_location))
+```
+ ### Location|weed-control (S)
+```{r message=FALSE}
+means_weed_control_location <- emmeans(random, ~  weed_control|location)
+pairwise_comparisons_weed_control_location<- pairs(means_weed_control_location) 
+kable(head(pairwise_comparisons_weed_control_location))
 ```
 
-### **Tukey's method for comparing means**
+
+## Tukey compact letter display
+### Weed-control (S)
+
 
 ```{r}
 #weed control
@@ -106,15 +130,9 @@ cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"
 cld_weed_control_tukey
 ```
 
-```{r}
-#location
-cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_location_tukey
-```
+# Figures
 
-# **FIGURES**
-
-## **weed control**
+## Weed control
 
 
 ```{r message=FALSE}
