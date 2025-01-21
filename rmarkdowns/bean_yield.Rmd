@@ -152,7 +152,7 @@ cld_weed_control_location_tukey
 
 ## Weed-control (NS)
 
-```{r message=FALSE}
+```{r message=FALSE, warning=FALSE}
 bean_yield_clean |> 
   left_join(cld_weed_control_tukey) |> 
   ggplot(aes(x = weed_control, y = bean_yield_adj_bu_acre, fill = weed_control)) +
@@ -161,7 +161,7 @@ bean_yield_clean |>
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("Soybean yield" ~ (bu ~ acre^{-1})),
+    y = expression("Soybean yield" ~ (bu * "/" * a)),
     title = str_c("The influence of interrow weed control on soybean yield"),
     subtitle = expression(italic("Not signficant"))) +
   
@@ -178,7 +178,7 @@ bean_yield_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("bean_yield_weed_control_buA.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_yield_weed_control_bua.png", width = 8, height = 6, dpi = 300)
 ```
 
 ## Location (S)
@@ -192,7 +192,7 @@ bean_yield_clean |>
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Location",
-    y = expression("Soybean yield" ~ (bu ~ A^{-1})),
+    y = expression("Soybean yield" ~ (bu * "/" * a)),
     title = str_c("The influence of location on soybean yield"),
     subtitle = expression(italic("P < 0.005"))) +
    scale_x_discrete(labels = c("Field O2 East ",
@@ -206,5 +206,5 @@ bean_yield_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("bean_yield_location_buA.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_yield_location_bua.png", width = 8, height = 6, dpi = 300)
 ```
