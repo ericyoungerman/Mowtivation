@@ -161,7 +161,7 @@ bean_yield_clean |>
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("Soybean yield" ~ (bu * "/" * a)),
+    y = expression("Soybean yield" ~ (bu * "/" * acre)),
     title = str_c("The influence of interrow weed control on soybean yield"),
     subtitle = expression(italic("Not signficant"))) +
   
@@ -192,7 +192,7 @@ bean_yield_clean |>
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Location",
-    y = expression("Soybean yield" ~ (bu * "/" * a)),
+    y = expression("Soybean yield" ~ (bu * "/" * acre)),
     title = str_c("The influence of location on soybean yield"),
     subtitle = expression(italic("P < 0.005"))) +
    scale_x_discrete(labels = c("Field O2 East ",

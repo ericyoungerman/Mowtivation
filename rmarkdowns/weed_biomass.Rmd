@@ -162,7 +162,7 @@ weed_biomass_clean |>
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("Weed biomass" ~ (lb ~ A^{-1})),
+     y = expression("Weed biomass" ~ (lbs * "/" * acre)),
     title = str_c("Influence of interrow weed control on weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
@@ -179,7 +179,7 @@ weed_biomass_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("weed_biomass_weed_control_lbA.png", width = 8, height = 6, dpi = 300)
+ggsave("weed_biomass_weed_control_lbsacre.png", width = 8, height = 6, dpi = 300)
 ```
 
 ## Weed_control:location (S)
@@ -193,7 +193,7 @@ weed_biomass_clean |>
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("Weed biomass" ~ (lb ~ A^{-1})),
+    y = expression("Weed biomass" ~ (lbs * "/" * acre)),
     title = str_c("Influence of interrow weed control and location on weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
@@ -210,7 +210,6 @@ weed_biomass_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("weed_biomass_weed_control_location_lbA.png", width = 12, height = 6, dpi = 300)
+ggsave("weed_biomass_weed_control_location_lbsacre.png", width = 12, height = 6, dpi = 300)
 ```
 
-#Ask tyler if a transformation may be appopriate due to such low values and number of zeros for weeds in field O2 East and O2 West
