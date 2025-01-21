@@ -1,5 +1,5 @@
 ---
-title: "Bean Yield"
+title: "Soybean 100 Seed weight"
 output: github_document
 ---
 
@@ -57,7 +57,6 @@ combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combine
 kable(head(combined_raw))
 
 ```
-
 <br>
 
 ## Clean data
@@ -72,32 +71,27 @@ clean_combined <- clean_names(combined_raw) |>
                        #wbm > (quantile(totwbm, 0.75) + 1.5 * IQR(totwbm)))
 
 #select and convert data for wbm analysis
-  bean_yield_clean <- clean_combined |>  
-    filter(!is.na(bean_yield)) |>
-  mutate(bean_yield = as.numeric(bean_yield)) |>  # Convert beanyd to numeric
+  seed_weight_clean <- clean_combined |>  
+    filter(!is.na(seed_weight)) |>
+  mutate(seed_weight = as.numeric(seed_weight)) #|>  # Convert beanyd to numeric
     # Exclude rows with NA in beanyd
-  mutate(
-    bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 14)),
-    bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 14)),
-    bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 * ((100 - 0.00001) / (100 - 14))
-  )
-kable(head(bean_yield_clean)) 
+  #mutate(
+   # bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 14)),
+    #bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 14)),
+    #bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 * ((100 - 0.00001) / (100 - 14))
+  
+kable(head(seed_weight_clean)) 
 ```
-<br>
-
-
 # Model testing
 ## Lmer
 Block is random
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
 ```{r}
-random <- lmer( bean_yield_adj_bu_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data =  bean_yield_clean)
+random <- lmer( seed_weight  ~ location+weed_control + location:weed_control +(1|location:block) , data =  seed_weight_clean)
 
 resid_panel(random)
 ```
-
-<br>
 
 ## Joint test (anova)
 ```{r}
@@ -106,10 +100,8 @@ resid_panel(random)
   kable()  
 ```
 
-<br>
-
 ## Means comparison
-### Weed-control (NS)
+### Weed-control (S)
 ```{r message=FALSE}
 means_weed_control <- emmeans(random, ~  weed_control)
 pairwise_comparisons_weed_control<- pairs(means_weed_control) 
@@ -123,16 +115,14 @@ means_location <- emmeans(random, ~  location)
 pairwise_comparisons_location<- pairs(means_location) 
 kable(head(pairwise_comparisons_location))
 ```
-<br>
 
 ## Tukey compact letter display
-### Weed-control (NS)
+### Weed-control (S)
 ```{r}
 
 cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_weed_control_tukey
 ```
-<br>
 
 ### Location (S)
 ```{r}
@@ -141,29 +131,23 @@ cld_location_tukey <-cld(emmeans(random, ~  location, type = "response"), Letter
 cld_location_tukey
 ```
 <br>
-
-### Weed-control:Location (NS)
-```{r}
-cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_weed_control_location_tukey
-```
-<br>
 # Figures
 
-## Weed-control (NS)
+## Weed-control (S)
 
-```{r message=FALSE}
-bean_yield_clean |> 
+```{r message=FALSE, warning=FALSE}
+seed_weight_clean |> 
   left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = weed_control, y = bean_yield_adj_bu_acre, fill = weed_control)) +
+  ggplot(aes(x = weed_control, y = seed_weight, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("Soybean yield" ~ (bu ~ acre^{-1})),
-    title = str_c("The influence of interrow weed control on soybean yield"),
-    subtitle = expression(italic("Not signficant"))) +
+     y = expression("100 seed weight " ~ (g ~ 100 ~ seeds^-1)),
+  
+    title = str_c("The influence of interrow weed control on 100 seed weight of soybeans"),
+    subtitle = expression(italic("P < 0.005"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
                               "Rolled,\ninterrow\nmowing",
@@ -178,22 +162,22 @@ bean_yield_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("bean_yield_weed_control_buA.png", width = 8, height = 6, dpi = 300)
+ggsave("seedt_weigh_weed_control_.png", width = 8, height = 6, dpi = 300)
 ```
 
 ## Location (S)
 
 ```{r message=FALSE, warning=FALSE}
-bean_yield_clean |> 
+seed_weight_clean |> 
   left_join(cld_location_tukey) |> 
-  ggplot(aes(x = location, y = bean_yield_adj_bu_acre, fill = location)) +
+  ggplot(aes(x = location, y = seed_weight, fill = location)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Location",
-    y = expression("Soybean yield" ~ (bu ~ A^{-1})),
-    title = str_c("The influence of location on soybean yield"),
+    y = expression("100 seed weight " ~ (g ~ 100 ~ seeds^-1)),
+    title = str_c("The influence of location on 100 seed weight of soybeans"),
     subtitle = expression(italic("P < 0.005"))) +
    scale_x_discrete(labels = c("Field O2 East ",
                               "Field O2 West",
@@ -206,5 +190,5 @@ bean_yield_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("bean_yield_location_buA.png", width = 8, height = 6, dpi = 300)
+ggsave("seed_weigjt_location.png", width = 8, height = 6, dpi = 300)
 ```
