@@ -237,7 +237,7 @@ seed_weight_clean |>
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-     y = expression("100 seed weight " ~ (g ~ 100 ~ seeds^-1)),
+      y = expression("Weed biomass" ~ (grams/100 ~ seeds)),
   
     title = str_c("The influence of interrow weed control on 100 seed weight of soybeans"),
     subtitle = expression(italic("P < 0.005"))) +
@@ -274,7 +274,7 @@ seed_weight_clean |>
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Location",
-    y = expression("100 seed weight " ~ (g ~ 100 ~ seeds^-1)),
+   y = expression("Weed biomass" ~ (grams/100 ~ seeds)),
     title = str_c("The influence of location on 100 seed weight of soybeans"),
     subtitle = expression(italic("P < 0.005"))) +
    scale_x_discrete(labels = c("Field O2 East ",
