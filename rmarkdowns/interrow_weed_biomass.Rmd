@@ -150,7 +150,7 @@ interrow_weed_biomass_clean |>
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("Interrow weed biomass" ~ (lbs * "/" * acre)),
+    y = expression("Interrow weed biomass" ~ (lbs * "/" * a)),
     title = str_c("Influence of interrow weed control on interrow weed biomass"),
     subtitle = expression(italic("P = 0.007"))) +
   
@@ -167,5 +167,5 @@ interrow_weed_biomass_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("interrow_weed_biomass_weed_control_.png", width = 8, height = 6, dpi = 300)
+ggsave("interrow_weed_biomass_weed_control_lbac.png", width = 8, height = 6, dpi = 300)
 ```
