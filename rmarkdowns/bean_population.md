@@ -210,7 +210,7 @@ bean_population_clean |>
   
   labs(
     x = "Location",
-    y = expression("Soybean population" ~ (plants * "/" * acre)),
+    y = expression("Soybean population" ~ (plants * "/" * a)),
     title = str_c("The influence of location on soybean population"),
     subtitle = expression(italic("P < 0.005"))) +
    scale_x_discrete(labels = c("Field O2 East ",
@@ -229,5 +229,5 @@ bean_population_clean |>
 ![](bean_population_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
 
 ``` r
-ggsave("bean_population_location_acre.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_population_location_a.png", width = 8, height = 6, dpi = 300)
 ```
