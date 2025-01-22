@@ -153,7 +153,7 @@ bean_biomass_clean |>
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("soybean biomass" (lbs * "/" * acre)),
+    y = expression("soybean biomass" ~ (lbs * "/" * a)),
     title = str_c("Influence of interrow weed control on soybean biomass at peak weed sampling"),
     subtitle = expression(italic("P < 0.005"))) +
   
@@ -184,7 +184,7 @@ bean_biomass_clean |>
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("Soybean biomass" ~ (lb ~ A^{-1})),
+    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
     title = str_c("Influence of interrow weed control and location on soybean biomass at peak weed sampling"),
     subtitle = expression(italic("P < 0.005"))) +
   
