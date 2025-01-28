@@ -68,7 +68,8 @@ clean_combined <- clean_names(combined_raw) |>
                        #wbm > (quantile(totwbm, 0.75) + 1.5 * IQR(totwbm)))
 
 #select and convert data for wbm analysis
-weed_biomass_clean <-clean_combined |>              
+weed_biomass_clean <-clean_combined |> 
+  mutate(log_weed_biomass_grams_meter=  (log((weed_biomass*2)+1)))|>
   mutate(weed_biomass_grams_meter = (weed_biomass * 2)) |> 
   mutate(weed_biomass_kg_ha = ((weed_biomass/0.5) *(10000))/(1000)) |>
   mutate(weed_biomass_lbs_ac = (((weed_biomass/0.5) *(10000))/(1000))* 0.892179)
@@ -81,6 +82,8 @@ Block is random
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
 ## Lmer
+
+#lb_ac
 ```{r}
 random <- lmer(weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
 
@@ -101,12 +104,41 @@ random |>
 ```
 <br>
 
+#log_g
+```{r}
+random_log <- lmer(log_weed_biomass_grams_meter  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
+
+resid_panel(random_log)
+```
+## Summary
+```{r}
+summary(random_log)
+weed_biomass_clean |> count(year,location,weed_control)
+
+```
+
+## Joint test (anova)
+```{r}
+random_log |> 
+  joint_tests() |> 
+  kable()  
+```
+<br>
+
 ## Means comparison
 ### Weed-control (S)
 ```{r message=FALSE}
 means_weed_control <- emmeans(random, ~  weed_control)
 pairwise_comparisons_weed_control<- pairs(means_weed_control) 
 kable(head(pairwise_comparisons_weed_control))
+```
+<br>
+
+### Weed-control (S)
+```{r message=FALSE}
+means_weed_control_log <- emmeans(random_log, ~  weed_control)
+pairwise_comparisons_weed_control_log<- pairs(means_weed_control_log) 
+kable(head(pairwise_comparisons_weed_control_log))
 ```
 <br>
 
@@ -136,6 +168,11 @@ cld_weed_control_tukey
 ```
 <br>
 
+```{r}
+cld_weed_control_tukey_log <-cld(emmeans(random_log, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_tukey_log
+```
+
 ### Location (S)
 ```{r}
 #location
@@ -156,6 +193,36 @@ cld_weed_control_location_tukey
 ```{r message=FALSE}
 weed_biomass_clean |> 
   left_join(cld_weed_control_tukey) |> 
+  ggplot(aes(x = weed_control, y = weed_biomass_lbs_ac, fill = weed_control)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Interrow weed control",
+     y = expression("Weed biomass" ~ (lbs * "/" * a)),
+    title = str_c("Influence of interrow weed control on weed biomass"),
+    subtitle = expression(italic("P < 0.005"))) +
+  
+  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nno additional\nweed control",
+                          "Tilled,\nstandard\ncultivation",
+                              "Tilled,\ninterrow\nmowing")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+ggsave("weed_biomass_weed_control_lbsacre.png", width = 8, height = 6, dpi = 300)
+```
+## Weed-control (S)
+
+```{r message=FALSE}
+weed_biomass_clean |> 
+  left_join(cld_weed_control_tukey_log) |> 
   ggplot(aes(x = weed_control, y = weed_biomass_lbs_ac, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
@@ -210,6 +277,6 @@ weed_biomass_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("weed_biomass_weed_control_location_lbsacre.png", width = 12, height = 6, dpi = 300)
+ggsave("weed_biomass_weed_control_location_lbsacre_log.png", width = 12, height = 6, dpi = 300)
 ```
 
