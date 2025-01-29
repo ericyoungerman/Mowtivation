@@ -106,7 +106,7 @@ random |>
 <br>
 
 ## Means comparison
-### Weed-control (S)
+### Weed-control (Significant)
 ```{r message=FALSE}
 means_weed_control <- emmeans(random, ~  weed_control)
 pairwise_comparisons_weed_control<- pairs(means_weed_control) 
@@ -114,14 +114,14 @@ kable(head(pairwise_comparisons_weed_control))
 ```
 <br>
 
-### Location (S)
+### Location (Significant)
 ```{r message=FALSE}
 means_location <- emmeans(random, ~  location)
 pairwise_comparisons_location<- pairs(means_location) 
 kable(head(pairwise_comparisons_location))
 ```
 ## Tukey compact letter display
-### Weed-control (S)
+### Weed-control (Significant)
 
 ```{r}
 cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
@@ -129,20 +129,33 @@ cld_weed_control_tukey
 ```
 <br>
 
-### Location (S)
+### Location (Significant)
 ```{r}
 #location
 cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_location_tukey
 ```
-### Weed-control:Location (NS)
+
+
+## Fisher compact letter display
+### Weed-control (Significant)
+
 ```{r}
-#weed_control|location
-cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_weed_control_location_tukey
+cld_weed_control_fisher <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
+cld_weed_control_fisher
 ```
-# Figures
-## Weed-control (S)
+
+### Location (Significant)
+```{r}
+#location
+cld_location_fisher <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
+cld_location_fisher
+```
+
+
+
+# Figures using Tukey
+## Weed-control (Significant)
 
 ```{r message=FALSE}
 bean_biomass_clean |> 
@@ -170,22 +183,55 @@ bean_biomass_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("bean_biomass_weed_control_lbA.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_biomass_weed_control_tukey_lbA.png", width = 8, height = 6, dpi = 300)
 ```
 
-## Weed_control:location (S)
+## Location (Significant)
 ```{r message=FALSE}
 bean_biomass_clean |> 
-  left_join(cld_weed_control_location_tukey) |> 
+  left_join(cld_location_tukey) |> 
+  ggplot(aes(x = location, y = bean_biomass_lbs_ac, fill = location)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Location",
+    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
+    title = str_c("Influence of site-year soybean biomass at peak weed sampling"),
+    subtitle = expression(italic("P < 0.005"))) +
+  
+   scale_x_discrete(labels = c("Field O2 East ",
+                              "Field O2 West",
+                              "Field X")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+ggsave("bean_biomass_location_tukey_lbA.png", width = 12, height = 6, dpi = 300)
+```
+
+
+
+
+
+# Figures using Fisher
+## Weed-control (Significant)
+
+```{r message=FALSE}
+bean_biomass_clean |> 
+  left_join(cld_weed_control_fisher) |> 
   ggplot(aes(x = weed_control, y = bean_biomass_lbs_ac, fill = weed_control)) +
-  facet_wrap(~location )+
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
-    title = str_c("Influence of interrow weed control and location on soybean biomass at peak weed sampling"),
+    y = expression("soybean biomass" ~ (lbs * "/" * a)),
+    title = str_c("Influence of interrow weed control on soybean biomass at peak weed sampling"),
     subtitle = expression(italic("P < 0.005"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
@@ -201,5 +247,33 @@ bean_biomass_clean |>
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12)
   )
-ggsave("bean_biomass_weed_control_location_lbA.png", width = 12, height = 6, dpi = 300)
+ggsave("bean_biomass_weed_control_fisher_lbA.png", width = 8, height = 6, dpi = 300)
+```
+
+## Location (Significant)
+```{r message=FALSE}
+bean_biomass_clean |> 
+  left_join(cld_location_fisher) |> 
+  ggplot(aes(x = location, y = bean_biomass_lbs_ac, fill = location)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Location",
+    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
+    title = str_c("Influence of site-year on soybean biomass at peak weed sampling"),
+    subtitle = expression(italic("P < 0.005"))) +
+  
+   scale_x_discrete(labels = c("Field O2 East ",
+                              "Field O2 West",
+                              "Field X")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+ggsave("bean_biomass_location_fisher_lbA.png", width = 12, height = 6, dpi = 300)
 ```

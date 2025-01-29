@@ -209,7 +209,7 @@ random |>
 
 ## Means comparison
 
-### Weed-control (S)
+### Weed-control (Significant)
 
 ``` r
 means_weed_control <- emmeans(random, ~  weed_control)
@@ -228,7 +228,7 @@ kable(head(pairwise_comparisons_weed_control))
 
 <br>
 
-### Location (S)
+### Location (Significant)
 
 ``` r
 means_location <- emmeans(random, ~  location)
@@ -244,7 +244,7 @@ kable(head(pairwise_comparisons_location))
 
 ## Tukey compact letter display
 
-### Weed-control (S)
+### Weed-control (Significant)
 
 ``` r
 cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
@@ -274,7 +274,7 @@ cld_weed_control_tukey
 
 <br>
 
-### Location (S)
+### Location (Significant)
 
 ``` r
 #location
@@ -301,49 +301,64 @@ cld_location_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-### Weed-control:Location (NS)
+## Fisher compact letter display
+
+### Weed-control (Significant)
 
 ``` r
-#weed_control|location
-cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_weed_control_location_tukey
+cld_weed_control_fisher <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
 ```
 
-    ## location = field O2 east:
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_weed_control_fisher
+```
+
     ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  TIM            8107 325 40.8     7450     8764  a    
-    ##  TIC            7921 325 40.8     7264     8578  a    
-    ##  RIC            7534 325 40.8     6877     8191  a    
-    ##  RNO            7463 325 40.8     6806     8120  a    
-    ##  RIM            7192 325 40.8     6535     7849  a    
+    ##  TIC            7155 188 40.8     6776     7535  a    
+    ##  TIM            6965 188 40.8     6586     7344  a    
+    ##  RIC            6269 188 40.8     5890     6649   b   
+    ##  RNO            6267 188 40.8     5888     6646   b   
+    ##  RIM            6009 188 40.8     5630     6389   b   
     ## 
-    ## location = field O2 west:
-    ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  TIC            8516 325 40.8     7859     9173  a    
-    ##  TIM            8263 325 40.8     7606     8920  ab   
-    ##  RNO            7116 325 40.8     6459     7773   bc  
-    ##  RIM            6775 325 40.8     6118     7432    c  
-    ##  RIC            6664 325 40.8     6006     7321    c  
-    ## 
-    ## location = field x:
-    ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  TIC            5029 325 40.8     4372     5686  a    
-    ##  RIC            4610 325 40.8     3953     5268  a    
-    ##  TIM            4526 325 40.8     3869     5183  a    
-    ##  RNO            4221 325 40.8     3564     4878  a    
-    ##  RIM            4062 325 40.8     3404     4719  a    
-    ## 
+    ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
-    ## P value adjustment: tukey method for comparing a family of 5 estimates 
     ## significance level used: alpha = 0.05 
     ## NOTE: If two or more means share the same grouping symbol,
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-# Figures
+### Location (Significant)
 
-## Weed-control (S)
+``` r
+#location
+cld_location_fisher <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
+```
+
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_location_fisher
+```
+
+    ##  location      emmean  SE df lower.CL upper.CL .group
+    ##  field O2 east   7643 187  9     7221     8066  a    
+    ##  field O2 west   7467 187  9     7045     7889  a    
+    ##  field x         4490 187  9     4068     4912   b   
+    ## 
+    ## Results are averaged over the levels of: weed_control 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+# Figures using Tukey
+
+## Weed-control (Significant)
 
 ``` r
 bean_biomass_clean |> 
@@ -373,26 +388,61 @@ bean_biomass_clean |>
   )
 ```
 
-![](bean_biomass_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+![](bean_biomass_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
 
 ``` r
-ggsave("bean_biomass_weed_control_lbA.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_biomass_weed_control_tukey_lbA.png", width = 8, height = 6, dpi = 300)
 ```
 
-## Weed_control:location (S)
+## Location (Significant)
 
 ``` r
 bean_biomass_clean |> 
-  left_join(cld_weed_control_location_tukey) |> 
+  left_join(cld_location_tukey) |> 
+  ggplot(aes(x = location, y = bean_biomass_lbs_ac, fill = location)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Location",
+    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
+    title = str_c("Influence of site-year soybean biomass at peak weed sampling"),
+    subtitle = expression(italic("P < 0.005"))) +
+  
+   scale_x_discrete(labels = c("Field O2 East ",
+                              "Field O2 West",
+                              "Field X")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+```
+
+![](bean_biomass_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
+
+``` r
+ggsave("bean_biomass_location_tukey_lbA.png", width = 12, height = 6, dpi = 300)
+```
+
+# Figures using Fisher
+
+## Weed-control (Significant)
+
+``` r
+bean_biomass_clean |> 
+  left_join(cld_weed_control_fisher) |> 
   ggplot(aes(x = weed_control, y = bean_biomass_lbs_ac, fill = weed_control)) +
-  facet_wrap(~location )+
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
-    title = str_c("Influence of interrow weed control and location on soybean biomass at peak weed sampling"),
+    y = expression("soybean biomass" ~ (lbs * "/" * a)),
+    title = str_c("Influence of interrow weed control on soybean biomass at peak weed sampling"),
     subtitle = expression(italic("P < 0.005"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
@@ -410,8 +460,42 @@ bean_biomass_clean |>
   )
 ```
 
-![](bean_biomass_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+![](bean_biomass_files/figure-gfm/unnamed-chunk-15-1.png)<!-- -->
 
 ``` r
-ggsave("bean_biomass_weed_control_location_lbA.png", width = 12, height = 6, dpi = 300)
+ggsave("bean_biomass_weed_control_fisher_lbA.png", width = 8, height = 6, dpi = 300)
+```
+
+## Location (Significant)
+
+``` r
+bean_biomass_clean |> 
+  left_join(cld_location_fisher) |> 
+  ggplot(aes(x = location, y = bean_biomass_lbs_ac, fill = location)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Location",
+    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
+    title = str_c("Influence of site-year on soybean biomass at peak weed sampling"),
+    subtitle = expression(italic("P < 0.005"))) +
+  
+   scale_x_discrete(labels = c("Field O2 East ",
+                              "Field O2 West",
+                              "Field X")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+```
+
+![](bean_biomass_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
+
+``` r
+ggsave("bean_biomass_location_fisher_lbA.png", width = 12, height = 6, dpi = 300)
 ```
