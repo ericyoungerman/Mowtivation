@@ -369,7 +369,7 @@ bean_biomass_clean |>
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("soybean biomass" ~ (lbs * "/" * a)),
+    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
     title = str_c("Influence of interrow weed control on soybean biomass at peak weed sampling"),
     subtitle = expression(italic("P < 0.005"))) +
   
@@ -384,7 +384,11 @@ bean_biomass_clean |>
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 16),   # Increase font size of axis labels
+    plot.title = element_text(size = 20, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 16, face = "italic")  # Increase font size of subtitle
   )
 ```
 
@@ -418,7 +422,12 @@ bean_biomass_clean |>
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 16),   # Increase font size of axis labels
+    plot.title = element_text(size = 20, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 16, face = "italic")  # Increase font size of subtitle
+  
   )
 ```
 
@@ -441,8 +450,8 @@ bean_biomass_clean |>
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
-    y = expression("soybean biomass" ~ (lbs * "/" * a)),
-    title = str_c("Influence of interrow weed control on soybean biomass at peak weed sampling"),
+    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
+    title = str_c("Influence of interrow weed control on soybean biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
   scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
@@ -456,14 +465,19 @@ bean_biomass_clean |>
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 16),   # Increase font size of axis labels
+    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
+  
   )
 ```
 
 ![](bean_biomass_files/figure-gfm/unnamed-chunk-15-1.png)<!-- -->
 
 ``` r
-ggsave("bean_biomass_weed_control_fisher_lbA.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_biomass_weed_control_fisher_lbA.png", width = 10, height = 6, dpi = 300)
 ```
 
 ## Location (Significant)
@@ -478,7 +492,7 @@ bean_biomass_clean |>
   labs(
     x = "Location",
     y = expression("Soybean biomass" ~ (lbs * "/" * a)),
-    title = str_c("Influence of site-year on soybean biomass at peak weed sampling"),
+    title = str_c("Influence of site-year on soybean biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
    scale_x_discrete(labels = c("Field O2 East ",
@@ -490,7 +504,11 @@ bean_biomass_clean |>
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 16),   # Increase font size of axis labels
+    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
   )
 ```
 

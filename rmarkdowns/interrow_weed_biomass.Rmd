@@ -81,77 +81,126 @@ kable(head(interrow_weed_biomass_clean))
 Block is random
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
-## Lmer
+## Lmer (no transformation)
 ```{r}
 random <- lmer(interrow_weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = interrow_weed_biomass_clean)
 
 resid_panel(random)
 ```
 
-##Joint test (anova)
+###Joint test (anova)
 ```{r}
 random |> 
   joint_tests() |> 
   kable()  
 ```
+### Means comparison
+#### Weed-control (Significant)
+```{r message=FALSE}
+means_weed_control <- emmeans(random, ~  weed_control)
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(pairwise_comparisons_weed_control)
+```
+br>
 
+#### Location (Not significant)
+```{r message=FALSE}
+means_location <- emmeans(random, ~  location)
+pairwise_comparisons_location<- pairs(means_location) 
+kable(pairwise_comparisons_location)
+```
+#### Location|weed-control (Not significant)
+```{r message=FALSE}
+means_weed_control_location <- emmeans(random, ~  weed_control|location)
+pairwise_comparisons_weed_control_location<- pairs(means_weed_control_location) 
+kable(pairwise_comparisons_weed_control_location)
+```
+### Tukey compact letter display
+#### Weed-control (Significant)
+
+```{r}
+#weed control
+cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_tukey
+
+```
+### Fisher compact letter display
+#### Weed-control (Significant)
+
+```{r}
+ cld_weed_control_fisher <-cld(emmeans(random,~  weed_control,type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
+ cld_weed_control_fisher
+```
+
+## Lmer (log transformation)
 ```{r}
 random_log <- lmer(log_interrow_weed_biomass_grams_meter  ~ location+weed_control + location:weed_control +(1|location:block) , data = interrow_weed_biomass_clean)
 
-resid_panel(random)
+resid_panel(random_log)
 ```
-#Joint test (anova)
+###Joint test (anova)
 ```{r}
 random_log |> 
   joint_tests() |> 
   kable()  
 ```
 
-## Means comparison
-### Weed-control (S)
+### Means comparison
+#### Weed-control (Significant)
 ```{r message=FALSE}
-means_weed_control <- emmeans(random, ~  weed_control)
-pairwise_comparisons_weed_control<- pairs(means_weed_control) 
-kable(head(pairwise_comparisons_weed_control))
+means_weed_control_log <- emmeans(random_log, ~  weed_control)
+pairwise_comparisons_weed_control_log<- pairs(means_weed_control) 
+kable(pairwise_comparisons_weed_control_log)
 ```
-br>
-
-### Location (NS)
+#### Location (Significant)
 ```{r message=FALSE}
-means_location <- emmeans(random, ~  location)
-pairwise_comparisons_location<- pairs(means_location) 
-kable(head(pairwise_comparisons_location))
-```
- ### Location|weed-control (S)
-```{r message=FALSE}
-means_weed_control_location <- emmeans(random, ~  weed_control|location)
-pairwise_comparisons_weed_control_location<- pairs(means_weed_control_location) 
-kable(head(pairwise_comparisons_weed_control_location))
+means_location_log <- emmeans(random_log, ~  location)
+pairwise_comparisons_location_log<- pairs(means_location_log) 
+kable(pairwise_comparisons_location_log)
 ```
 
+#### Location|weed-control (Not significant)
+```{r message=FALSE}
+means_weed_control_location_log <- emmeans(random_log, ~  weed_control|location)
+pairwise_comparisons_weed_control_location_log<- pairs(means_weed_control_location_log) 
+kable(pairwise_comparisons_weed_control_location_log)
+```
 
-## Tukey compact letter display
-### Weed-control (S)
+### Tukey compact letter display
+#### Weed-control (Significant)
 
 ```{r}
 #weed control
 cld_weed_control_tukey_log <-cld(emmeans(random_log, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 cld_weed_control_tukey_log
-```
-#weed control
-cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_weed_control_tukey
 
-## Fisher compact letter display
-### Weed-control (S)
+```
+#### Location (Significant)
+```{r}
+#location
+cld_location_tukey_log <-cld(emmeans(random_log, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_location_tukey_log
+
+```
+
+### Fisher compact letter display
+#### Weed-control (Significant)
 
 ```{r}
- cld_weed_control_fisher <-cld(emmeans(random,~  weed_control,type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
+ cld_weed_control_fisher_log <-cld(emmeans(random_log,~  weed_control,type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
+ cld_weed_control_fisher_log
+```
+
+#### Location (Significant)
+
+```{r}
+ cld_weed_control_fisher_log <-cld(emmeans(random_log,~  location,type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
+cld_weed_control_fisher_log
 ```
 
 # Figures
 
-## Weed control
+## Weedcontrol
 
 
 ```{r message=FALSE}
@@ -160,7 +209,7 @@ interrow_weed_biomass_clean |>
   ggplot(aes(x = weed_control, y = interrow_weed_biomass_grams_meter, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
     x = "Interrow weed control",
     y = expression("Interrow weed biomass" ~ (g ~ m^{-2})),
@@ -182,3 +231,41 @@ interrow_weed_biomass_clean |>
   )
 ggsave("interrow_weed_biomass_weed_control_lbac.png", width = 8, height = 6, dpi = 300)
 ```
+
+
+```{r message=FALSE}
+interrow_weed_biomass_clean |> 
+  left_join(cld_weed_control_fisher_log) |> 
+  ggplot(aes(x = weed_control, y = interrow_weed_biomass_grams_meter, fill = weed_control)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "Interrow weed control",
+    y = expression("Interrow weed biomass" ~ (g ~ m^{-2})),
+    title = str_c("Influence of interrow weed control on interrow weed biomass"),
+    subtitle = expression(italic("P = 0.007"))) +
+  
+  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nno additional\nweed control",
+                          "Tilled,\nstandard\ncultivation",
+                              "Tilled,\ninterrow\nmowing")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+ggsave("interrow_weed_biomass_weed_control_lbac.png", width = 8, height = 6, dpi = 300)
+```
+
+# Figures
+
+## Weedcontrol
+
+
+```{r message=FALSE}
+i
