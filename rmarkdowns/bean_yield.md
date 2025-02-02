@@ -139,7 +139,7 @@ resid_panel(random)
 
 ## Means comparison
 
-### Weed-control (NS)
+### Weed-control (Not significant)
 
 ``` r
 means_weed_control <- emmeans(random, ~  weed_control)
@@ -156,7 +156,7 @@ kable(head(pairwise_comparisons_weed_control))
 | RIM - RNO |  1.6227217 | 2.819198 | 35.73048 |  0.5755969 | 0.9935448 |
 | RIM - TIC | -1.5348311 | 2.819198 | 35.73048 | -0.5444212 | 0.9952174 |
 
-<br> \### Location (S)
+<br> \### Location (Significant)
 
 ``` r
 means_location <- emmeans(random, ~  location)
@@ -174,7 +174,7 @@ kable(head(pairwise_comparisons_location))
 
 ## Tukey compact letter display
 
-### Weed-control (NS)
+### Weed-control (Not significant)
 
 ``` r
 cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
@@ -204,7 +204,7 @@ cld_weed_control_tukey
 
 <br>
 
-### Location (S)
+### Location (Significant)
 
 ``` r
 cld_location_tukey <-cld(emmeans(random, ~  location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
@@ -232,53 +232,69 @@ cld_location_tukey
 
 <br>
 
-### Weed-control:Location (NS)
+## Fisher compact letter display
+
+### Weed-control (No significant)
 
 ``` r
-cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_weed_control_location_tukey
+cld_weed_control_fisher <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
 ```
 
-    ## location = field O2 east:
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_weed_control_fisher
+```
+
     ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  RIC            77.8 3.39 43.9     71.0     84.6  a    
-    ##  RNO            76.6 3.39 43.9     69.8     83.4  a    
-    ##  RIM            75.2 3.39 43.9     68.4     82.1  a    
-    ##  TIM            72.3 3.39 43.9     65.5     79.2  a    
-    ##  TIC            71.7 3.39 43.9     64.8     78.5  a    
+    ##  TIC            70.4 1.96 43.9     66.5     74.3  a    
+    ##  RIM            68.9 2.07 44.0     64.7     73.0  a    
+    ##  RIC            68.7 1.96 43.9     64.8     72.7  a    
+    ##  RNO            67.2 1.96 43.9     63.3     71.2  a    
+    ##  TIM            64.9 1.96 43.9     61.0     68.9  a    
     ## 
-    ## location = field O2 west:
-    ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  TIC            79.5 3.39 43.9     72.7     86.4  a    
-    ##  TIM            71.0 3.39 43.9     64.1     77.8  a    
-    ##  RIC            70.9 3.39 43.9     64.0     77.7  a    
-    ##  RIM            69.5 3.95 44.0     61.5     77.5  a    
-    ##  RNO            68.9 3.39 43.9     62.1     75.8  a    
-    ## 
-    ## location = field x:
-    ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  RIM            61.9 3.39 43.9     55.1     68.7  a    
-    ##  TIC            60.0 3.39 43.9     53.2     66.8  a    
-    ##  RIC            57.5 3.39 43.9     50.7     64.3  a    
-    ##  RNO            56.2 3.39 43.9     49.4     63.0  a    
-    ##  TIM            51.5 3.39 43.9     44.6     58.3  a    
-    ## 
+    ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
-    ## P value adjustment: tukey method for comparing a family of 5 estimates 
     ## significance level used: alpha = 0.05 
     ## NOTE: If two or more means share the same grouping symbol,
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-<br> \# Figures
+### Location (Significant)
+
+``` r
+#location
+cld_location_fisher <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
+```
+
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_location_fisher
+```
+
+    ##  location      emmean   SE   df lower.CL upper.CL .group
+    ##  field O2 east   74.7 1.58 8.67     71.1     78.3  a    
+    ##  field O2 west   72.0 1.63 9.54     68.3     75.6  a    
+    ##  field x         57.4 1.58 8.67     53.8     61.0   b   
+    ## 
+    ## Results are averaged over the levels of: weed_control 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+# Figures using fisher
 
 ## Weed-control (NS)
 
 ``` r
 bean_yield_clean |> 
-  left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = weed_control, y = bean_yield_adj_bu_acre, fill = weed_control)) +
+  left_join(cld_weed_control_fisher) |> 
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = bean_yield_adj_bu_acre, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
@@ -288,25 +304,29 @@ bean_yield_clean |>
     title = str_c("The influence of interrow weed control on soybean yield"),
     subtitle = expression(italic("Not signficant"))) +
   
-  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
+  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nno additional\nweed control",
-                          "Tilled,\nstandard\ncultivation",
-                              "Tilled,\ninterrow\nmowing")) +
+                              "Rolled,\nhigh-residue\ncultivation",
+                              "Tilled,\ninterrow\nmowing",
+                          "Tilled,\nstandard\ncultivation")) +
   scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
   scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
    theme_bw() +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 16),   # Increase font size of axis labels
+    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
   )
 ```
 
-![](bean_yield_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](bean_yield_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
 
 ``` r
-ggsave("bean_yield_weed_control_bua.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_yield_weed_control_bua.png", width = 12, height = 8, dpi = 300)
 ```
 
 ## Location (S)
@@ -332,11 +352,16 @@ bean_yield_clean |>
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 16),   # Increase font size of axis labels
+    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
+  
   )
 ```
 
-![](bean_yield_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+![](bean_yield_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
 
 ``` r
 ggsave("bean_yield_location_bua.png", width = 8, height = 6, dpi = 300)
