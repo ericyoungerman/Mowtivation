@@ -36,8 +36,8 @@ library(ggResidpanel) ##install.packages("ggResidpanel")
 #library(car)
 #library(TMB)  ##install.packages("TMB")
 #library(glmmTMB)  ##install.packages("glmmTMB")
-#library(DHARMa)  ##install.packages("DHARMa")
-
+library(DHARMa)  ##install.packages("DHARMa")
+library(performance) ##install.packages("performance")
 #Load Functions
 MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
 
@@ -92,10 +92,14 @@ Block is random
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
 ```{r}
-random <- lmer( bean_yield_adj_bu_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data =  bean_yield_clean)
+random <- lmer( bean_yield_adj_bu_acre  ~ weed_control +(1|location:block) , data =  bean_yield_clean)
 
 resid_panel(random)
+
+simulateResiduals(random,plot = TRUE) # Residuals and normality look good
+check_model(random)
 ```
+
 
 <br>
 
@@ -116,13 +120,7 @@ pairwise_comparisons_weed_control<- pairs(means_weed_control)
 kable(head(pairwise_comparisons_weed_control))
 ```
 
-<br>
-### Location (Significant)
-```{r message=FALSE}
-means_location <- emmeans(random, ~  location)
-pairwise_comparisons_location<- pairs(means_location) 
-kable(head(pairwise_comparisons_location))
-```
+
 <br>
 
 ## Tukey compact letter display
@@ -134,14 +132,6 @@ cld_weed_control_tukey
 ```
 <br>
 
-### Location (Significant)
-```{r}
-
-cld_location_tukey <-cld(emmeans(random, ~  location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_location_tukey
-```
-<br>
-
 
 ## Fisher compact letter display
 ### Weed-control (No significant)
@@ -150,12 +140,7 @@ cld_location_tukey
 cld_weed_control_fisher <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
 cld_weed_control_fisher
 ```
-### Location (Significant)
-```{r}
-#location
-cld_location_fisher <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
-cld_location_fisher
-```
+
 # Figures using fisher
 
 ## Weed-control (NS)
@@ -190,12 +175,12 @@ bean_yield_clean |>
     plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
     plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
   )
-ggsave("bean_yield_weed_control_bua.png", width = 12, height = 8, dpi = 300)
+ggsave("bean_yield_weed_control_bua.png", width = 10, height = 8, dpi = 300)
 ```
 
 ## Location (S)
 
-```{r message=FALSE, warning=FALSE}
+#```{r message=FALSE, warning=FALSE}
 bean_yield_clean |> 
   left_join(cld_location_tukey) |> 
   ggplot(aes(x = location, y = bean_yield_adj_bu_acre, fill = location)) +
@@ -223,5 +208,5 @@ bean_yield_clean |>
     plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
   
   )
-ggsave("bean_yield_location_bua.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_yield_location_bua.png", width = 10, height = 6, dpi = 300)
 ```

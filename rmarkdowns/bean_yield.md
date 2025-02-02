@@ -29,8 +29,8 @@ library(ggResidpanel) ##install.packages("ggResidpanel")
 #library(car)
 #library(TMB)  ##install.packages("TMB")
 #library(glmmTMB)  ##install.packages("glmmTMB")
-#library(DHARMa)  ##install.packages("DHARMa")
-
+library(DHARMa)  ##install.packages("DHARMa")
+library(performance) ##install.packages("performance")
 #Load Functions
 MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
 
@@ -112,12 +112,28 @@ be random and that post-hoc comparisons should use TUKEY rather the
 Fischer. Fisher is bogus apparently.
 
 ``` r
-random <- lmer( bean_yield_adj_bu_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data =  bean_yield_clean)
+random <- lmer( bean_yield_adj_bu_acre  ~ weed_control +(1|location:block) , data =  bean_yield_clean)
 
 resid_panel(random)
 ```
 
 ![](bean_yield_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+
+``` r
+simulateResiduals(random,plot = TRUE) # Residuals and normality look good
+```
+
+![](bean_yield_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
+
+    ## Object of Class DHARMa with simulated residuals based on 250 simulations with refit = FALSE . See ?DHARMa::simulateResiduals for help. 
+    ##  
+    ## Scaled residual values: 0.04 0.28 0.036 0.012 0.072 0.092 0.356 0.08 0.368 0.188 0.124 0.092 0.132 0.788 0.32 0.368 0.096 0.248 0.096 0.08 ...
+
+``` r
+check_model(random)
+```
+
+![](bean_yield_files/figure-gfm/unnamed-chunk-4-3.png)<!-- -->
 
 <br>
 
@@ -129,11 +145,9 @@ resid_panel(random)
   kable()  
 ```
 
-|     | model term            | df1 |   df2 | F.ratio |   p.value |
-|:----|:----------------------|----:|------:|--------:|----------:|
-| 1   | location              |   2 |  8.67 |  34.446 | 0.0000752 |
-| 3   | weed_control          |   4 | 35.03 |   1.135 | 0.3562477 |
-| 2   | location:weed_control |   8 | 35.03 |   1.248 | 0.3013225 |
+| model term   | df1 | df2 | F.ratio |  p.value |
+|:-------------|----:|----:|--------:|---------:|
+| weed_control |   4 |  43 |   1.169 | 0.337798 |
 
 <br>
 
@@ -149,26 +163,12 @@ kable(head(pairwise_comparisons_weed_control))
 
 | contrast  |   estimate |       SE |       df |    t.ratio |   p.value |
 |:----------|-----------:|---------:|---------:|-----------:|----------:|
-| RIC - RIM | -0.1501923 | 2.819198 | 35.73048 | -0.0532748 | 1.0000000 |
-| RIC - RNO |  1.4725294 | 2.736174 | 35.03121 |  0.5381710 | 0.9955121 |
-| RIC - TIC | -1.6850234 | 2.736174 | 35.03121 | -0.6158319 | 0.9907685 |
-| RIC - TIM |  3.7934286 | 2.736174 | 35.03121 |  1.3863988 | 0.6832901 |
-| RIM - RNO |  1.6227217 | 2.819198 | 35.73048 |  0.5755969 | 0.9935448 |
-| RIM - TIC | -1.5348311 | 2.819198 | 35.73048 | -0.5444212 | 0.9952174 |
-
-<br> \### Location (Significant)
-
-``` r
-means_location <- emmeans(random, ~  location)
-pairwise_comparisons_location<- pairs(means_location) 
-kable(head(pairwise_comparisons_location))
-```
-
-| contrast                      |  estimate |       SE |       df |  t.ratio |   p.value |
-|:------------------------------|----------:|---------:|---------:|---------:|----------:|
-| field O2 east - field O2 west |  2.758683 | 2.269573 | 9.102352 | 1.215508 | 0.5861020 |
-| field O2 east - field x       | 17.295801 | 2.232693 | 8.665443 | 7.746608 | 0.0001062 |
-| field O2 west - field x       | 14.537117 | 2.269573 | 9.102352 | 6.405221 | 0.0003553 |
+| RIC - RIM | -0.7070736 | 2.857106 | 43.13973 | -0.2474789 | 0.9999462 |
+| RIC - RNO |  1.4725294 | 2.780554 | 43.00087 |  0.5295813 | 0.9958500 |
+| RIC - TIC | -1.6850234 | 2.780554 | 43.00087 | -0.6060027 | 0.9914382 |
+| RIC - TIM |  3.7934286 | 2.780554 | 43.00087 |  1.3642707 | 0.6950589 |
+| RIM - RNO |  2.1796030 | 2.857106 | 43.13973 |  0.7628708 | 0.9722262 |
+| RIM - TIC | -0.9779499 | 2.857106 | 43.13973 | -0.3422868 | 0.9996441 |
 
 <br>
 
@@ -178,53 +178,19 @@ kable(head(pairwise_comparisons_location))
 
 ``` r
 cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-```
-
-    ## NOTE: Results may be misleading due to involvement in interactions
-
-``` r
 cld_weed_control_tukey
 ```
 
     ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  TIC            70.4 1.96 43.9     66.5     74.3  a    
-    ##  RIM            68.9 2.07 44.0     64.7     73.0  a    
-    ##  RIC            68.7 1.96 43.9     64.8     72.7  a    
-    ##  RNO            67.2 1.96 43.9     63.3     71.2  a    
-    ##  TIM            64.9 1.96 43.9     61.0     68.9  a    
+    ##  TIC            70.4 3.03 23.4     64.1     76.7  a    
+    ##  RIM            69.4 3.10 25.1     63.0     75.8  a    
+    ##  RIC            68.7 3.03 23.4     62.5     75.0  a    
+    ##  RNO            67.2 3.03 23.4     61.0     73.5  a    
+    ##  TIM            64.9 3.03 23.4     58.7     71.2  a    
     ## 
-    ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
     ## P value adjustment: tukey method for comparing a family of 5 estimates 
-    ## significance level used: alpha = 0.05 
-    ## NOTE: If two or more means share the same grouping symbol,
-    ##       then we cannot show them to be different.
-    ##       But we also did not show them to be the same.
-
-<br>
-
-### Location (Significant)
-
-``` r
-cld_location_tukey <-cld(emmeans(random, ~  location, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-```
-
-    ## NOTE: Results may be misleading due to involvement in interactions
-
-``` r
-cld_location_tukey
-```
-
-    ##  location      emmean   SE   df lower.CL upper.CL .group
-    ##  field O2 east   74.7 1.58 8.67     71.1     78.3  a    
-    ##  field O2 west   72.0 1.63 9.54     68.3     75.6  a    
-    ##  field x         57.4 1.58 8.67     53.8     61.0   b   
-    ## 
-    ## Results are averaged over the levels of: weed_control 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## Confidence level used: 0.95 
-    ## P value adjustment: tukey method for comparing a family of 3 estimates 
     ## significance level used: alpha = 0.05 
     ## NOTE: If two or more means share the same grouping symbol,
     ##       then we cannot show them to be different.
@@ -238,48 +204,16 @@ cld_location_tukey
 
 ``` r
 cld_weed_control_fisher <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
-```
-
-    ## NOTE: Results may be misleading due to involvement in interactions
-
-``` r
 cld_weed_control_fisher
 ```
 
     ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  TIC            70.4 1.96 43.9     66.5     74.3  a    
-    ##  RIM            68.9 2.07 44.0     64.7     73.0  a    
-    ##  RIC            68.7 1.96 43.9     64.8     72.7  a    
-    ##  RNO            67.2 1.96 43.9     63.3     71.2  a    
-    ##  TIM            64.9 1.96 43.9     61.0     68.9  a    
+    ##  TIC            70.4 3.03 23.4     64.1     76.7  a    
+    ##  RIM            69.4 3.10 25.1     63.0     75.8  a    
+    ##  RIC            68.7 3.03 23.4     62.5     75.0  a    
+    ##  RNO            67.2 3.03 23.4     61.0     73.5  a    
+    ##  TIM            64.9 3.03 23.4     58.7     71.2  a    
     ## 
-    ## Results are averaged over the levels of: location 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## Confidence level used: 0.95 
-    ## significance level used: alpha = 0.05 
-    ## NOTE: If two or more means share the same grouping symbol,
-    ##       then we cannot show them to be different.
-    ##       But we also did not show them to be the same.
-
-### Location (Significant)
-
-``` r
-#location
-cld_location_fisher <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
-```
-
-    ## NOTE: Results may be misleading due to involvement in interactions
-
-``` r
-cld_location_fisher
-```
-
-    ##  location      emmean   SE   df lower.CL upper.CL .group
-    ##  field O2 east   74.7 1.58 8.67     71.1     78.3  a    
-    ##  field O2 west   72.0 1.63 9.54     68.3     75.6  a    
-    ##  field x         57.4 1.58 8.67     53.8     61.0   b   
-    ## 
-    ## Results are averaged over the levels of: weed_control 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
     ## significance level used: alpha = 0.05 
@@ -323,46 +257,34 @@ bean_yield_clean |>
   )
 ```
 
-![](bean_yield_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+![](bean_yield_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
 
 ``` r
-ggsave("bean_yield_weed_control_bua.png", width = 12, height = 8, dpi = 300)
+ggsave("bean_yield_weed_control_bua.png", width = 10, height = 8, dpi = 300)
 ```
 
 ## Location (S)
 
-``` r
-bean_yield_clean |> 
-  left_join(cld_location_tukey) |> 
-  ggplot(aes(x = location, y = bean_yield_adj_bu_acre, fill = location)) +
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
-  labs(
-    x = "Location",
-    y = expression(paste("Soybean yield (", bu, "/", a, " at 13% moisture)")),
-    title = str_c("The influence of location on soybean yield"),
-    subtitle = expression(italic("P < 0.005"))) +
-   scale_x_discrete(labels = c("Field O2 East ",
-                              "Field O2 West",
-                              "Field X")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
-  theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 16),   # Increase font size of axis labels
-    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
-  
-  )
-```
+\#\`\`\`{r message=FALSE, warning=FALSE} bean_yield_clean \|\>
+left_join(cld_location_tukey) \|\> ggplot(aes(x = location, y =
+bean_yield_adj_bu_acre, fill = location)) + stat_summary(geom = “bar”,
+fun = “mean”, width = 0.7) + stat_summary(geom = “errorbar”, fun.data =
+“mean_se”, width = 0.2) + stat_summary(geom=“text”, fun = “MeanPlusSe”,
+aes(label= trimws(.group)),size=6.5,vjust=-0.5) + labs( x = “Location”,
+y = expression(paste(“Soybean yield (”, bu, “/”, a, ” at 13%
+moisture)“)), title = str_c(”The influence of location on soybean
+yield”), subtitle = expression(italic(“P \< 0.005”))) +
+scale_x_discrete(labels = c(“Field O2 East”, “Field O2 West”, “Field
+X”)) + scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+scale_fill_viridis(discrete = TRUE, option = “D”, direction = -1, end =
+0.9, begin = 0.1) + theme_bw() + theme( legend.position = “none”,
+strip.background = element_blank(), strip.text = element_text(face =
+“bold”, size = 12), axis.title = element_text(size = 20), \# Increase
+font size of axis titles axis.text = element_text(size = 16), \#
+Increase font size of axis labels plot.title = element_text(size = 22,
+face = “bold”), \# Increase font size of title plot.subtitle =
+element_text(size = 18, face = “italic”) \# Increase font size of
+subtitle
 
-![](bean_yield_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
-
-``` r
-ggsave("bean_yield_location_bua.png", width = 8, height = 6, dpi = 300)
-```
+) ggsave(“bean_yield_location_bua.png”, width = 10, height = 6, dpi =
+300) \`\`\`
