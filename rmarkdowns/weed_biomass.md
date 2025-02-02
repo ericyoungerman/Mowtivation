@@ -29,8 +29,9 @@ library(multcompView) ##install.packages("multcompView")
 library(ggResidpanel) ##install.packages("ggResidpanel")
 #library(car)
 #library(TMB)  ##install.packages("TMB")
-#library(glmmTMB)  ##install.packages("glmmTMB")
-#library(DHARMa)  ##install.packages("DHARMa")
+library(glmmTMB)  ##install.packages("glmmTMB")
+library(DHARMa)  ##install.packages("DHARMa")
+library(performance) ##install.packages("performance")
 
 #Load Functions
 MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
@@ -96,7 +97,7 @@ Fischer. Fisher is bogus apparently.
 
 ## Lmer
 
-\#lb_ac
+\###lb_ac
 
 ``` r
 random <- lmer(weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
@@ -104,7 +105,7 @@ random <- lmer(weed_biomass_lbs_ac  ~ location+weed_control + location:weed_cont
 resid_panel(random)
 ```
 
-![](weed_biomass_files/figure-gfm/unnamed-chunk-4-1.png)<!-- --> \##
+![](weed_biomass_files/figure-gfm/unnamed-chunk-4-1.png)<!-- --> \####
 Summary
 
 ``` r
@@ -194,7 +195,7 @@ weed_biomass_clean |> count(year,location,weed_control)
     ## 14 2024  field O2 west TIC              4
     ## 15 2024  field O2 west TIM              4
 
-## Joint test (anova)
+#### Joint test (anova)
 
 ``` r
 random |> 
@@ -210,7 +211,7 @@ random |>
 
 <br>
 
-\#log_g
+\###log_g
 
 ``` r
 random_log <- lmer(log_weed_biomass_grams_meter  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
@@ -218,7 +219,7 @@ random_log <- lmer(log_weed_biomass_grams_meter  ~ location+weed_control + locat
 resid_panel(random_log)
 ```
 
-![](weed_biomass_files/figure-gfm/unnamed-chunk-7-1.png)<!-- --> \##
+![](weed_biomass_files/figure-gfm/unnamed-chunk-7-1.png)<!-- --> \####
 Summary
 
 ``` r
@@ -308,7 +309,7 @@ weed_biomass_clean |> count(year,location,weed_control)
     ## 14 2024  field O2 west TIC              4
     ## 15 2024  field O2 west TIM              4
 
-## Joint test (anova)
+#### Joint test (anova)
 
 ``` r
 random_log |> 
@@ -402,13 +403,13 @@ kable(head(pairwise_comparisons_weed_control_location))
 ### Weed-control (S)
 
 ``` r
-cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_random_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
 ```
 
     ## NOTE: Results may be misleading due to involvement in interactions
 
 ``` r
-cld_weed_control_tukey
+cld_weed_control_random_tukey
 ```
 
     ##  weed_control emmean   SE   df lower.CL upper.CL .group
@@ -455,74 +456,111 @@ cld_weed_control_tukey_log
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-### Location (S)
+\#GLMM
 
 ``` r
-#location
-cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+model_tweedie_log <- glmmTMB(
+weed_biomass_lbs_ac ~  weed_control + (1|location:block), 
+  data = weed_biomass_clean, 
+  family = tweedie(link = "log")
+
+)
+### Two checks specifically for a generalize linear approach
+simulateResiduals(model_tweedie_log,plot = TRUE) # Residuals and normality look good
 ```
 
-    ## NOTE: Results may be misleading due to involvement in interactions
+![](weed_biomass_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
+
+    ## Object of Class DHARMa with simulated residuals based on 250 simulations with refit = FALSE . See ?DHARMa::simulateResiduals for help. 
+    ##  
+    ## Scaled residual values: 0.812 0.852 0.656 0.924 0.856 0.884 0.848 0.92 0.964 0.792 0.764 0.856 0.812 0.768 0.416 0.764 0.704 0.92 0.904 0.888 ...
 
 ``` r
-cld_location_tukey
+check_model(model_tweedie_log) #Perfect, preditions match real data
 ```
 
-    ##  location      emmean   SE df lower.CL upper.CL .group
-    ##  field x        557.0 50.4  9    443.1      671  a    
-    ##  field O2 west  145.3 50.4  9     31.4      259   b   
-    ##  field O2 east   67.4 50.4  9    -46.5      181   b   
+    ## `check_outliers()` does not yet support models of class `glmmTMB`.
+
+![](weed_biomass_files/figure-gfm/unnamed-chunk-16-2.png)<!-- -->
+
+``` r
+model_tweedie_gaussian <- glmmTMB(
+weed_biomass_lbs_ac ~  weed_control + (1|location:block), 
+  data = weed_biomass_clean, 
+  family = gaussian(),
+
+)
+### Two checks specifically for a generalize linear approach
+simulateResiduals(model_tweedie_gaussian,plot = TRUE) # Residuals and normality look good
+```
+
+![](weed_biomass_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
+
+    ## Object of Class DHARMa with simulated residuals based on 250 simulations with refit = FALSE . See ?DHARMa::simulateResiduals for help. 
+    ##  
+    ## Scaled residual values: 0.984 0.832 0.444 0.952 0.78 0.788 0.744 0.844 0.996 0.908 0.908 0.884 0.696 0.52 0.28 0.584 0.46 0.736 0.852 0.992 ...
+
+``` r
+check_model(model_tweedie_gaussian) #Perfect, preditions match real data
+```
+
+    ## `check_outliers()` does not yet support models of class `glmmTMB`.
+
+![](weed_biomass_files/figure-gfm/unnamed-chunk-17-2.png)<!-- -->
+
+#### Joint test (anova)
+
+``` r
+model_tweedie_log |> 
+  joint_tests() |> 
+  kable()  
+```
+
+| model term   | df1 | df2 | F.ratio |  Chisq |   p.value |
+|:-------------|----:|----:|--------:|-------:|----------:|
+| weed_control |   4 | Inf |   3.453 | 13.812 | 0.0079204 |
+
+``` r
+options(contrasts = c("contr.sum", "contr.poly"))
+Anova(model_tweedie_log, type = 3)
+```
+
+    ## Analysis of Deviance Table (Type III Wald chisquare tests)
     ## 
-    ## Results are averaged over the levels of: weed_control 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## Confidence level used: 0.95 
-    ## P value adjustment: tukey method for comparing a family of 3 estimates 
-    ## significance level used: alpha = 0.05 
-    ## NOTE: If two or more means share the same grouping symbol,
-    ##       then we cannot show them to be different.
-    ##       But we also did not show them to be the same.
+    ## Response: weed_biomass_lbs_ac
+    ##               Chisq Df Pr(>Chisq)    
+    ## (Intercept)  84.971  1    < 2e-16 ***
+    ## weed_control 13.812  4    0.00792 ** 
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
 <br>
 
-### Weed-control:Location (S)
+## Fisher compact letter display
+
+### Weed-control (S)
 
 ``` r
-#weed_control|location
-cld_weed_control_location_tukey <-cld(emmeans(random, ~  weed_control|location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_weed_control_location_tukey
+cld_weed_control_fisher <-cld(emmeans(model_tweedie_log, ~  weed_control, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_fisher
 ```
 
-    ## location = field O2 east:
-    ##  weed_control  emmean  SE   df lower.CL upper.CL .group
-    ##  TIM           118.53 105 44.7   -92.49      330  a    
-    ##  RNO           111.30 105 44.7   -99.72      322  a    
-    ##  TIC            83.62 105 44.7  -127.40      295  a    
-    ##  RIM            21.61 105 44.7  -189.40      233  a    
-    ##  RIC             2.03 105 44.7  -208.99      213  a    
+    ##  weed_control response    SE  df asymp.LCL asymp.UCL .group
+    ##  TIM             332.5 152.0 Inf     135.9       813  a    
+    ##  TIC             138.2  68.7 Inf      52.2       366  ab   
+    ##  RNO             127.1  63.9 Inf      47.5       341   b   
+    ##  RIC             111.2  56.9 Inf      40.8       303   b   
+    ##  RIM              58.1  30.3 Inf      20.9       161   b   
     ## 
-    ## location = field O2 west:
-    ##  weed_control  emmean  SE   df lower.CL upper.CL .group
-    ##  RIC           242.90 105 44.7    31.88      454  a    
-    ##  RNO           220.55 105 44.7     9.53      432  a    
-    ##  TIM           173.97 105 44.7   -37.04      385  a    
-    ##  RIM            78.31 105 44.7  -132.71      289  a    
-    ##  TIC            10.84 105 44.7  -200.18      222  a    
-    ## 
-    ## location = field x:
-    ##  weed_control  emmean  SE   df lower.CL upper.CL .group
-    ##  TIM          1056.65 105 44.7   845.64     1268  a    
-    ##  TIC           761.68 105 44.7   550.66      973  ab   
-    ##  RIC           379.98 105 44.7   168.96      591   bc  
-    ##  RNO           374.31 105 44.7   163.30      585   bc  
-    ##  RIM           212.47 105 44.7     1.46      423    c  
-    ## 
-    ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
-    ## P value adjustment: tukey method for comparing a family of 5 estimates 
+    ## Intervals are back-transformed from the log scale 
+    ## Tests are performed on the log scale 
     ## significance level used: alpha = 0.05 
     ## NOTE: If two or more means share the same grouping symbol,
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
+
+### Location (Significant)
 
 # Figures
 
@@ -530,8 +568,8 @@ cld_weed_control_location_tukey
 
 ``` r
 weed_biomass_clean |> 
-  left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = weed_control, y = weed_biomass_lbs_ac, fill = weed_control)) +
+  left_join(cld_weed_control_fisher) |> 
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = weed_biomass_lbs_ac, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
@@ -541,96 +579,28 @@ weed_biomass_clean |>
     title = str_c("Influence of interrow weed control on weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
-  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
+  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nno additional\nweed control",
-                          "Tilled,\nstandard\ncultivation",
-                              "Tilled,\ninterrow\nmowing")) +
+                              "Rolled,\nhigh-residue\ncultivation",
+                              "Tilled,\ninterrow\nmowing",
+                          "Tilled,\nstandard\ncultivation")) +
   scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
   scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
    theme_bw() +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 16),   # Increase font size of axis labels
+    plot.title = element_text(size = 20, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 16, face = "italic")  # Increase font size of subtitle
+  
   )
 ```
 
-![](weed_biomass_files/figure-gfm/unnamed-chunk-18-1.png)<!-- -->
+![](weed_biomass_files/figure-gfm/unnamed-chunk-21-1.png)<!-- -->
 
 ``` r
 ggsave("weed_biomass_weed_control_lbsacre.png", width = 8, height = 6, dpi = 300)
-```
-
-## Weed-control (S)
-
-``` r
-weed_biomass_clean |> 
-  left_join(cld_weed_control_tukey_log) |> 
-  ggplot(aes(x = weed_control, y = weed_biomass_lbs_ac, fill = weed_control)) +
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
-  labs(
-    x = "Interrow weed control",
-     y = expression("Weed biomass" ~ (lbs * "/" * a)),
-    title = str_c("Influence of interrow weed control on weed biomass"),
-    subtitle = expression(italic("P < 0.005"))) +
-  
-  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
-                              "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nno additional\nweed control",
-                          "Tilled,\nstandard\ncultivation",
-                              "Tilled,\ninterrow\nmowing")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
-  theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
-  )
-```
-
-![](weed_biomass_files/figure-gfm/unnamed-chunk-19-1.png)<!-- -->
-
-``` r
-ggsave("weed_biomass_weed_control_lbsacre.png", width = 8, height = 6, dpi = 300)
-```
-
-## Weed_control:location (S)
-
-``` r
-weed_biomass_clean |> 
-  left_join(cld_weed_control_location_tukey) |> 
-  ggplot(aes(x = weed_control, y = weed_biomass_lbs_ac, fill = weed_control)) +
-  facet_wrap(~location )+
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
-  labs(
-    x = "Interrow weed control",
-    y = expression("Weed biomass" ~ (lbs * "/" * a)),
-    title = str_c("Influence of interrow weed control and location on weed biomass"),
-    subtitle = expression(italic("P < 0.005"))) +
-  
-  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
-                              "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nno additional\nweed control",
-                          "Tilled,\nstandard\ncultivation",
-                              "Tilled,\ninterrow\nmowing")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
-  theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
-  )
-```
-
-![](weed_biomass_files/figure-gfm/unnamed-chunk-20-1.png)<!-- -->
-
-``` r
-ggsave("weed_biomass_weed_control_location_lbsacre_log.png", width = 12, height = 6, dpi = 300)
 ```
