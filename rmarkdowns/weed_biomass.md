@@ -484,6 +484,45 @@ check_model(model_tweedie_log) #Perfect, preditions match real data
 ![](weed_biomass_files/figure-gfm/unnamed-chunk-16-2.png)<!-- -->
 
 ``` r
+summary(model_tweedie_log )
+```
+
+    ##  Family: tweedie  ( log )
+    ## Formula:          weed_biomass_lbs_ac ~ weed_control + (1 | location:block)
+    ## Data: weed_biomass_clean
+    ## 
+    ##      AIC      BIC   logLik deviance df.resid 
+    ##    715.7    732.4   -349.8    699.7       52 
+    ## 
+    ## Random effects:
+    ## 
+    ## Conditional model:
+    ##  Groups         Name        Variance Std.Dev.
+    ##  location:block (Intercept) 1.481    1.217   
+    ## Number of obs: 60, groups:  location:block, 12
+    ## 
+    ## Dispersion parameter for tweedie family (): 6.23 
+    ## 
+    ## Conditional model:
+    ##                 Estimate Std. Error z value Pr(>|z|)    
+    ## (Intercept)       4.7117     0.5111   9.218   <2e-16 ***
+    ## weed_controlRIM  -0.6490     0.5131  -1.265   0.2059    
+    ## weed_controlRNO   0.1336     0.4884   0.274   0.7844    
+    ## weed_controlTIC   0.2168     0.4818   0.450   0.6527    
+    ## weed_controlTIM   1.0949     0.4748   2.306   0.0211 *  
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+``` r
+VarCorr(model_tweedie_log )
+```
+
+    ## 
+    ## Conditional model:
+    ##  Groups         Name        Std.Dev.
+    ##  location:block (Intercept) 1.2168
+
+``` r
 model_tweedie_gaussian <- glmmTMB(
 weed_biomass_lbs_ac ~  weed_control + (1|location:block), 
   data = weed_biomass_clean, 
@@ -593,8 +632,8 @@ weed_biomass_clean |>
     strip.text = element_text(face = "bold", size = 12),
     axis.title = element_text(size = 20),  # Increase font size of axis titles
     axis.text = element_text(size = 16),   # Increase font size of axis labels
-    plot.title = element_text(size = 20, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 16, face = "italic")  # Increase font size of subtitle
+    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
   
   )
 ```
@@ -602,5 +641,5 @@ weed_biomass_clean |>
 ![](weed_biomass_files/figure-gfm/unnamed-chunk-21-1.png)<!-- -->
 
 ``` r
-ggsave("weed_biomass_weed_control_lbsacre.png", width = 8, height = 6, dpi = 300)
+ggsave("weed_biomass_weed_control_lbsacre.png", width = 10, height = 6, dpi = 300)
 ```

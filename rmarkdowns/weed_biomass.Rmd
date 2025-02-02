@@ -189,6 +189,9 @@ weed_biomass_lbs_ac ~  weed_control + (1|location:block),
 simulateResiduals(model_tweedie_log,plot = TRUE) # Residuals and normality look good
 check_model(model_tweedie_log) #Perfect, preditions match real data
 
+summary(model_tweedie_log )
+VarCorr(model_tweedie_log )
+
 
 ```
 
@@ -263,10 +266,10 @@ weed_biomass_clean |>
     strip.text = element_text(face = "bold", size = 12),
     axis.title = element_text(size = 20),  # Increase font size of axis titles
     axis.text = element_text(size = 16),   # Increase font size of axis labels
-    plot.title = element_text(size = 20, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 16, face = "italic")  # Increase font size of subtitle
+    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
   
   )
-ggsave("weed_biomass_weed_control_lbsacre.png", width = 8, height = 6, dpi = 300)
+ggsave("weed_biomass_weed_control_lbsacre.png", width = 10, height = 6, dpi = 300)
 ```
 
