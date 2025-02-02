@@ -36,8 +36,8 @@ library(ggResidpanel) ##install.packages("ggResidpanel")
 #library(car)
 #library(TMB)  ##install.packages("TMB")
 #library(glmmTMB)  ##install.packages("glmmTMB")
-#library(DHARMa)  ##install.packages("DHARMa")
-
+library(DHARMa)  ##install.packages("DHARMa")
+library(performance) 
 #Load Functions
 MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
 
@@ -85,14 +85,19 @@ Tyler is under the impression that block should always be random and that post-h
 
 ## Lmer
 ```{r}
-random <- lmer(bean_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data =bean_biomass_clean)
+random <- lmer(bean_biomass_lbs_ac  ~ weed_control + (1|location) , data =bean_biomass_clean)
 
 resid_panel(random)
+simulateResiduals(random,plot = TRUE) # Residuals and normality look good
+check_model(random) #Perfect, preditions match real data
+
 ```
 ## Summary
 ```{r}
 summary(random)
-bean_biomass_clean |> count(year,location,weed_control)
+isSingular(random, tol = 1e-4)
+VarCorr(random)
+
 
 ```
 
@@ -102,7 +107,10 @@ random |>
   joint_tests() |> 
   kable()  
 ```
-
+```{r}
+options(contrasts = c("contr.sum", "contr.poly"))
+Anova(random, type = 3)
+```
 <br>
 
 ## Means comparison
@@ -188,7 +196,7 @@ bean_biomass_clean |>
     plot.subtitle = element_text(size = 16, face = "italic")  # Increase font size of subtitle
   )
   
-ggsave("bean_biomass_weed_control_tukey_lbA.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_biomass_weed_control_tukey_lbA.png", width = 10, height = 6, dpi = 300)
 ```
 
 ## Location (Significant)
@@ -234,7 +242,7 @@ ggsave("bean_biomass_location_tukey_lbA.png", width = 12, height = 6, dpi = 300)
 ```{r message=FALSE}
 bean_biomass_clean |> 
   left_join(cld_weed_control_fisher) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")),, y = bean_biomass_lbs_ac, fill = weed_control)) +
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = bean_biomass_lbs_ac, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
