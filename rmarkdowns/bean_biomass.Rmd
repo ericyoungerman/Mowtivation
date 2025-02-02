@@ -160,7 +160,7 @@ cld_location_fisher
 ```{r message=FALSE}
 bean_biomass_clean |> 
   left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = weed_control, y = bean_biomass_lbs_ac, fill = weed_control)) +
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")),, y = bean_biomass_lbs_ac, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
@@ -170,11 +170,11 @@ bean_biomass_clean |>
     title = str_c("Influence of interrow weed control on soybean biomass at peak weed sampling"),
     subtitle = expression(italic("P < 0.005"))) +
   
-  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
+  scale_x_discrete(labels =  c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nno additional\nweed control",
-                          "Tilled,\nstandard\ncultivation",
-                              "Tilled,\ninterrow\nmowing")) +
+                              "Rolled,\nhigh-residue\ncultivation",
+                              "Tilled,\ninterrow\nmowing",
+                          "Tilled,\nstandard\ncultivation")) +
   scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
   scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
    theme_bw() +
@@ -234,7 +234,7 @@ ggsave("bean_biomass_location_tukey_lbA.png", width = 12, height = 6, dpi = 300)
 ```{r message=FALSE}
 bean_biomass_clean |> 
   left_join(cld_weed_control_fisher) |> 
-  ggplot(aes(x = weed_control, y = bean_biomass_lbs_ac, fill = weed_control)) +
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")),, y = bean_biomass_lbs_ac, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
@@ -244,11 +244,11 @@ bean_biomass_clean |>
     title = str_c("Influence of interrow weed control on soybean biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
-  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
+  scale_x_discrete(labels =  c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nno additional\nweed control",
-                          "Tilled,\nstandard\ncultivation",
-                              "Tilled,\ninterrow\nmowing")) +
+                              "Rolled,\nhigh-residue\ncultivation",
+                              "Tilled,\ninterrow\nmowing",
+                          "Tilled,\nstandard\ncultivation")) +
   scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
   scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
    theme_bw() +
