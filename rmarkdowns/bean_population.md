@@ -32,8 +32,8 @@ library(ggResidpanel) ##install.packages("ggResidpanel")
 #library(car)
 #library(TMB)  ##install.packages("TMB")
 #library(glmmTMB)  ##install.packages("glmmTMB")
-#library(DHARMa)  ##install.packages("DHARMa")
-
+library(DHARMa)  ##install.packages("DHARMa")
+library(performance) ##install.packages("performance")
 #Load Functions
 MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
 
@@ -107,16 +107,28 @@ be random and that post-hoc comparisons should use TUKEY rather the
 Fischer. Fisher is bogus apparently.
 
 ``` r
-random <- lmer(bean_population_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data = bean_population_clean)
-```
+random <- lmer(bean_population_acre  ~ weed_control+(1|location:block) , data = bean_population_clean)
 
-    ## boundary (singular) fit: see help('isSingular')
-
-``` r
 resid_panel(random)
 ```
 
 ![](bean_population_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+
+``` r
+simulateResiduals(random,plot = TRUE) # Residuals and normality look good
+```
+
+![](bean_population_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
+
+    ## Object of Class DHARMa with simulated residuals based on 250 simulations with refit = FALSE . See ?DHARMa::simulateResiduals for help. 
+    ##  
+    ## Scaled residual values: 0.092 0.224 0.26 0.152 0.264 0.048 0.096 0.036 0.38 0.428 0.152 0.18 0.004 0.12 0.044 0.368 0.136 0.308 0.384 0.66 ...
+
+``` r
+check_model(random)
+```
+
+![](bean_population_files/figure-gfm/unnamed-chunk-4-3.png)<!-- -->
 
 br\>
 
@@ -128,11 +140,9 @@ random |>
   kable()  
 ```
 
-|     | model term            | df1 |   df2 | F.ratio |   p.value |
-|:----|:----------------------|----:|------:|--------:|----------:|
-| 1   | location              |   2 |  8.64 |  25.795 | 0.0002276 |
-| 3   | weed_control          |   4 | 35.04 |   0.547 | 0.7024482 |
-| 2   | location:weed_control |   8 | 35.04 |   1.232 | 0.3097339 |
+| model term   | df1 | df2 | F.ratio |   p.value |
+|:-------------|----:|----:|--------:|----------:|
+| weed_control |   4 |  43 |   0.478 | 0.7517162 |
 
 ## Means comparison
 
@@ -144,53 +154,37 @@ pairwise_comparisons_weed_control<- pairs(means_weed_control)
 kable(head(pairwise_comparisons_weed_control))
 ```
 
-| contrast  |    estimate |       SE |       df |    t.ratio |   p.value |
-|:----------|------------:|---------:|---------:|-----------:|----------:|
-| RIC - RIM |   5458.4773 | 9043.958 | 35.78415 |  0.6035496 | 0.9916907 |
-| RIC - RNO |   4868.3716 | 8781.272 | 35.03704 |  0.5544039 | 0.9947287 |
-| RIC - TIC |  -5753.5301 | 8781.272 | 35.03704 | -0.6552046 | 0.9872427 |
-| RIC - TIM |   3540.6339 | 8781.272 | 35.03704 |  0.4032028 | 0.9990995 |
-| RIM - RNO |   -590.1057 | 9043.958 | 35.78415 | -0.0652486 | 1.0000000 |
-| RIM - TIC | -11212.0074 | 9043.958 | 35.78415 | -1.2397235 | 0.7801963 |
+| contrast  |   estimate |       SE |       df |    t.ratio |   p.value |
+|:----------|-----------:|---------:|---------:|-----------:|----------:|
+| RIC - RIM |   4563.037 | 9324.546 | 43.20640 |  0.4893575 | 0.9973097 |
+| RIC - RNO |   4868.372 | 9076.962 | 43.00195 |  0.5363437 | 0.9955533 |
+| RIC - TIC |  -5753.530 | 9076.962 | 43.00195 | -0.6338607 | 0.9891558 |
+| RIC - TIM |   3540.634 | 9076.962 | 43.00195 |  0.3900682 | 0.9992475 |
+| RIM - RNO |    305.335 | 9324.546 | 43.20640 |  0.0327453 | 1.0000000 |
+| RIM - TIC | -10316.567 | 9324.546 | 43.20640 | -1.1063882 | 0.8543955 |
 
-<br> \### Location (S)
-
-``` r
-means_location <- emmeans(random, ~  location)
-pairwise_comparisons_location<- pairs(means_location) 
-kable(head(pairwise_comparisons_location))
-```
-
-| contrast                      |  estimate |       SE |       df |   t.ratio |   p.value |
-|:------------------------------|----------:|---------:|---------:|----------:|----------:|
-| field O2 east - field O2 west |  3673.408 | 6924.747 | 9.103669 | 0.5304753 | 0.9399834 |
-| field O2 east - field x       | 44213.666 | 6801.944 | 8.639269 | 6.5001511 | 0.0004016 |
-| field O2 west - field x       | 40540.258 | 6924.747 | 9.103669 | 5.8544027 | 0.0006955 |
+<br>
 
 ## Tukey compact letter display
 
-### Location (S)
+### Weed-control (Not significant)
 
 ``` r
 #location
-cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_tukey <-cld(emmeans(random, ~ weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_tukey
 ```
 
-    ## NOTE: Results may be misleading due to involvement in interactions
-
-``` r
-cld_location_tukey
-```
-
-    ##  location      emmean   SE   df lower.CL upper.CL .group
-    ##  field O2 east 239391 4810 8.64   228441   250341  a    
-    ##  field O2 west 235718 4980 9.57   224550   246886  a    
-    ##  field x       195177 4810 8.64   184228   206127   b   
+    ##  weed_control emmean   SE   df lower.CL upper.CL .group
+    ##  TIC          230805 8690 29.8   213047   248563  a    
+    ##  RIC          225052 8690 29.8   207293   242810  a    
+    ##  TIM          221511 8690 29.8   203753   239269  a    
+    ##  RIM          220489 8950 32.0   202256   238721  a    
+    ##  RNO          220183 8690 29.8   202425   237941  a    
     ## 
-    ## Results are averaged over the levels of: weed_control 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
-    ## P value adjustment: tukey method for comparing a family of 3 estimates 
+    ## P value adjustment: tukey method for comparing a family of 5 estimates 
     ## significance level used: alpha = 0.05 
     ## NOTE: If two or more means share the same grouping symbol,
     ##       then we cannot show them to be different.
@@ -198,36 +192,42 @@ cld_location_tukey
 
 <br> \# Figures
 
-## Location (S)
+## Weed-control (Not significant)
 
 ``` r
 bean_population_clean |> 
-  left_join(cld_location_tukey) |> 
-  ggplot(aes(x = location, y = bean_population_acre, fill = location)) +
+  left_join(cld_weed_control_tukey) |> 
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = bean_population_acre, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   
   labs(
-    x = "Location",
+    x = "Interrow weed control",
     y = expression("Soybean population" ~ (plants * "/" * a)),
-    title = str_c("The influence of location on soybean population"),
-    subtitle = expression(italic("P < 0.005"))) +
-   scale_x_discrete(labels = c("Field O2 East ",
-                              "Field O2 West",
-                              "Field X")) +
+    title = str_c("The influence of interrow weed control on soybean population"),
+    subtitle = expression(italic("Not significant"))) +
+   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nhigh-residue\ncultivation",
+                              "Tilled,\ninterrow\nmowing",
+                          "Tilled,\nstandard\ncultivation")) +
   scale_y_continuous(labels = scales::label_comma(),expand = expansion(mult = c(0.05, 0.3))) +
   scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
    theme_bw() +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 16),   # Increase font size of axis labels
+    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
   )
 ```
 
-![](bean_population_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](bean_population_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
 
 ``` r
-ggsave("bean_population_location_a.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_population_weed_control_a.png", width = 10, height = 6, dpi = 300)
 ```

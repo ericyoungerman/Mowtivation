@@ -39,8 +39,8 @@ library(ggResidpanel) ##install.packages("ggResidpanel")
 #library(car)
 #library(TMB)  ##install.packages("TMB")
 #library(glmmTMB)  ##install.packages("glmmTMB")
-#library(DHARMa)  ##install.packages("DHARMa")
-
+library(DHARMa)  ##install.packages("DHARMa")
+library(performance) ##install.packages("performance")
 #Load Functions
 MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
 
@@ -84,9 +84,11 @@ kable(head(bean_population_clean))
 Block is random
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently.
 ```{r}
-random <- lmer(bean_population_acre  ~ location+weed_control + location:weed_control +(1|location:block) , data = bean_population_clean)
+random <- lmer(bean_population_acre  ~ weed_control+(1|location:block) , data = bean_population_clean)
 
 resid_panel(random)
+simulateResiduals(random,plot = TRUE) # Residuals and normality look good
+check_model(random)
 ```
 
 br>
@@ -106,49 +108,50 @@ pairwise_comparisons_weed_control<- pairs(means_weed_control)
 kable(head(pairwise_comparisons_weed_control))
 ```
 <br>
-### Location (S)
-```{r message=FALSE}
-means_location <- emmeans(random, ~  location)
-pairwise_comparisons_location<- pairs(means_location) 
-kable(head(pairwise_comparisons_location))
-```
+
 ## Tukey compact letter display
-### Location (S)
+### Weed-control (Not significant)
 
 ```{r}
 #location
-cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_location_tukey
+cld_weed_control_tukey <-cld(emmeans(random, ~ weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+cld_weed_control_tukey
 ```
 
 <br>
 # Figures
 
-## Location (S)
+## Weed-control (Not significant)
 
 ```{r message=FALSE, warning=FALSE}
 bean_population_clean |> 
-  left_join(cld_location_tukey) |> 
-  ggplot(aes(x = location, y = bean_population_acre, fill = location)) +
+  left_join(cld_weed_control_tukey) |> 
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = bean_population_acre, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   
   labs(
-    x = "Location",
+    x = "Interrow weed control",
     y = expression("Soybean population" ~ (plants * "/" * a)),
-    title = str_c("The influence of location on soybean population"),
-    subtitle = expression(italic("P < 0.005"))) +
-   scale_x_discrete(labels = c("Field O2 East ",
-                              "Field O2 West",
-                              "Field X")) +
+    title = str_c("The influence of interrow weed control on soybean population"),
+    subtitle = expression(italic("Not significant"))) +
+   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nhigh-residue\ncultivation",
+                              "Tilled,\ninterrow\nmowing",
+                          "Tilled,\nstandard\ncultivation")) +
   scale_y_continuous(labels = scales::label_comma(),expand = expansion(mult = c(0.05, 0.3))) +
   scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
    theme_bw() +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 16),   # Increase font size of axis labels
+    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
   )
-ggsave("bean_population_location_a.png", width = 8, height = 6, dpi = 300)
+ggsave("bean_population_weed_control_a.png", width = 10, height = 6, dpi = 300)
 ```
