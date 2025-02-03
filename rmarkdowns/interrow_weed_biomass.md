@@ -29,8 +29,9 @@ library(multcompView) ##install.packages("multcompView")
 library(ggResidpanel) ##install.packages("ggResidpanel")
 #library(car)
 #library(TMB)  ##install.packages("TMB")
-#library(glmmTMB)  ##install.packages("glmmTMB")
-#library(DHARMa)  ##install.packages("DHARMa")
+library(glmmTMB)  ##install.packages("glmmTMB")
+library(DHARMa)  ##install.packages("DHARMa")
+library(performance) ##install.packages("performance")
 
 #Load Functions
 MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
@@ -72,20 +73,22 @@ clean_combined <- clean_names(combined_raw) |>
 
 #select and convert data for wbm analysis
 interrow_weed_biomass_clean <-clean_combined |>              
-  mutate(intrarow_weed_biomass_grams_meter = (interrow_weed_biomass * 2)) |> 
-  mutate(interrow_weed_biomass_kg_ha = ((interrow_weed_biomass/0.5) *(10000))/(1000)) |>
-  mutate(interrow_weed_biomass_lbs_ac = (((interrow_weed_biomass/0.5) *(10000))/(1000))* 0.892179)
+  mutate(log_interrow_weed_biomass_grams_meter=  (log((interrow_weed_biomass*2)+1)))|>
+  mutate(interrow_weed_biomass_grams_meter = (interrow_weed_biomass * 2.5))|> # multiply by 2.5 because the sample is from 0.4m^2
+ 
+  mutate(interrow_weed_biomass_kg_ha = (interrow_weed_biomass_grams_meter *(10000))/(1000)) |>
+  mutate(interrow_weed_biomass_lbs_ac = ((interrow_weed_biomass_grams_meter *(10000))/(1000))* 0.892179)
 kable(head(interrow_weed_biomass_clean)) 
 ```
 
-| id | location | year | weed_control | block | plot | bean_emergence | bean_biomass | intrarow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight | intrarow_weed_biomass_grams_meter | interrow_weed_biomass_kg_ha | interrow_weed_biomass_lbs_ac |
-|:---|:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|:---|:---|:---|---:|---:|---:|
-| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.119999999999997 | 88.98 | 889.8 | 793.86087 |
-| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.475000000000001 | 1.44 | 14.4 | 12.84738 |
-| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 3.920 | 37.5 | 449.93 | 16.752499999999998 | 13.78 | 137.8 | 122.94227 |
-| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 | 16.145 | 91.47 | 914.7 | 816.07613 |
-| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 | 17.047499999999999 | 44.05 | 440.5 | 393.00485 |
-| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.149999999999999 | 38.92 | 389.2 | 347.23607 |
+| id | location | year | weed_control | block | plot | bean_emergence | bean_biomass | intrarow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight | log_interrow_weed_biomass_grams_meter | interrow_weed_biomass_grams_meter | interrow_weed_biomass_kg_ha | interrow_weed_biomass_lbs_ac |
+|:---|:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|:---|:---|:---|---:|---:|---:|---:|
+| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.119999999999997 | 4.499587 | 111.2250 | 1112.250 | 992.32609 |
+| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.475000000000001 | 0.891998 | 1.8000 | 18.000 | 16.05922 |
+| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 3.920 | 37.5 | 449.93 | 16.752499999999998 | 2.693275 | 17.2250 | 172.250 | 153.67783 |
+| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 | 16.145 | 4.526884 | 114.3375 | 1143.375 | 1020.09516 |
+| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 | 17.047499999999999 | 3.807773 | 55.0625 | 550.625 | 491.25606 |
+| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.149999999999999 | 3.686878 | 48.6500 | 486.500 | 434.04508 |
 
 # Model testing
 
@@ -93,7 +96,7 @@ Block is random Tyler is under the impression that block should always
 be random and that post-hoc comparisons should use TUKEY rather the
 Fischer. Fisher is bogus apparently.
 
-## Lmer
+## Lmer (no transformation)
 
 ``` r
 random <- lmer(interrow_weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = interrow_weed_biomass_clean)
@@ -103,7 +106,7 @@ resid_panel(random)
 
 ![](interrow_weed_biomass_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
 
-\##Joint test (anova)
+\###Joint test (anova)
 
 ``` r
 random |> 
@@ -117,62 +120,88 @@ random |>
 | 3   | weed_control          |   4 |  36 |   4.136 | 0.0073744 |
 | 2   | location:weed_control |   8 |  36 |   1.079 | 0.3996164 |
 
-<br>
+### Means comparison
 
-## Means comparison
-
-### Weed-control (S)
+#### Weed-control (Significant)
 
 ``` r
 means_weed_control <- emmeans(random, ~  weed_control)
 pairwise_comparisons_weed_control<- pairs(means_weed_control) 
-kable(head(pairwise_comparisons_weed_control))
+kable(pairwise_comparisons_weed_control)
 ```
 
 | contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
 |:----------|-----------:|---------:|----:|-----------:|----------:|
-| RIC - RIM |   98.38504 | 69.04058 |  36 |  1.4250321 | 0.6555723 |
-| RIC - RNO |  -68.77213 | 69.04058 |  36 | -0.9961117 | 0.9061227 |
-| RIC - TIC |  141.23194 | 69.04058 |  36 |  2.0456366 | 0.2562870 |
-| RIC - TIM |  -81.66412 | 69.04058 |  36 | -1.1828423 | 0.8142297 |
-| RIM - RNO | -167.15717 | 69.04058 |  36 | -2.4211438 | 0.1176228 |
-| RIM - TIC |   42.84690 | 69.04058 |  36 |  0.6206045 | 0.9903726 |
+| RIC - RIM |  122.98130 | 86.30072 |  36 |  1.4250321 | 0.6160311 |
+| RIC - RNO |  -85.96516 | 86.30072 |  36 | -0.9961117 | 0.8553525 |
+| RIC - TIC |  176.53992 | 86.30072 |  36 |  2.0456366 | 0.2657208 |
+| RIC - TIM | -102.08015 | 86.30072 |  36 | -1.1828423 | 0.7609488 |
+| RIM - RNO | -208.94646 | 86.30072 |  36 | -2.4211438 | 0.1328428 |
+| RIM - TIC |   53.55862 | 86.30072 |  36 |  0.6206045 | 0.9708240 |
+| RIM - TIM | -225.06145 | 86.30072 |  36 | -2.6078744 | 0.0901057 |
+| RNO - TIC |  262.50508 | 86.30072 |  36 |  3.0417483 | 0.0333017 |
+| RNO - TIM |  -16.11498 | 86.30072 |  36 | -0.1867306 | 0.9997144 |
+| TIC - TIM | -278.62007 | 86.30072 |  36 | -3.2284789 | 0.0209644 |
 
 br\>
 
-### Location (NS)
+#### Location (Not significant)
 
 ``` r
 means_location <- emmeans(random, ~  location)
 pairwise_comparisons_location<- pairs(means_location) 
-kable(head(pairwise_comparisons_location))
+kable(pairwise_comparisons_location)
 ```
 
 | contrast | estimate | SE | df | t.ratio | p.value |
 |:---|---:|---:|---:|---:|---:|
-| field O2 east - field O2 west | -54.88239 | 68.73638 | 9 | -0.7984475 | 0.8292015 |
-| field O2 east - field x | -187.28175 | 68.73638 | 9 | -2.7246379 | 0.0686539 |
-| field O2 west - field x | -132.39936 | 68.73638 | 9 | -1.9261904 | 0.2369423 |
-| \### Location | weed-control (S) |  |  |  |  |
+| field O2 east - field O2 west | -68.60299 | 85.92048 | 9 | -0.7984475 | 0.7132393 |
+| field O2 east - field x | -234.10219 | 85.92048 | 9 | -2.7246379 | 0.0555373 |
+| field O2 west - field x | -165.49920 | 85.92048 | 9 | -1.9261904 | 0.1868747 |
+| \#### Location | weed-control (Not significant) |  |  |  |  |
 
 ``` r
 means_weed_control_location <- emmeans(random, ~  weed_control|location)
 pairwise_comparisons_weed_control_location<- pairs(means_weed_control_location) 
-kable(head(pairwise_comparisons_weed_control_location))
+kable(pairwise_comparisons_weed_control_location)
 ```
 
 | contrast  | location      |    estimate |       SE |  df |    t.ratio |   p.value |
 |:----------|:--------------|------------:|---------:|----:|-----------:|----------:|
-| RIC - RIM | field O2 east |  -19.962505 | 119.5818 |  36 | -0.1669360 | 0.9999948 |
-| RIC - RNO | field O2 east | -109.760322 | 119.5818 |  36 | -0.9178682 | 0.9343134 |
-| RIC - TIC | field O2 east |  -25.560928 | 119.5818 |  36 | -0.2137527 | 0.9999775 |
-| RIC - TIM | field O2 east | -101.953755 | 119.5818 |  36 | -0.8525859 | 0.9531223 |
-| RIM - RNO | field O2 east |  -89.797816 | 119.5818 |  36 | -0.7509322 | 0.9745292 |
-| RIM - TIC | field O2 east |   -5.598423 | 119.5818 |  36 | -0.0468167 | 1.0000000 |
+| RIC - RIM | field O2 east |  -24.953131 | 149.4772 |  36 | -0.1669360 | 0.9998169 |
+| RIC - RNO | field O2 east | -137.200402 | 149.4772 |  36 | -0.9178682 | 0.8881417 |
+| RIC - TIC | field O2 east |  -31.951160 | 149.4772 |  36 | -0.2137527 | 0.9995124 |
+| RIC - TIM | field O2 east | -127.442194 | 149.4772 |  36 | -0.8525859 | 0.9120249 |
+| RIM - RNO | field O2 east | -112.247270 | 149.4772 |  36 | -0.7509322 | 0.9427228 |
+| RIM - TIC | field O2 east |   -6.998029 | 149.4772 |  36 | -0.0468167 | 0.9999989 |
+| RIM - TIM | field O2 east | -102.489063 | 149.4772 |  36 | -0.6856500 | 0.9583198 |
+| RNO - TIC | field O2 east |  105.249241 | 149.4772 |  36 |  0.7041155 | 0.9542260 |
+| RNO - TIM | field O2 east |    9.758208 | 149.4772 |  36 |  0.0652822 | 0.9999957 |
+| TIC - TIM | field O2 east |  -95.491034 | 149.4772 |  36 | -0.6388333 | 0.9676131 |
+| RIC - RIM | field O2 west |  213.899915 | 149.4772 |  36 |  1.4309865 | 0.6123152 |
+| RIC - RNO | field O2 west |   -6.914387 | 149.4772 |  36 | -0.0462571 | 0.9999989 |
+| RIC - TIC | field O2 west |  238.769405 | 149.4772 |  36 |  1.5973630 | 0.5086720 |
+| RIC - TIM | field O2 west |   76.420708 | 149.4772 |  36 |  0.5112531 | 0.9857045 |
+| RIM - RNO | field O2 west | -220.814302 | 149.4772 |  36 | -1.4772436 | 0.5833904 |
+| RIM - TIC | field O2 west |   24.869490 | 149.4772 |  36 |  0.1663764 | 0.9998194 |
+| RIM - TIM | field O2 west | -137.479208 | 149.4772 |  36 | -0.9197334 | 0.8874121 |
+| RNO - TIC | field O2 west |  245.683792 | 149.4772 |  36 |  1.6436201 | 0.4804384 |
+| RNO - TIM | field O2 west |   83.335095 | 149.4772 |  36 |  0.5575103 | 0.9802812 |
+| TIC - TIM | field O2 west | -162.348697 | 149.4772 |  36 | -1.0861098 | 0.8124370 |
+| RIC - RIM | field x       |  179.997113 | 149.4772 |  36 |  1.2041774 | 0.7489590 |
+| RIC - RNO | field x       | -113.780703 | 149.4772 |  36 | -0.7611908 | 0.9399829 |
+| RIC - TIC | field x       |  322.801514 | 149.4772 |  36 |  2.1595362 | 0.2181999 |
+| RIC - TIM | field x       | -255.218955 | 149.4772 |  36 | -1.7074101 | 0.4423395 |
+| RIM - RNO | field x       | -293.777816 | 149.4772 |  36 | -1.9653682 | 0.3030440 |
+| RIM - TIC | field x       |  142.804401 | 149.4772 |  36 |  0.9553588 | 0.8729828 |
+| RIM - TIM | field x       | -435.216068 | 149.4772 |  36 | -2.9115875 | 0.0454539 |
+| RNO - TIC | field x       |  436.582218 | 149.4772 |  36 |  2.9207271 | 0.0444864 |
+| RNO - TIM | field x       | -141.438252 | 149.4772 |  36 | -0.9462193 | 0.8767734 |
+| TIC - TIM | field x       | -578.020470 | 149.4772 |  36 | -3.8669464 | 0.0038207 |
 
-## Tukey compact letter display
+### Tukey compact letter display
 
-### Weed-control (S)
+#### Weed-control (Significant)
 
 ``` r
 #weed control
@@ -186,11 +215,11 @@ cld_weed_control_tukey
 ```
 
     ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  TIM           233.2 51.9 42.7    128.5      338  a    
-    ##  RNO           220.3 51.9 42.7    115.6      325  a    
-    ##  RIC           151.5 51.9 42.7     46.8      256  ab   
-    ##  RIM            53.2 51.9 42.7    -51.5      158  ab   
-    ##  TIC            10.3 51.9 42.7    -94.4      115   b   
+    ##  TIM           291.5 64.9 42.7    160.6      422  a    
+    ##  RNO           275.4 64.9 42.7    144.5      406  a    
+    ##  RIC           189.4 64.9 42.7     58.6      320  ab   
+    ##  RIM            66.4 64.9 42.7    -64.4      197  ab   
+    ##  TIC            12.9 64.9 42.7   -118.0      144   b   
     ## 
     ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
@@ -201,9 +230,9 @@ cld_weed_control_tukey
     ##       then we cannot show them to be different.
     ##       But we also did not show them to be the same.
 
-## Fisher compact letter display
+### Fisher compact letter display
 
-### Weed-control (S)
+#### Weed-control (Significant)
 
 ``` r
  cld_weed_control_fisher <-cld(emmeans(random,~  weed_control,type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
@@ -211,14 +240,351 @@ cld_weed_control_tukey
 
     ## NOTE: Results may be misleading due to involvement in interactions
 
+``` r
+ cld_weed_control_fisher
+```
+
+    ##  weed_control emmean   SE   df lower.CL upper.CL .group
+    ##  TIM           291.5 64.9 42.7    160.6      422  a    
+    ##  RNO           275.4 64.9 42.7    144.5      406  a    
+    ##  RIC           189.4 64.9 42.7     58.6      320  ab   
+    ##  RIM            66.4 64.9 42.7    -64.4      197   bc  
+    ##  TIC            12.9 64.9 42.7   -118.0      144    c  
+    ## 
+    ## Results are averaged over the levels of: location 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+## Lmer (log transformation)
+
+``` r
+random_log <- lmer(log_interrow_weed_biomass_grams_meter  ~ location+weed_control + location:weed_control +(1|location:block) , data = interrow_weed_biomass_clean)
+
+resid_panel(random_log)
+```
+
+![](interrow_weed_biomass_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+\###Joint test (anova)
+
+``` r
+random_log |> 
+  joint_tests() |> 
+  kable()  
+```
+
+|     | model term            | df1 | df2 | F.ratio |   p.value |
+|:----|:----------------------|----:|----:|--------:|----------:|
+| 1   | location              |   2 |   9 |   6.059 | 0.0215374 |
+| 3   | weed_control          |   4 |  36 |   8.044 | 0.0000968 |
+| 2   | location:weed_control |   8 |  36 |   1.531 | 0.1810875 |
+
+### Means comparison
+
+#### Weed-control (Significant)
+
+``` r
+means_weed_control_log <- emmeans(random_log, ~  weed_control)
+pairwise_comparisons_weed_control_log<- pairs(means_weed_control) 
+kable(pairwise_comparisons_weed_control_log)
+```
+
+| contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
+|:----------|-----------:|---------:|----:|-----------:|----------:|
+| RIC - RIM |  122.98130 | 86.30072 |  36 |  1.4250321 | 0.6160311 |
+| RIC - RNO |  -85.96516 | 86.30072 |  36 | -0.9961117 | 0.8553525 |
+| RIC - TIC |  176.53992 | 86.30072 |  36 |  2.0456366 | 0.2657208 |
+| RIC - TIM | -102.08015 | 86.30072 |  36 | -1.1828423 | 0.7609488 |
+| RIM - RNO | -208.94646 | 86.30072 |  36 | -2.4211438 | 0.1328428 |
+| RIM - TIC |   53.55862 | 86.30072 |  36 |  0.6206045 | 0.9708240 |
+| RIM - TIM | -225.06145 | 86.30072 |  36 | -2.6078744 | 0.0901057 |
+| RNO - TIC |  262.50508 | 86.30072 |  36 |  3.0417483 | 0.0333017 |
+| RNO - TIM |  -16.11498 | 86.30072 |  36 | -0.1867306 | 0.9997144 |
+| TIC - TIM | -278.62007 | 86.30072 |  36 | -3.2284789 | 0.0209644 |
+
+#### Location (Significant)
+
+``` r
+means_location_log <- emmeans(random_log, ~  location)
+pairwise_comparisons_location_log<- pairs(means_location_log) 
+kable(pairwise_comparisons_location_log)
+```
+
+| contrast                      |   estimate |        SE |  df |    t.ratio |   p.value |
+|:------------------------------|-----------:|----------:|----:|-----------:|----------:|
+| field O2 east - field O2 west | -0.4087562 | 0.4740756 |   9 | -0.8622174 | 0.6759673 |
+| field O2 east - field x       | -1.5890210 | 0.4740756 |   9 | -3.3518307 | 0.0209452 |
+| field O2 west - field x       | -1.1802648 | 0.4740756 |   9 | -2.4896133 | 0.0800027 |
+
+#### Location\|weed-control (Not significant)
+
+``` r
+means_weed_control_location_log <- emmeans(random_log, ~  weed_control|location)
+pairwise_comparisons_weed_control_location_log<- pairs(means_weed_control_location_log) 
+kable(pairwise_comparisons_weed_control_location_log)
+```
+
+| contrast  | location      |   estimate |        SE |  df |    t.ratio |   p.value |
+|:----------|:--------------|-----------:|----------:|----:|-----------:|----------:|
+| RIC - RIM | field O2 east | -0.8678678 | 0.7738918 |  36 | -1.1214331 | 0.7942229 |
+| RIC - RNO | field O2 east | -1.2200847 | 0.7738918 |  36 | -1.5765572 | 0.5215001 |
+| RIC - TIC | field O2 east | -0.5823230 | 0.7738918 |  36 | -0.7524606 | 0.9423196 |
+| RIC - TIM | field O2 east | -1.6686159 | 0.7738918 |  36 | -2.1561361 | 0.2195253 |
+| RIM - RNO | field O2 east | -0.3522168 | 0.7738918 |  36 | -0.4551242 | 0.9907727 |
+| RIM - TIC | field O2 east |  0.2855448 | 0.7738918 |  36 |  0.3689725 | 0.9958675 |
+| RIM - TIM | field O2 east | -0.8007481 | 0.7738918 |  36 | -1.0347030 | 0.8375964 |
+| RNO - TIC | field O2 east |  0.6377616 | 0.7738918 |  36 |  0.8240967 | 0.9214276 |
+| RNO - TIM | field O2 east | -0.4485313 | 0.7738918 |  36 | -0.5795788 | 0.9772559 |
+| TIC - TIM | field O2 east | -1.0862929 | 0.7738918 |  36 | -1.4036755 | 0.6293332 |
+| RIC - RIM | field O2 west |  0.8080277 | 0.7738918 |  36 |  1.0441095 | 0.8331181 |
+| RIC - RNO | field O2 west |  0.0457217 | 0.7738918 |  36 |  0.0590803 | 0.9999971 |
+| RIC - TIC | field O2 west |  1.6926095 | 0.7738918 |  36 |  2.1871399 | 0.2076511 |
+| RIC - TIM | field O2 west | -0.9519778 | 0.7738918 |  36 | -1.2301175 | 0.7341158 |
+| RIM - RNO | field O2 west | -0.7623060 | 0.7738918 |  36 | -0.9850292 | 0.8602632 |
+| RIM - TIC | field O2 west |  0.8845818 | 0.7738918 |  36 |  1.1430304 | 0.7827423 |
+| RIM - TIM | field O2 west | -1.7600055 | 0.7738918 |  36 | -2.2742270 | 0.1768107 |
+| RNO - TIC | field O2 west |  1.6468878 | 0.7738918 |  36 |  2.1280596 | 0.2306888 |
+| RNO - TIM | field O2 west | -0.9976995 | 0.7738918 |  36 | -1.2891978 | 0.6993611 |
+| TIC - TIM | field O2 west | -2.6445873 | 0.7738918 |  36 | -3.4172574 | 0.0128997 |
+| RIC - RIM | field x       |  0.6130952 | 0.7738918 |  36 |  0.7922235 | 0.9312079 |
+| RIC - RNO | field x       |  0.1066903 | 0.7738918 |  36 |  0.1378620 | 0.9999145 |
+| RIC - TIC | field x       |  2.9410992 | 0.7738918 |  36 |  3.8004013 | 0.0045958 |
+| RIC - TIM | field x       | -0.7040552 | 0.7738918 |  36 | -0.9097592 | 0.8912835 |
+| RIM - RNO | field x       | -0.5064050 | 0.7738918 |  36 | -0.6543615 | 0.9647001 |
+| RIM - TIC | field x       |  2.3280040 | 0.7738918 |  36 |  3.0081778 | 0.0361179 |
+| RIM - TIM | field x       | -1.3171504 | 0.7738918 |  36 | -1.7019828 | 0.4455371 |
+| RNO - TIC | field x       |  2.8344090 | 0.7738918 |  36 |  3.6625393 | 0.0067057 |
+| RNO - TIM | field x       | -0.8107454 | 0.7738918 |  36 | -1.0476212 | 0.8314315 |
+| TIC - TIM | field x       | -3.6451544 | 0.7738918 |  36 | -4.7101605 | 0.0003328 |
+
+### Tukey compact letter display
+
+#### Weed-control (Significant)
+
+``` r
+#weed control
+cld_weed_control_tukey_log <-cld(emmeans(random_log, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+```
+
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_weed_control_tukey_log
+```
+
+    ##  weed_control emmean    SE   df lower.CL upper.CL .group
+    ##  TIM           2.796 0.343 41.3    2.104     3.49  a    
+    ##  RNO           2.044 0.343 41.3    1.352     2.74  ab   
+    ##  RIC           1.688 0.343 41.3    0.996     2.38  ab   
+    ##  RIM           1.503 0.343 41.3    0.812     2.19   bc  
+    ##  TIC           0.337 0.343 41.3   -0.354     1.03    c  
+    ## 
+    ## Results are averaged over the levels of: location 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## P value adjustment: tukey method for comparing a family of 5 estimates 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+#### Location (Significant)
+
+``` r
+#location
+cld_location_tukey_log <-cld(emmeans(random_log, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+```
+
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_location_tukey_log
+```
+
+    ##  location      emmean    SE df lower.CL upper.CL .group
+    ##  field x         2.60 0.335  9    1.838     3.35  a    
+    ##  field O2 west   1.42 0.335  9    0.658     2.17  ab   
+    ##  field O2 east   1.01 0.335  9    0.249     1.77   b   
+    ## 
+    ## Results are averaged over the levels of: weed_control 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## P value adjustment: tukey method for comparing a family of 3 estimates 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+### Fisher compact letter display
+
+#### Weed-control (Significant)
+
+``` r
+ cld_weed_control_fisher_log <-cld(emmeans(random_log,~  weed_control,type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
+```
+
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+ cld_weed_control_fisher_log
+```
+
+    ##  weed_control emmean    SE   df lower.CL upper.CL .group
+    ##  TIM           2.796 0.343 41.3    2.104     3.49  a    
+    ##  RNO           2.044 0.343 41.3    1.352     2.74  ab   
+    ##  RIC           1.688 0.343 41.3    0.996     2.38   b   
+    ##  RIM           1.503 0.343 41.3    0.812     2.19   b   
+    ##  TIC           0.337 0.343 41.3   -0.354     1.03    c  
+    ## 
+    ## Results are averaged over the levels of: location 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+#### Location (Significant)
+
+``` r
+ cld_weed_control_fisher_log <-cld(emmeans(random_log,~  location,type = "response"), Letters = letters, sort = TRUE, adjust="none", reversed=TRUE)
+```
+
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_weed_control_fisher_log
+```
+
+    ##  location      emmean    SE df lower.CL upper.CL .group
+    ##  field x         2.60 0.335  9    1.838     3.35  a    
+    ##  field O2 west   1.42 0.335  9    0.658     2.17   b   
+    ##  field O2 east   1.01 0.335  9    0.249     1.77   b   
+    ## 
+    ## Results are averaged over the levels of: weed_control 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+\#GLMM
+
+``` r
+model_tweedie_log <- glmmTMB(
+interrow_weed_biomass_lbs_ac ~  weed_control + (1|location:block), 
+  data = interrow_weed_biomass_clean, 
+  family = tweedie(link = "log")
+
+)
+### Two checks specifically for a generalize linear approach
+simulateResiduals(model_tweedie_log,plot = TRUE) # Residuals and normality look good
+```
+
+![](interrow_weed_biomass_files/figure-gfm/unnamed-chunk-20-1.png)<!-- -->
+
+    ## Object of Class DHARMa with simulated residuals based on 250 simulations with refit = FALSE . See ?DHARMa::simulateResiduals for help. 
+    ##  
+    ## Scaled residual values: 0.892 0.8 0.872 0.96 0.84 0.884 0.824 0.84 0.09439827 0.784 0.648 0.2327611 0.824 0.668 0.284 0.428 0.66 0.896 0.5 0.784 ...
+
+``` r
+check_model(model_tweedie_log) #Perfect, preditions match real data
+```
+
+    ## `check_outliers()` does not yet support models of class `glmmTMB`.
+
+![](interrow_weed_biomass_files/figure-gfm/unnamed-chunk-20-2.png)<!-- -->
+
+``` r
+summary(model_tweedie_log )
+```
+
+    ##  Family: tweedie  ( log )
+    ## Formula:          
+    ## interrow_weed_biomass_lbs_ac ~ weed_control + (1 | location:block)
+    ## Data: interrow_weed_biomass_clean
+    ## 
+    ##      AIC      BIC   logLik deviance df.resid 
+    ##    627.1    643.8   -305.5    611.1       52 
+    ## 
+    ## Random effects:
+    ## 
+    ## Conditional model:
+    ##  Groups         Name        Variance Std.Dev.
+    ##  location:block (Intercept) 0.6429   0.8018  
+    ## Number of obs: 60, groups:  location:block, 12
+    ## 
+    ## Dispersion parameter for tweedie family (): 7.97 
+    ## 
+    ## Conditional model:
+    ##                 Estimate Std. Error z value Pr(>|z|)    
+    ## (Intercept)       4.9207     0.4668  10.541  < 2e-16 ***
+    ## weed_controlRIM  -0.9445     0.5685  -1.661 0.096645 .  
+    ## weed_controlRNO   0.2985     0.5173   0.577 0.563910    
+    ## weed_controlTIC  -2.7064     0.7307  -3.704 0.000212 ***
+    ## weed_controlTIM   0.6624     0.5192   1.276 0.201992    
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+``` r
+VarCorr(model_tweedie_log )
+```
+
+    ## 
+    ## Conditional model:
+    ##  Groups         Name        Std.Dev.
+    ##  location:block (Intercept) 0.80182
+
+### Joint test (anova)
+
+``` r
+model_tweedie_log |> 
+  joint_tests() |> 
+  kable()  
+```
+
+| model term   | df1 | df2 | F.ratio |  Chisq |  p.value |
+|:-------------|----:|----:|--------:|-------:|---------:|
+| weed_control |   4 | Inf |   7.111 | 28.444 | 1.01e-05 |
+
+## Fisher compact letter display
+
+### Weed-control (S)
+
+``` r
+cld_weed_control_fisher <-cld(emmeans(model_tweedie_log, ~  weed_control, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_fisher
+```
+
+    ##  weed_control response     SE  df asymp.LCL asymp.UCL .group
+    ##  TIM            265.88 107.00 Inf    121.12     583.7  a    
+    ##  RNO            184.78  83.90 Inf     75.86     450.1  a    
+    ##  RIC            137.09  64.00 Inf     54.91     342.3  ab   
+    ##  RIM             53.31  26.20 Inf     20.33     139.8   b   
+    ##  TIC              9.15   6.16 Inf      2.45      34.3    c  
+    ## 
+    ## Confidence level used: 0.95 
+    ## Intervals are back-transformed from the log scale 
+    ## Tests are performed on the log scale 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
 # Figures
 
-## Weed control
+## Weedcontrol
+
+# Figures
 
 ``` r
 interrow_weed_biomass_clean |> 
-  left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = weed_control, y = interrow_weed_biomass_lbs_ac, fill = weed_control)) +
+  left_join(cld_weed_control_fisher) |> 
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = interrow_weed_biomass_lbs_ac, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
@@ -226,25 +592,29 @@ interrow_weed_biomass_clean |>
     x = "Interrow weed control",
     y = expression("Interrow weed biomass" ~ (lbs * "/" * a)),
     title = str_c("Influence of interrow weed control on interrow weed biomass"),
-    subtitle = expression(italic("P = 0.007"))) +
+    subtitle = expression(italic("P < 0.005"))) +
   
-  scale_x_discrete(labels = c("Rolled,\nhigh-residue\ncultivation",
+ scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nno additional\nweed control",
-                          "Tilled,\nstandard\ncultivation",
-                              "Tilled,\ninterrow\nmowing")) +
+                              "Rolled,\nhigh-residue\ncultivation",
+                              "Tilled,\ninterrow\nmowing",
+                          "Tilled,\nstandard\ncultivation")) +
   scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
   scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
    theme_bw() +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 16),   # Increase font size of axis labels
+    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
   )
 ```
 
-![](interrow_weed_biomass_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](interrow_weed_biomass_files/figure-gfm/unnamed-chunk-23-1.png)<!-- -->
 
 ``` r
-ggsave("interrow_weed_biomass_weed_control_lbac.png", width = 8, height = 6, dpi = 300)
+ggsave("interrow_weed_biomass_weed_control_lbac.png", width = 10, height = 6, dpi = 300)
 ```
