@@ -618,7 +618,7 @@ interrow_weed_biomass_clean |>
   geom_bar(stat="identity", position=position_dodge()) + 
   geom_errorbar(aes(ymin=response-SE, ymax=response+SE), width=.2,
                  position=position_dodge(.9))+
-geom_text(aes(label = trimws(.group), y = response + (SE + 20)), size = 6.5) +
+geom_text(aes(label = trimws(.group), y = response + (SE + 20)), size = 7) +
   labs(
     x = "",
     y = expression("Interrow weed biomass" ~ (lbs * "/" * a)),
