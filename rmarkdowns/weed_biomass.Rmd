@@ -268,12 +268,12 @@ geom_text(aes(label = trimws(.group), y = response + (SE + 23)), size = 7) +
     legend.position = "none",
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 20),   # Increase font size of axis labels
-    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
+    axis.title = element_text(size = 24),  # Increase font size of axis titles
+    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   
   )
-ggsave("weed_biomass_weed_control_lbsacre.png", width = 10, height = 6, dpi = 300)
+ggsave("weed_biomass_weed_control_lbsacre.png", width = 10, height = 8, dpi = 300)
 ```
 

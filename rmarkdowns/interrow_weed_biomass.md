@@ -74,7 +74,7 @@ clean_combined <- clean_names(combined_raw) |>
 #select and convert data for wbm analysis
 interrow_weed_biomass_clean <-clean_combined |>              
   mutate(log_interrow_weed_biomass_grams_meter=  (log((interrow_weed_biomass*2)+1)))|>
-  mutate(interrow_weed_biomass_grams_meter = (interrow_weed_biomass /0.4026))|> # 
+  mutate(interrow_weed_biomass_grams_meter = (interrow_weed_biomass /0.5))|> # 
  
   mutate(interrow_weed_biomass_kg_ha = (interrow_weed_biomass_grams_meter *(10000))/(1000)) |>
   mutate(interrow_weed_biomass_lbs_ac = ((interrow_weed_biomass_grams_meter *(10000))/(1000))* 0.892179)
@@ -83,12 +83,12 @@ kable(head(interrow_weed_biomass_clean))
 
 | id | location | year | weed_control | block | plot | bean_emergence | bean_biomass | intrarow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight | log_interrow_weed_biomass_grams_meter | interrow_weed_biomass_grams_meter | interrow_weed_biomass_kg_ha | interrow_weed_biomass_lbs_ac |
 |:---|:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|:---|:---|:---|---:|---:|---:|---:|
-| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.119999999999997 | 4.499587 | 110.506706 | 1105.06706 | 985.91763 |
-| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.475000000000001 | 0.891998 | 1.788376 | 17.88376 | 15.95551 |
-| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 3.920 | 37.5 | 449.93 | 16.752499999999998 | 2.693275 | 17.113761 | 171.13761 | 152.68538 |
-| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 | 16.145 | 4.526884 | 113.599106 | 1135.99106 | 1013.50737 |
-| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 | 17.047499999999999 | 3.807773 | 54.706905 | 547.06905 | 488.08352 |
-| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.149999999999999 | 3.686878 | 48.335817 | 483.35817 | 431.24201 |
+| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.119999999999997 | 4.499587 | 88.98 | 889.8 | 793.86087 |
+| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.475000000000001 | 0.891998 | 1.44 | 14.4 | 12.84738 |
+| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 3.920 | 37.5 | 449.93 | 16.752499999999998 | 2.693275 | 13.78 | 137.8 | 122.94227 |
+| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 | 16.145 | 4.526884 | 91.47 | 914.7 | 816.07613 |
+| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 | 17.047499999999999 | 3.807773 | 44.05 | 440.5 | 393.00485 |
+| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.149999999999999 | 3.686878 | 38.92 | 389.2 | 347.23607 |
 
 ``` r
 # Model testing
@@ -151,16 +151,16 @@ kable(pairwise_comparisons_weed_control)
 
 | contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
 |:----------|-----------:|---------:|----:|-----------:|----------:|
-| RIC - RIM |  122.18708 | 85.74339 |  36 |  1.4250321 | 0.6160311 |
-| RIC - RNO |  -85.41000 | 85.74339 |  36 | -0.9961117 | 0.8553525 |
-| RIC - TIC |  175.39982 | 85.74339 |  36 |  2.0456366 | 0.2657208 |
-| RIC - TIM | -101.42091 | 85.74339 |  36 | -1.1828423 | 0.7609488 |
-| RIM - RNO | -207.59708 | 85.74339 |  36 | -2.4211438 | 0.1328428 |
-| RIM - TIC |   53.21274 | 85.74339 |  36 |  0.6206045 | 0.9708240 |
-| RIM - TIM | -223.60799 | 85.74339 |  36 | -2.6078744 | 0.0901057 |
-| RNO - TIC |  260.80982 | 85.74339 |  36 |  3.0417483 | 0.0333017 |
-| RNO - TIM |  -16.01091 | 85.74339 |  36 | -0.1867306 | 0.9997144 |
-| TIC - TIM | -276.82073 | 85.74339 |  36 | -3.2284789 | 0.0209644 |
+| RIC - RIM |   98.38504 | 69.04058 |  36 |  1.4250321 | 0.6160311 |
+| RIC - RNO |  -68.77213 | 69.04058 |  36 | -0.9961117 | 0.8553525 |
+| RIC - TIC |  141.23194 | 69.04058 |  36 |  2.0456366 | 0.2657208 |
+| RIC - TIM |  -81.66412 | 69.04058 |  36 | -1.1828423 | 0.7609488 |
+| RIM - RNO | -167.15717 | 69.04058 |  36 | -2.4211438 | 0.1328428 |
+| RIM - TIC |   42.84690 | 69.04058 |  36 |  0.6206045 | 0.9708240 |
+| RIM - TIM | -180.04916 | 69.04058 |  36 | -2.6078744 | 0.0901057 |
+| RNO - TIC |  210.00407 | 69.04058 |  36 |  3.0417483 | 0.0333017 |
+| RNO - TIM |  -12.89199 | 69.04058 |  36 | -0.1867306 | 0.9997144 |
+| TIC - TIM | -222.89605 | 69.04058 |  36 | -3.2284789 | 0.0209644 |
 
 br\>
 
@@ -174,9 +174,9 @@ kable(pairwise_comparisons_location)
 
 | contrast | estimate | SE | df | t.ratio | p.value |
 |:---|---:|---:|---:|---:|---:|
-| field O2 east - field O2 west | -68.15995 | 85.3656 | 9 | -0.7984475 | 0.7132393 |
-| field O2 east - field x | -232.59036 | 85.3656 | 9 | -2.7246379 | 0.0555373 |
-| field O2 west - field x | -164.43041 | 85.3656 | 9 | -1.9261904 | 0.1868747 |
+| field O2 east - field O2 west | -54.88239 | 68.73638 | 9 | -0.7984475 | 0.7132393 |
+| field O2 east - field x | -187.28175 | 68.73638 | 9 | -2.7246379 | 0.0555373 |
+| field O2 west - field x | -132.39936 | 68.73638 | 9 | -1.9261904 | 0.1868747 |
 | \#### Location | weed-control (Not significant) |  |  |  |  |
 
 ``` r
@@ -187,36 +187,36 @@ kable(pairwise_comparisons_weed_control_location)
 
 | contrast  | location      |    estimate |       SE |  df |    t.ratio |   p.value |
 |:----------|:--------------|------------:|---------:|----:|-----------:|----------:|
-| RIC - RIM | field O2 east |  -24.791984 | 148.5119 |  36 | -0.1669360 | 0.9998169 |
-| RIC - RNO | field O2 east | -136.314358 | 148.5119 |  36 | -0.9178682 | 0.8881417 |
-| RIC - TIC | field O2 east |  -31.744819 | 148.5119 |  36 | -0.2137527 | 0.9995124 |
-| RIC - TIM | field O2 east | -126.619169 | 148.5119 |  36 | -0.8525859 | 0.9120249 |
-| RIM - RNO | field O2 east | -111.522375 | 148.5119 |  36 | -0.7509322 | 0.9427228 |
-| RIM - TIC | field O2 east |   -6.952836 | 148.5119 |  36 | -0.0468167 | 0.9999989 |
-| RIM - TIM | field O2 east | -101.827186 | 148.5119 |  36 | -0.6856500 | 0.9583198 |
-| RNO - TIC | field O2 east |  104.569539 | 148.5119 |  36 |  0.7041155 | 0.9542260 |
-| RNO - TIM | field O2 east |    9.695189 | 148.5119 |  36 |  0.0652822 | 0.9999957 |
-| TIC - TIM | field O2 east |  -94.874350 | 148.5119 |  36 | -0.6388333 | 0.9676131 |
-| RIC - RIM | field O2 west |  212.518545 | 148.5119 |  36 |  1.4309865 | 0.6123152 |
-| RIC - RNO | field O2 west |   -6.869734 | 148.5119 |  36 | -0.0462571 | 0.9999989 |
-| RIC - TIC | field O2 west |  237.227427 | 148.5119 |  36 |  1.5973630 | 0.5086720 |
-| RIC - TIM | field O2 west |   75.927181 | 148.5119 |  36 |  0.5112531 | 0.9857045 |
-| RIM - RNO | field O2 west | -219.388279 | 148.5119 |  36 | -1.4772436 | 0.5833904 |
-| RIM - TIC | field O2 west |   24.708882 | 148.5119 |  36 |  0.1663764 | 0.9998194 |
-| RIM - TIM | field O2 west | -136.591364 | 148.5119 |  36 | -0.9197334 | 0.8874121 |
-| RNO - TIC | field O2 west |  244.097161 | 148.5119 |  36 |  1.6436201 | 0.4804384 |
-| RNO - TIM | field O2 west |   82.796915 | 148.5119 |  36 |  0.5575103 | 0.9802812 |
-| TIC - TIM | field O2 west | -161.300246 | 148.5119 |  36 | -1.0861098 | 0.8124370 |
-| RIC - RIM | field x       |  178.834688 | 148.5119 |  36 |  1.2041774 | 0.7489590 |
-| RIC - RNO | field x       | -113.045905 | 148.5119 |  36 | -0.7611908 | 0.9399829 |
-| RIC - TIC | field x       |  320.716855 | 148.5119 |  36 |  2.1595362 | 0.2181999 |
-| RIC - TIM | field x       | -253.570745 | 148.5119 |  36 | -1.7074101 | 0.4423395 |
-| RIM - RNO | field x       | -291.880592 | 148.5119 |  36 | -1.9653682 | 0.3030440 |
-| RIM - TIC | field x       |  141.882167 | 148.5119 |  36 |  0.9553588 | 0.8729828 |
-| RIM - TIM | field x       | -432.405433 | 148.5119 |  36 | -2.9115875 | 0.0454539 |
-| RNO - TIC | field x       |  433.762760 | 148.5119 |  36 |  2.9207271 | 0.0444864 |
-| RNO - TIM | field x       | -140.524841 | 148.5119 |  36 | -0.9462193 | 0.8767734 |
-| TIC - TIM | field x       | -574.287600 | 148.5119 |  36 | -3.8669464 | 0.0038207 |
+| RIC - RIM | field O2 east |  -19.962505 | 119.5818 |  36 | -0.1669360 | 0.9998169 |
+| RIC - RNO | field O2 east | -109.760322 | 119.5818 |  36 | -0.9178682 | 0.8881417 |
+| RIC - TIC | field O2 east |  -25.560928 | 119.5818 |  36 | -0.2137527 | 0.9995124 |
+| RIC - TIM | field O2 east | -101.953755 | 119.5818 |  36 | -0.8525859 | 0.9120249 |
+| RIM - RNO | field O2 east |  -89.797816 | 119.5818 |  36 | -0.7509322 | 0.9427228 |
+| RIM - TIC | field O2 east |   -5.598423 | 119.5818 |  36 | -0.0468167 | 0.9999989 |
+| RIM - TIM | field O2 east |  -81.991250 | 119.5818 |  36 | -0.6856500 | 0.9583198 |
+| RNO - TIC | field O2 east |   84.199393 | 119.5818 |  36 |  0.7041155 | 0.9542260 |
+| RNO - TIM | field O2 east |    7.806566 | 119.5818 |  36 |  0.0652822 | 0.9999957 |
+| TIC - TIM | field O2 east |  -76.392827 | 119.5818 |  36 | -0.6388333 | 0.9676131 |
+| RIC - RIM | field O2 west |  171.119932 | 119.5818 |  36 |  1.4309865 | 0.6123152 |
+| RIC - RNO | field O2 west |   -5.531510 | 119.5818 |  36 | -0.0462571 | 0.9999989 |
+| RIC - TIC | field O2 west |  191.015524 | 119.5818 |  36 |  1.5973630 | 0.5086720 |
+| RIC - TIM | field O2 west |   61.136566 | 119.5818 |  36 |  0.5112531 | 0.9857045 |
+| RIM - RNO | field O2 west | -176.651442 | 119.5818 |  36 | -1.4772436 | 0.5833904 |
+| RIM - TIC | field O2 west |   19.895592 | 119.5818 |  36 |  0.1663764 | 0.9998194 |
+| RIM - TIM | field O2 west | -109.983366 | 119.5818 |  36 | -0.9197334 | 0.8874121 |
+| RNO - TIC | field O2 west |  196.547034 | 119.5818 |  36 |  1.6436201 | 0.4804384 |
+| RNO - TIM | field O2 west |   66.668076 | 119.5818 |  36 |  0.5575103 | 0.9802812 |
+| TIC - TIM | field O2 west | -129.878958 | 119.5818 |  36 | -1.0861098 | 0.8124370 |
+| RIC - RIM | field x       |  143.997691 | 119.5818 |  36 |  1.2041774 | 0.7489590 |
+| RIC - RNO | field x       |  -91.024563 | 119.5818 |  36 | -0.7611908 | 0.9399829 |
+| RIC - TIC | field x       |  258.241212 | 119.5818 |  36 |  2.1595362 | 0.2181999 |
+| RIC - TIM | field x       | -204.175164 | 119.5818 |  36 | -1.7074101 | 0.4423395 |
+| RIM - RNO | field x       | -235.022253 | 119.5818 |  36 | -1.9653682 | 0.3030440 |
+| RIM - TIC | field x       |  114.243521 | 119.5818 |  36 |  0.9553588 | 0.8729828 |
+| RIM - TIM | field x       | -348.172855 | 119.5818 |  36 | -2.9115875 | 0.0454539 |
+| RNO - TIC | field x       |  349.265774 | 119.5818 |  36 |  2.9207271 | 0.0444864 |
+| RNO - TIM | field x       | -113.150602 | 119.5818 |  36 | -0.9462193 | 0.8767734 |
+| TIC - TIM | field x       | -462.416376 | 119.5818 |  36 | -3.8669464 | 0.0038207 |
 
 ### Tukey compact letter display
 
@@ -234,11 +234,11 @@ cld_weed_control_tukey
 ```
 
     ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  TIM           289.6 64.5 42.7    159.6      420  a    
-    ##  RNO           273.6 64.5 42.7    143.6      404  a    
-    ##  RIC           188.2 64.5 42.7     58.2      318  ab   
-    ##  RIM            66.0 64.5 42.7    -64.0      196  ab   
-    ##  TIC            12.8 64.5 42.7   -117.2      143   b   
+    ##  TIM           233.2 51.9 42.7    128.5      338  a    
+    ##  RNO           220.3 51.9 42.7    115.6      325  a    
+    ##  RIC           151.5 51.9 42.7     46.8      256  ab   
+    ##  RIM            53.2 51.9 42.7    -51.5      158  ab   
+    ##  TIC            10.3 51.9 42.7    -94.4      115   b   
     ## 
     ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
@@ -264,11 +264,11 @@ cld_weed_control_tukey
 ```
 
     ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  TIM           289.6 64.5 42.7    159.6      420  a    
-    ##  RNO           273.6 64.5 42.7    143.6      404  a    
-    ##  RIC           188.2 64.5 42.7     58.2      318  ab   
-    ##  RIM            66.0 64.5 42.7    -64.0      196   bc  
-    ##  TIC            12.8 64.5 42.7   -117.2      143    c  
+    ##  TIM           233.2 51.9 42.7    128.5      338  a    
+    ##  RNO           220.3 51.9 42.7    115.6      325  a    
+    ##  RIC           151.5 51.9 42.7     46.8      256  ab   
+    ##  RIM            53.2 51.9 42.7    -51.5      158   bc  
+    ##  TIC            10.3 51.9 42.7    -94.4      115    c  
     ## 
     ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
@@ -313,16 +313,16 @@ kable(pairwise_comparisons_weed_control_log)
 
 | contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
 |:----------|-----------:|---------:|----:|-----------:|----------:|
-| RIC - RIM |  122.18708 | 85.74339 |  36 |  1.4250321 | 0.6160311 |
-| RIC - RNO |  -85.41000 | 85.74339 |  36 | -0.9961117 | 0.8553525 |
-| RIC - TIC |  175.39982 | 85.74339 |  36 |  2.0456366 | 0.2657208 |
-| RIC - TIM | -101.42091 | 85.74339 |  36 | -1.1828423 | 0.7609488 |
-| RIM - RNO | -207.59708 | 85.74339 |  36 | -2.4211438 | 0.1328428 |
-| RIM - TIC |   53.21274 | 85.74339 |  36 |  0.6206045 | 0.9708240 |
-| RIM - TIM | -223.60799 | 85.74339 |  36 | -2.6078744 | 0.0901057 |
-| RNO - TIC |  260.80982 | 85.74339 |  36 |  3.0417483 | 0.0333017 |
-| RNO - TIM |  -16.01091 | 85.74339 |  36 | -0.1867306 | 0.9997144 |
-| TIC - TIM | -276.82073 | 85.74339 |  36 | -3.2284789 | 0.0209644 |
+| RIC - RIM |   98.38504 | 69.04058 |  36 |  1.4250321 | 0.6160311 |
+| RIC - RNO |  -68.77213 | 69.04058 |  36 | -0.9961117 | 0.8553525 |
+| RIC - TIC |  141.23194 | 69.04058 |  36 |  2.0456366 | 0.2657208 |
+| RIC - TIM |  -81.66412 | 69.04058 |  36 | -1.1828423 | 0.7609488 |
+| RIM - RNO | -167.15717 | 69.04058 |  36 | -2.4211438 | 0.1328428 |
+| RIM - TIC |   42.84690 | 69.04058 |  36 |  0.6206045 | 0.9708240 |
+| RIM - TIM | -180.04916 | 69.04058 |  36 | -2.6078744 | 0.0901057 |
+| RNO - TIC |  210.00407 | 69.04058 |  36 |  3.0417483 | 0.0333017 |
+| RNO - TIM |  -12.89199 | 69.04058 |  36 | -0.1867306 | 0.9997144 |
+| TIC - TIM | -222.89605 | 69.04058 |  36 | -3.2284789 | 0.0209644 |
 
 #### Location (Significant)
 
@@ -533,26 +533,26 @@ summary(model_tweedie_log )
     ## Data: interrow_weed_biomass_clean
     ## 
     ##      AIC      BIC   logLik deviance df.resid 
-    ##    630.2    651.1   -305.1    610.2       50 
+    ##    609.8    630.8   -294.9    589.8       50 
     ## 
     ## Random effects:
     ## 
     ## Conditional model:
     ##  Groups         Name        Variance  Std.Dev. 
     ##  location       (Intercept) 1.323e-01 3.637e-01
-    ##  block          (Intercept) 8.746e-09 9.352e-05
-    ##  location:block (Intercept) 4.878e-01 6.985e-01
+    ##  block          (Intercept) 9.028e-09 9.502e-05
+    ##  location:block (Intercept) 4.879e-01 6.985e-01
     ## Number of obs: 60, groups:  location, 3; block, 4; location:block, 12
     ## 
-    ## Dispersion parameter for tweedie family (): 8.01 
+    ## Dispersion parameter for tweedie family (): 7.45 
     ## 
     ## Conditional model:
     ##                 Estimate Std. Error z value Pr(>|z|)    
-    ## (Intercept)       4.9116     0.4984   9.854  < 2e-16 ***
+    ## (Intercept)       4.6950     0.4984   9.419  < 2e-16 ***
     ## weed_controlRIM  -0.9577     0.5701  -1.680 0.092998 .  
-    ## weed_controlRNO   0.3239     0.5169   0.627 0.530871    
+    ## weed_controlRNO   0.3239     0.5169   0.627 0.530870    
     ## weed_controlTIC  -2.6187     0.7413  -3.533 0.000412 ***
-    ## weed_controlTIM   0.6454     0.5209   1.239 0.215328    
+    ## weed_controlTIM   0.6454     0.5209   1.239 0.215325    
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
@@ -564,7 +564,7 @@ VarCorr(model_tweedie_log )
     ## Conditional model:
     ##  Groups         Name        Std.Dev.  
     ##  location       (Intercept) 3.6374e-01
-    ##  block          (Intercept) 9.3518e-05
+    ##  block          (Intercept) 9.5018e-05
     ##  location:block (Intercept) 6.9846e-01
 
 ### Joint test (anova)
@@ -577,7 +577,7 @@ model_tweedie_log |>
 
 | model term   | df1 | df2 | F.ratio |  Chisq |  p.value |
 |:-------------|----:|----:|--------:|-------:|---------:|
-| weed_control |   4 | Inf |   6.726 | 26.904 | 2.08e-05 |
+| weed_control |   4 | Inf |   6.727 | 26.908 | 2.08e-05 |
 
 ## Fisher compact letter display
 
@@ -588,12 +588,12 @@ cld_weed_control_fisher <-cld(emmeans(model_tweedie_log, ~  weed_control, type =
 cld_weed_control_fisher
 ```
 
-    ##  weed_control response     SE  df asymp.LCL asymp.UCL .group
-    ##  TIM             259.1 114.00 Inf    109.52       613  a    
-    ##  RNO             187.8  92.00 Inf     71.92       491  a    
-    ##  RIC             135.9  67.70 Inf     51.15       361  ab   
-    ##  RIM              52.1  27.20 Inf     18.74       145   b   
-    ##  TIC               9.9   7.05 Inf      2.45        40    c  
+    ##  weed_control response    SE  df asymp.LCL asymp.UCL .group
+    ##  TIM            208.60 91.60 Inf     88.18     493.5  a    
+    ##  RNO            151.24 74.10 Inf     57.91     395.0  a    
+    ##  RIC            109.40 54.50 Inf     41.18     290.6  ab   
+    ##  RIM             41.98 21.90 Inf     15.09     116.8   b   
+    ##  TIC              7.97  5.68 Inf      1.98      32.2    c  
     ## 
     ## Confidence level used: 0.95 
     ## Intervals are back-transformed from the log scale 

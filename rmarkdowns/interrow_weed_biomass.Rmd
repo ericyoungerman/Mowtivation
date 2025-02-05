@@ -72,7 +72,7 @@ clean_combined <- clean_names(combined_raw) |>
 #select and convert data for wbm analysis
 interrow_weed_biomass_clean <-clean_combined |>              
   mutate(log_interrow_weed_biomass_grams_meter=  (log((interrow_weed_biomass*2)+1)))|>
-  mutate(interrow_weed_biomass_grams_meter = (interrow_weed_biomass /0.4026))|> # 
+  mutate(interrow_weed_biomass_grams_meter = (interrow_weed_biomass /0.5))|> # 
  
   mutate(interrow_weed_biomass_kg_ha = (interrow_weed_biomass_grams_meter *(10000))/(1000)) |>
   mutate(interrow_weed_biomass_lbs_ac = ((interrow_weed_biomass_grams_meter *(10000))/(1000))* 0.892179)
@@ -277,12 +277,12 @@ geom_text(aes(label = trimws(.group), y = response + (SE + 20)), size = 7) +
     legend.position = "none",
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 20),   # Increase font size of axis labels
-    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
+    axis.title = element_text(size = 24),  # Increase font size of axis titles
+    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   )
-ggsave("interrow_weed_biomass_weed_control_lbac.png", width = 10, height = 6, dpi = 300)
+ggsave("interrow_weed_biomass_weed_control_lbac.png", width = 10, height = 8, dpi = 300)
 ```
 
 ```{r}

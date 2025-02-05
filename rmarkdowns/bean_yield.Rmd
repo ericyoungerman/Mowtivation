@@ -153,9 +153,9 @@ bean_yield_clean |>
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Interrow weed control",
+    x = "",
     y = expression(paste("Soybean yield (", bu, "/", a, " at 13% moisture)")),
-    title = str_c("The influence of interrow weed control on soybean yield"),
+    #title = str_c("The influence of interrow weed control on soybean yield"),
     subtitle = expression(italic("Not signficant"))) +
   
   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
@@ -170,10 +170,10 @@ bean_yield_clean |>
     legend.position = "none",
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 16),   # Increase font size of axis labels
-    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
+    axis.title = element_text(size = 24),  # Increase font size of axis titles
+    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   )
 ggsave("bean_yield_weed_control_bua.png", width = 10, height = 8, dpi = 300)
 ```
