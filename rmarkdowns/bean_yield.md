@@ -51,13 +51,13 @@ kable(head(combined_raw))
 ```
 
 | id | location | year | treatment | block | plot | bean_emergence | bean_biomass | intrarow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight |
-|:---|:---|---:|:---|---:|---:|---:|---:|---:|---:|---:|:---|:---|:---|
-| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.119999999999997 |
-| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.475000000000001 |
-| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 3.920 | 37.5 | 449.93 | 16.752499999999998 |
-| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 | 16.145 |
-| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 | 17.047499999999999 |
-| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.149999999999999 |
+|:---|:---|---:|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 |
+| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 |
+| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 |
+| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35.0 | 412.59 | 16.1450 |
+| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 |
+| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 |
 
 <br>
 
@@ -81,25 +81,17 @@ clean_combined <- clean_names(combined_raw) |>
     bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 14)),
     bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 * ((100 - 0.00001) / (100 - 14))
   )
-```
-
-    ## Warning: There was 1 warning in `mutate()`.
-    ## ℹ In argument: `bean_yield = as.numeric(bean_yield)`.
-    ## Caused by warning:
-    ## ! NAs introduced by coercion
-
-``` r
 kable(head(bean_yield_clean)) 
 ```
 
 | id | location | year | weed_control | block | plot | bean_emergence | bean_biomass | intrarow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight | bean_yield_adj_bu_acre | bean_yield_adj_lbs_acre | bean_yield_adj_kg_ha |
-|:---|:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|:---|---:|:---|---:|---:|---:|
-| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.119999999999997 | 47.30348 | 2838.209 | 3181.207 |
-| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.475000000000001 | 64.12122 | 3847.273 | 4312.216 |
-| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 3.920 | 37.5 | 449.93 | 16.752499999999998 | 51.01330 | 3060.798 | 3430.695 |
-| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35 | 412.59 | 16.145 | 46.77967 | 2806.780 | 3145.979 |
-| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39 | 473.79 | 17.047499999999999 | 53.71855 | 3223.113 | 3612.626 |
-| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.149999999999999 | 54.88070 | 3292.842 | 3690.782 |
+|:---|:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 47.30348 | 2838.209 | 3181.207 |
+| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 64.12122 | 3847.273 | 4312.216 |
+| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 51.01330 | 3060.798 | 3430.695 |
+| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35.0 | 412.59 | 16.1450 | 46.77967 | 2806.780 | 3145.979 |
+| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 53.71855 | 3223.113 | 3612.626 |
+| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 54.88070 | 3292.842 | 3690.782 |
 
 <br>
 
@@ -112,7 +104,7 @@ be random and that post-hoc comparisons should use TUKEY rather the
 Fischer. Fisher is bogus apparently.
 
 ``` r
-random <- lmer( bean_yield_adj_bu_acre  ~ weed_control +(1|location:block) , data =  bean_yield_clean)
+random <- lmer( bean_yield_adj_kg_ha  ~ weed_control + (1|location) + (1|location:block) , data =  bean_yield_clean)
 
 resid_panel(random)
 ```
@@ -127,7 +119,7 @@ simulateResiduals(random,plot = TRUE) # Residuals and normality look good
 
     ## Object of Class DHARMa with simulated residuals based on 250 simulations with refit = FALSE . See ?DHARMa::simulateResiduals for help. 
     ##  
-    ## Scaled residual values: 0.04 0.28 0.036 0.012 0.072 0.092 0.356 0.08 0.368 0.188 0.124 0.092 0.132 0.788 0.32 0.368 0.096 0.248 0.096 0.08 ...
+    ## Scaled residual values: 0.068 0.308 0.052 0.036 0.088 0.14 0.336 0.116 0.336 0.192 0.16 0.056 0.12 0.8 0.356 0.372 0.08 0.268 0.096 0.096 ...
 
 ``` r
 check_model(random)
@@ -145,9 +137,9 @@ check_model(random)
   kable()  
 ```
 
-| model term   | df1 | df2 | F.ratio |  p.value |
-|:-------------|----:|----:|--------:|---------:|
-| weed_control |   4 |  43 |   1.169 | 0.337798 |
+| model term   | df1 | df2 | F.ratio |   p.value |
+|:-------------|----:|----:|--------:|----------:|
+| weed_control |   4 |  44 |   1.148 | 0.3467171 |
 
 <br>
 
@@ -161,14 +153,14 @@ pairwise_comparisons_weed_control<- pairs(means_weed_control)
 kable(head(pairwise_comparisons_weed_control))
 ```
 
-| contrast  |   estimate |       SE |       df |    t.ratio |   p.value |
-|:----------|-----------:|---------:|---------:|-----------:|----------:|
-| RIC - RIM | -0.7070736 | 2.857106 | 43.13973 | -0.2474789 | 0.9999462 |
-| RIC - RNO |  1.4725294 | 2.780554 | 43.00087 |  0.5295813 | 0.9958500 |
-| RIC - TIC | -1.6850234 | 2.780554 | 43.00087 | -0.6060027 | 0.9914382 |
-| RIC - TIM |  3.7934286 | 2.780554 | 43.00087 |  1.3642707 | 0.6950589 |
-| RIM - RNO |  2.1796030 | 2.857106 | 43.13973 |  0.7628708 | 0.9722262 |
-| RIM - TIC | -0.9779499 | 2.857106 | 43.13973 | -0.3422868 | 0.9996441 |
+| contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
+|:----------|-----------:|---------:|----:|-----------:|----------:|
+| RIC - RIM |  -26.38234 | 185.7662 |  44 | -0.1420190 | 0.9999980 |
+| RIC - RNO |   99.02908 | 185.7662 |  44 |  0.5330845 | 0.9956943 |
+| RIC - TIC | -113.31951 | 185.7662 |  44 | -0.6100115 | 0.9911261 |
+| RIC - TIM |  255.11187 | 185.7662 |  44 |  1.3732955 | 0.6883932 |
+| RIM - RNO |  125.41141 | 185.7662 |  44 |  0.6751036 | 0.9849550 |
+| RIM - TIC |  -86.93717 | 185.7662 |  44 | -0.4679924 | 0.9978983 |
 
 <br>
 
@@ -181,12 +173,12 @@ cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response")
 cld_weed_control_tukey
 ```
 
-    ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  TIC            70.4 3.03 23.4     64.1     76.7  a    
-    ##  RIM            69.4 3.10 25.1     63.0     75.8  a    
-    ##  RIC            68.7 3.03 23.4     62.5     75.0  a    
-    ##  RNO            67.2 3.03 23.4     61.0     73.5  a    
-    ##  TIM            64.9 3.03 23.4     58.7     71.2  a    
+    ##  weed_control emmean  SE   df lower.CL upper.CL .group
+    ##  TIC            4735 381 2.44     3351     6118  a    
+    ##  RIM            4648 381 2.44     3264     6032  a    
+    ##  RIC            4621 381 2.44     3238     6005  a    
+    ##  RNO            4522 381 2.44     3139     5906  a    
+    ##  TIM            4366 381 2.44     2983     5750  a    
     ## 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
@@ -207,12 +199,12 @@ cld_weed_control_fisher <-cld(emmeans(random, ~  weed_control , type = "response
 cld_weed_control_fisher
 ```
 
-    ##  weed_control emmean   SE   df lower.CL upper.CL .group
-    ##  TIC            70.4 3.03 23.4     64.1     76.7  a    
-    ##  RIM            69.4 3.10 25.1     63.0     75.8  a    
-    ##  RIC            68.7 3.03 23.4     62.5     75.0  a    
-    ##  RNO            67.2 3.03 23.4     61.0     73.5  a    
-    ##  TIM            64.9 3.03 23.4     58.7     71.2  a    
+    ##  weed_control emmean  SE   df lower.CL upper.CL .group
+    ##  TIC            4735 381 2.44     3351     6118  a    
+    ##  RIM            4648 381 2.44     3264     6032  a    
+    ##  RIC            4621 381 2.44     3238     6005  a    
+    ##  RNO            4522 381 2.44     3139     5906  a    
+    ##  TIM            4366 381 2.44     2983     5750  a    
     ## 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
@@ -223,7 +215,7 @@ cld_weed_control_fisher
 
 # Figures using fisher
 
-## Weed-control (NS)
+\###Bu/a \#### Weed-control (NS)
 
 ``` r
 bean_yield_clean |> 
@@ -233,9 +225,9 @@ bean_yield_clean |>
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Interrow weed control",
+    x = "",
     y = expression(paste("Soybean yield (", bu, "/", a, " at 13% moisture)")),
-    title = str_c("The influence of interrow weed control on soybean yield"),
+    #title = str_c("The influence of interrow weed control on soybean yield"),
     subtitle = expression(italic("Not signficant"))) +
   
   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
@@ -250,10 +242,10 @@ bean_yield_clean |>
     legend.position = "none",
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 16),   # Increase font size of axis labels
-    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
+    axis.title = element_text(size = 24),  # Increase font size of axis titles
+    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   )
 ```
 
@@ -263,28 +255,43 @@ bean_yield_clean |>
 ggsave("bean_yield_weed_control_bua.png", width = 10, height = 8, dpi = 300)
 ```
 
-## Location (S)
+\###Kg/hectare \#### Weed-control (NS)
 
-\#\`\`\`{r message=FALSE, warning=FALSE} bean_yield_clean \|\>
-left_join(cld_location_tukey) \|\> ggplot(aes(x = location, y =
-bean_yield_adj_bu_acre, fill = location)) + stat_summary(geom = “bar”,
-fun = “mean”, width = 0.7) + stat_summary(geom = “errorbar”, fun.data =
-“mean_se”, width = 0.2) + stat_summary(geom=“text”, fun = “MeanPlusSe”,
-aes(label= trimws(.group)),size=6.5,vjust=-0.5) + labs( x = “Location”,
-y = expression(paste(“Soybean yield (”, bu, “/”, a, ” at 13%
-moisture)“)), title = str_c(”The influence of location on soybean
-yield”), subtitle = expression(italic(“P \< 0.005”))) +
-scale_x_discrete(labels = c(“Field O2 East”, “Field O2 West”, “Field
-X”)) + scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
-scale_fill_viridis(discrete = TRUE, option = “D”, direction = -1, end =
-0.9, begin = 0.1) + theme_bw() + theme( legend.position = “none”,
-strip.background = element_blank(), strip.text = element_text(face =
-“bold”, size = 12), axis.title = element_text(size = 20), \# Increase
-font size of axis titles axis.text = element_text(size = 16), \#
-Increase font size of axis labels plot.title = element_text(size = 22,
-face = “bold”), \# Increase font size of title plot.subtitle =
-element_text(size = 18, face = “italic”) \# Increase font size of
-subtitle
+``` r
+bean_yield_clean |> 
+  left_join(cld_weed_control_fisher) |> 
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y =  bean_yield_adj_kg_ha, fill = weed_control)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "",
+    y = expression(paste("Soybean yield (", kg~ha^{-1}, " at 13% moisture)")),
 
-) ggsave(“bean_yield_location_bua.png”, width = 10, height = 6, dpi =
-300) \`\`\`
+    #title = str_c("The influence of interrow weed control on soybean yield"),
+    subtitle = expression(italic("Not signficant"))) +
+  
+  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nhigh-residue\ncultivation",
+                              "Tilled,\ninterrow\nmowing",
+                          "Tilled,\nstandard\ncultivation")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 24),  # Increase font size of axis titles
+    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
+  )
+```
+
+![](bean_yield_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+
+``` r
+ggsave("bean_yield_weed_control_kgha.png", width = 10, height = 8, dpi = 300)
+```
