@@ -82,109 +82,18 @@ kable(head(weed_biomass_clean))
 Block is random
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
-## Lmer
-
-###lb_ac
-```{r}
-random <- lmer(weed_biomass_lbs_ac  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
-
-resid_panel(random)
-```
-#### Summary
-```{r}
-summary(random)
-weed_biomass_clean |> count(year,location,weed_control)
-
-```
-
-#### Joint test (anova)
-```{r}
-random |> 
-  joint_tests() |> 
-  kable()  
-```
-<br>
-
-###log_g
-```{r}
-random_log <- lmer(log_weed_biomass_grams_meter  ~ location+weed_control + location:weed_control +(1|location:block) , data = weed_biomass_clean)
-
-resid_panel(random_log)
-```
-#### Summary
-```{r}
-summary(random_log)
-weed_biomass_clean |> count(year,location,weed_control)
-
-```
-
-#### Joint test (anova)
-```{r}
-random_log |> 
-  joint_tests() |> 
-  kable()  
-```
-<br>
-
-## Means comparison
-### Weed-control (S)
-```{r message=FALSE}
-means_weed_control <- emmeans(random, ~  weed_control)
-pairwise_comparisons_weed_control<- pairs(means_weed_control) 
-kable(head(pairwise_comparisons_weed_control))
-```
-<br>
-
-### Weed-control (S)
-```{r message=FALSE}
-means_weed_control_log <- emmeans(random_log, ~  weed_control)
-pairwise_comparisons_weed_control_log<- pairs(means_weed_control_log) 
-kable(head(pairwise_comparisons_weed_control_log))
-```
-<br>
-
-### Location (S)
-```{r message=FALSE}
-means_location <- emmeans(random, ~  location)
-pairwise_comparisons_location<- pairs(means_location) 
-kable(head(pairwise_comparisons_location))
-```
-
-### Location|weed-control (S)
-```{r message=FALSE}
-means_weed_control_location <- emmeans(random, ~  weed_control|location)
-pairwise_comparisons_weed_control_location<- pairs(means_weed_control_location) 
-kable(head(pairwise_comparisons_weed_control_location))
-```
-
-
-<br>
-
-## Tukey compact letter display
-### Weed-control (S)
-
-```{r}
-cld_weed_control_random_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_weed_control_random_tukey
-```
-<br>
-
-```{r}
-cld_weed_control_tukey_log <-cld(emmeans(random_log, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_weed_control_tukey_log
-```
 
 
 #GLMM
 
 ```{r}
 
-model_tweedie_log <- glmmTMB(
-weed_biomass_lbs_ac ~  weed_control + (1|location:block), 
+model_tweedie_log <- glmmTMB(weed_biomass_lbs_ac ~  weed_control + (1|location:block), 
   data = weed_biomass_clean, 
   family = tweedie(link = "log")
 
 )
+
 ### Two checks specifically for a generalize linear approach
 simulateResiduals(model_tweedie_log,plot = TRUE) # Residuals and normality look good
 check_model(model_tweedie_log) #Perfect, preditions match real data
@@ -195,20 +104,6 @@ VarCorr(model_tweedie_log )
 
 ```
 
-```{r}
-
-model_tweedie_gaussian <- glmmTMB(
-weed_biomass_lbs_ac ~  weed_control + (1|location:block), 
-  data = weed_biomass_clean, 
-  family = gaussian(),
-
-)
-### Two checks specifically for a generalize linear approach
-simulateResiduals(model_tweedie_gaussian,plot = TRUE) # Residuals and normality look good
-check_model(model_tweedie_gaussian) #Perfect, preditions match real data
-
-
-```
 
 
 
@@ -237,7 +132,8 @@ cld_weed_control_fisher
 
 
 # Figures
-## Weed-control (S)
+###lbs/a
+#### Weed-control (S)
 
 ```{r message=FALSE}
 weed_biomass_clean |> 
@@ -254,7 +150,7 @@ geom_text(aes(label = trimws(.group), y = response + (SE + 23)), size = 7) +
     x = "",
      y = expression("Weed biomass" ~ (lbs * "/" * a)),
     #title = str_c("Influence of interrow weed control on weed biomass"),
-    subtitle = expression(italic("P = 0.016"))) +
+    subtitle = expression(italic("P = 0.02"))) +
   
   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
@@ -275,5 +171,46 @@ geom_text(aes(label = trimws(.group), y = response + (SE + 23)), size = 7) +
   
   )
 ggsave("weed_biomass_weed_control_lbsacre.png", width = 10, height = 8, dpi = 300)
+```
+
+###Kg/hectare
+#### Weed-control (S)
+
+```{r message=FALSE}
+weed_biomass_clean |> 
+  left_join(cld_weed_control_fisher) |> 
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = response, fill = weed_control)) +
+  #stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  #stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  geom_bar(stat="identity", position=position_dodge()) + 
+  geom_errorbar(aes(ymin=response-SE, ymax=response+SE), width=.2,
+                 position=position_dodge(.9))+
+geom_text(aes(label = trimws(.group), y = response + (SE + 23)), size = 7) +
+  labs(
+    x = "",
+      y = expression("Weed biomass" ~ (kg ~ ha^{-1})),
+    #title = str_c("Influence of interrow weed control on weed biomass"),
+    subtitle = expression(italic("P = 0.01"))) +
+  
+  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nhigh-residue\ncultivation",
+                              "Tilled,\ninterrow\nmowing",
+                          "Tilled,\nstandard\ncultivation")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 24),  # Increase font size of axis titles
+    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
+  
+  )
+ggsave("weed_biomass_weed_control_kgha.png", width = 10, height = 8, dpi = 300)
 ```
 
