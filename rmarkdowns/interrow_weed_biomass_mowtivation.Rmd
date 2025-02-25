@@ -72,7 +72,6 @@ clean_combined <- clean_names(combined_raw) |>
 #select and convert data for wbm analysis
 interrow_weed_biomass_clean <- clean_combined |>
   mutate(
-    log_interrow_weed_biomass_grams_meter = log((interrow_weed_biomass * 2) + 1),
     interrow_weed_biomass_grams_meter_mr = interrow_weed_biomass / 0.5,
     interrow_weed_biomass_grams_meter_ey = interrow_weed_biomass / 0.4,
     interrow_weed_biomass_kg_ha_mr = interrow_weed_biomass_grams_meter_mr * 10,
@@ -89,48 +88,49 @@ Block is random
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
 
-
-#Glmm with  Tweedie regression
+#Matt Ryan conversion
+##Glmm with  Tweedie regression
+###Metric
 ```{r}
 
-model_tweedie_log <- glmmTMB(
-interrow_weed_biomass_kg_ha_ey ~  weed_control + 
+model_tweedie_log_mr <- glmmTMB(
+interrow_weed_biomass_kg_ha_mr ~  weed_control*location +
   (1|location:block), 
   data = interrow_weed_biomass_clean, 
   family = tweedie(link = "log")
 
 )
 ### Two checks specifically for a generalize linear approach
-simulateResiduals(model_tweedie_log,plot = TRUE) # Residuals and normality look good
-check_model(model_tweedie_log) #Perfect, preditions match real data
-
-summary(model_tweedie_log )
-VarCorr(model_tweedie_log )
+simulateResiduals(model_tweedie_log_mr,plot = TRUE) # Residuals and normality look good
+check_model(model_tweedie_log_mr) 
+summary(model_tweedie_log_mr )
+VarCorr(model_tweedie_log_mr )
 
 
 ```
 ### Joint test (anova)
 ```{r}
-model_tweedie_log |> 
+model_tweedie_log_mr |> 
   joint_tests() |> 
   kable()  
 ```
 
+
 ## Fisher compact letter display
-### Weed-control (significant)
+### Weed_control|location (significant)
 
 ```{r}
-cld_weed_control_fisher <-cld(emmeans(model_tweedie_log, ~  weed_control, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
-cld_weed_control_fisher
+cld_weed_control_location_fisher_metric_mr<-cld(emmeans(model_tweedie_log_mr, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_location_fisher_metric_mr
 
 
 ```
 
-#Glmm with zero inflated tweedie model
+
+##Glmm with zero inflated tweedie model
 ```{r}
 
-model_tweedie_zero <- glmmTMB(
-interrow_weed_biomass_lbs_ac_mr ~  weed_control + 
+model_tweedie_zero_mr <- glmmTMB(interrow_weed_biomass_kg_ha_mr ~  weed_control*location + 
   (1|location:block), 
   data = interrow_weed_biomass_clean, 
   family = tweedie(link = "log"),
@@ -138,30 +138,30 @@ interrow_weed_biomass_lbs_ac_mr ~  weed_control +
 
 )
 ### Two checks specifically for a generalize linear approach
-simulateResiduals(model_tweedie_zero,plot = TRUE) # Residuals and normality look good
-check_model(model_tweedie_zero) #Perfect, preditions match real data
+simulateResiduals(model_tweedie_zero_mr,plot = TRUE) # Residuals and normality look good
+check_model(model_tweedie_zero_mr) #Perfect, preditions match real data
 
-summary(model_tweedie_zero )
-VarCorr(model_tweedie_zero )
+summary(model_tweedie_zero_mr)
+VarCorr(model_tweedie_zero_mr )
 
 
 ```
 ### Joint test (anova)
 ```{r}
-model_tweedie_zero |> 
+model_tweedie_zero_mr |> 
   joint_tests() |> 
   kable()  
 ```
 ```{r}
 options(contrasts = c("contr.sum", "contr.poly"))
-Anova(model_tweedie_zero, type = 3)
+Anova(model_tweedie_zero_mr, type = 3)
 ```
 ## Fisher compact letter display
-### Weed-control (significant)
+### Weed_control|location (significant)
 
 ```{r}
-cld_weed_control_fisher <-cld(emmeans(model_tweedie_log, ~  weed_control, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
-cld_weed_control_fisher
+cld_weed_control_fisher_zero <-cld(emmeans(model_tweedie_zero_mr, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_fisher_zero
 
 
 ```
@@ -171,8 +171,10 @@ cld_weed_control_fisher
 ###Matt conversion
 ```{r message=FALSE}
 interrow_weed_biomass_clean |> 
-  left_join(cld_weed_control_fisher) |> 
+  left_join(cld_weed_control_fisher_zero) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = response, fill = weed_control)) +
+  facet_wrap( ~location, labeller = labeller(
+    location = c("field O2 east" = "Field A", "field O2 west" = "Field B","field x" = "Field C" )))+
   #stat_summary(geom = "bar", fun = mean, width = 0.7) +  # Ensuring mean calculation
   #stat_summary(geom = "errorbar", fun.data = mean_se, width = 0.2) +  # Explicit mean_se
   #stat_summary(geom = "text", fun = mean, aes(label = trimws(.group)), 
@@ -183,7 +185,7 @@ interrow_weed_biomass_clean |>
 geom_text(aes(label = trimws(.group), y = response + (SE + 20)), size = 7) +
   labs(
     x = "",
-    y = expression("Interrow weed biomass" ~ (lbs * "/" * a)),
+    y = expression("Weed biomass" ~ (kg~ha^{-1})),
     #title = str_c("Influence of interrow weed control on interrow weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
@@ -198,17 +200,17 @@ geom_text(aes(label = trimws(.group), y = response + (SE + 20)), size = 7) +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 24),  # Increase font size of axis titles
-    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    strip.text = element_text(face = "bold", size = 20),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 20),   # Increase font size of axis labels
     plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
     plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   )
-ggsave("interrow_weed_biomass_weed_control_lbac_mr.png", width = 10, height = 8, dpi = 300)
+ggsave("interrow_weed_biomass_weed_control_location_kg_ha_mr.png", width = 24, height = 8, dpi = 300)
 ```
 
 ###Eric conversion
-```{r message=FALSE}
+```{r eval=FALSE, message=FALSE, include=FALSE}
 interrow_weed_biomass_clean |> 
   left_join(cld_weed_control_fisher) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = response, fill = weed_control)) +
@@ -245,12 +247,14 @@ geom_text(aes(label = trimws(.group), y = response + (SE + 20)), size = 7) +
   )
 ggsave("interrow_weed_biomass_weed_control_lbac_ey.png", width = 10, height = 8, dpi = 300)
 ```
-##kg/hectarw
+##Metric
 ###Matt conversion
 ```{r message=FALSE}
 interrow_weed_biomass_clean |> 
-  left_join(cld_weed_control_fisher) |> 
+  left_join(cld_weed_control_fisher_zero) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = response, fill = weed_control)) +
+  facet_wrap( ~location, labeller = labeller(
+    location = c("field O2 east" = "Field A", "field O2 west" = "Field B","field x" = "Field C" )))+
   #stat_summary(geom = "bar", fun = mean, width = 0.7) +  # Ensuring mean calculation
   #stat_summary(geom = "errorbar", fun.data = mean_se, width = 0.2) +  # Explicit mean_se
   #stat_summary(geom = "text", fun = mean, aes(label = trimws(.group)), 
@@ -261,7 +265,7 @@ interrow_weed_biomass_clean |>
 geom_text(aes(label = trimws(.group), y = response + (SE + 20)), size = 7) +
   labs(
     x = "",
-    y = expression("Interrow weed biomass" ~ ~ (kg ~ ha^{-1})),
+    y = expression("Weed biomass" ~ (kg~ha^{-1})),
     #title = str_c("Influence of interrow weed control on interrow weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
@@ -276,17 +280,17 @@ geom_text(aes(label = trimws(.group), y = response + (SE + 20)), size = 7) +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 24),  # Increase font size of axis titles
-    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    strip.text = element_text(face = "bold", size = 20),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 20),   # Increase font size of axis labels
     plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
     plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   )
-ggsave("interrow_weed_biomass_weed_control_kgha_mr.png", width = 10, height = 8, dpi = 300)
+ggsave("interrow_weed_biomass_weed_control_location_kg_ha_mr.png", width = 24, height = 8, dpi = 300)
 ```
 
 ###Eric conversion
-```{r message=FALSE}
+```{r eval=FALSE, message=FALSE, include=FALSE}
 interrow_weed_biomass_clean |> 
   left_join(cld_weed_control_fisher) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = response, fill = weed_control)) +
