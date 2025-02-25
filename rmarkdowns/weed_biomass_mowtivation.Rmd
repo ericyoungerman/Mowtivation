@@ -70,7 +70,6 @@ clean_combined <- clean_names(combined_raw) |>
 
 #select and convert data for wbm analysis
 weed_biomass_clean <-clean_combined |> 
-  mutate(log_weed_biomass_grams_meter=  (log((weed_biomass*2)+1)))|>
   mutate(weed_biomass_grams_meter = (weed_biomass /0.5)) |> 
   mutate(weed_biomass_kg_ha = (weed_biomass_grams_meter *(10000))/(1000)) |>
   mutate(weed_biomass_lbs_ac = ((weed_biomass_grams_meter *(10000))/(1000))* 0.892179)
@@ -128,29 +127,37 @@ cld_weed_control_fisher
 
 
 ```
-### Location (Significant)
+## Fisher compact letter display
+weed_control|location (Significant)
+
+```{r}
+cld_weed_control_location_fisher <-cld(emmeans(model_tweedie_log, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_location_fisher
+```
 
 
 # Figures
 ###lbs/a
-#### Weed-control (S)
+#### Weed_control|Location (Significant)
 
 ```{r message=FALSE}
 weed_biomass_clean |> 
-  left_join(cld_weed_control_fisher) |> 
+  left_join(cld_weed_control_location_fisher) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = response, fill = weed_control)) +
+facet_wrap( ~location, labeller = labeller(
+    location = c("field O2 east" = "Field A", "field O2 west" = "Field B","field x" = "Field C" )))+
   #stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   #stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   geom_bar(stat="identity", position=position_dodge()) + 
   geom_errorbar(aes(ymin=response-SE, ymax=response+SE), width=.2,
                  position=position_dodge(.9))+
-geom_text(aes(label = trimws(.group), y = response + (SE + 23)), size = 7) +
+geom_text(aes(label = trimws(.group), y = response + (SE + 48)), size = 7) +
   labs(
     x = "",
      y = expression("Weed biomass" ~ (lbs * "/" * a)),
     #title = str_c("Influence of interrow weed control on weed biomass"),
-    subtitle = expression(italic("P = 0.02"))) +
+    subtitle = expression(italic("P < 0.005"))) +
   
   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
@@ -163,35 +170,38 @@ geom_text(aes(label = trimws(.group), y = response + (SE + 23)), size = 7) +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 24),  # Increase font size of axis titles
-    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    strip.text = element_text(face = "bold", size = 20),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 20),   # Increase font size of axis labels
     plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
     plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   
   )
-ggsave("weed_biomass_weed_control_lbsacre.png", width = 10, height = 8, dpi = 300)
+ggsave("weed_biomass_weed_control_location_lb_acre.png", width = 24, height = 8, dpi = 300)
 ```
 
-###Kg/hectare
-#### Weed-control (S)
+# Figures
+###Kg/h
+#### Weed_control|Location (Significant)
 
 ```{r message=FALSE}
 weed_biomass_clean |> 
-  left_join(cld_weed_control_fisher) |> 
+  left_join(cld_weed_control_location_fisher) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = response, fill = weed_control)) +
+facet_wrap( ~location, labeller = labeller(
+    location = c("field O2 east" = "Field A", "field O2 west" = "Field B","field x" = "Field C" )))+
   #stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   #stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   geom_bar(stat="identity", position=position_dodge()) + 
   geom_errorbar(aes(ymin=response-SE, ymax=response+SE), width=.2,
                  position=position_dodge(.9))+
-geom_text(aes(label = trimws(.group), y = response + (SE + 23)), size = 7) +
+geom_text(aes(label = trimws(.group), y = response + (SE + 48)), size = 7) +
   labs(
     x = "",
-      y = expression("Weed biomass" ~ (kg ~ ha^{-1})),
+     y = expression("Weed biomass" ~ (kg~ha^{-1})),
     #title = str_c("Influence of interrow weed control on weed biomass"),
-    subtitle = expression(italic("P = 0.01"))) +
+    subtitle = expression(italic("P < 0.005"))) +
   
   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
@@ -204,13 +214,13 @@ geom_text(aes(label = trimws(.group), y = response + (SE + 23)), size = 7) +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 24),  # Increase font size of axis titles
-    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    strip.text = element_text(face = "bold", size = 20),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 20),   # Increase font size of axis labels
     plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
     plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   
   )
-ggsave("weed_biomass_weed_control_kgha.png", width = 10, height = 8, dpi = 300)
+ggsave("weed_biomass_weed_control_location_kg_ha.png", width = 24, height = 8, dpi = 300)
 ```
 
