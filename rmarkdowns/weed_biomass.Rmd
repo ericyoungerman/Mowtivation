@@ -88,7 +88,7 @@ Tyler is under the impression that block should always be random and that post-h
 
 ```{r}
 
-model_tweedie_log <- glmmTMB(weed_biomass_lbs_ac ~  weed_control + (1|location:block), 
+model_tweedie_log <- glmmTMB(weed_biomass_lbs_ac ~  weed_control*location + (1|location:block), 
   data = weed_biomass_clean, 
   family = tweedie(link = "log")
 
