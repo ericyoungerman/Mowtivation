@@ -77,9 +77,9 @@ clean_combined <- clean_names(combined_raw) |>
   mutate(bean_yield = as.numeric(bean_yield)) |>  # Convert beanyd to numeric
     # Exclude rows with NA in beanyd
   mutate(
-    bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 14)),
-    bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 14)),
-    bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 * ((100 - 0.00001) / (100 - 14))
+    bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 * ((100 - 0.00001) / (100 - 13))
   )
 kable(head(bean_yield_clean)) 
 ```
@@ -92,9 +92,8 @@ Block is random
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
 ```{r}
-random <- lmer( bean_yield_adj_kg_ha  ~ weed_control + (1|location) + (1|location:block) , data =  bean_yield_clean)
-
 random <- lmer( bean_yield_adj_kg_ha  ~ weed_control*location + (1|location:block) , data =  bean_yield_clean)
+
 
 
 resid_panel(random)
@@ -126,16 +125,6 @@ kable(head(pairwise_comparisons_weed_control))
 
 <br>
 
-## Tukey compact letter display
-### Weed-control (Not significant)
-```{r}
-
-cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control, type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
-cld_weed_control_tukey
-```
-<br>
-
-
 ## Fisher compact letter display
 ### Weed-control (No significant)
 
@@ -143,6 +132,14 @@ cld_weed_control_tukey
 cld_weed_control_fisher <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
 cld_weed_control_fisher
 ```
+# Fisher compact letter display
+### location ( significant)
+
+```{r}
+cld_location_fisher <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
+cld_location_fisher
+```
+
 
 # Figures using fisher
 ###Bu/a

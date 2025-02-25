@@ -1,0 +1,308 @@
+Bean Yield
+================
+
+# Load libraries
+
+``` r
+#Set work directory
+setwd("/Users/ey239/Github/Mowtivation/rmarkdowns")
+
+#Load packages 
+library(tidyverse) ##install.packages("tidyverse")
+library(knitr)
+library(patchwork) ##install.packages("patchwork")
+library(skimr)     ##install.packages("skimr")
+library(readxl)
+library(janitor) ##install.packages("janitor")
+library(kableExtra) ##install.packages("kableExtra")
+library(webshot) ##install.packages("webshot")
+webshot::install_phantomjs()
+library(viridis) ##install.packages("viridis")
+library(lme4) ##install.packages("lme4")
+library(lmerTest) ##install.packages("lmerTest")
+library(emmeans) ##install.packages("emmeans")
+library(rstatix) ##install.packages("rstatix")
+#library(Matrix) ##install.packages("Matrix")
+library(multcomp) ##install.packages("multcomp")
+library(multcompView) ##install.packages("multcompView")
+library(ggResidpanel) ##install.packages("ggResidpanel")
+#library(car)
+#library(TMB)  ##install.packages("TMB")
+#library(glmmTMB)  ##install.packages("glmmTMB")
+library(DHARMa)  ##install.packages("DHARMa")
+library(performance) ##install.packages("performance")
+#Load Functions
+MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
+
+find_logw0=function(x){c=trunc(log(min(x[x>0],na.rm=T)))
+d=exp(c)
+return(d)}
+```
+
+<br>
+
+# Load and clean data
+
+## Load data
+
+``` r
+combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
+kable(head(combined_raw))
+```
+
+| id | location | year | treatment | block | plot | bean_emergence | bean_biomass | intrarow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight |
+|:---|:---|---:|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 |
+| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 |
+| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 |
+| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35.0 | 412.59 | 16.1450 |
+| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 |
+| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 |
+
+<br>
+
+## Clean data
+
+``` r
+#Standardaze column names, convert to factors, check for outliers of variable**
+clean_combined <- clean_names(combined_raw) |>  
+  rename ('weed_control'= treatment) |> 
+  mutate(across(c(weed_control, block, plot, location, year), as.factor)) #|> 
+  #mutate(is_outlier = totwbm < (quantile(totwbm, 0.25) - 1.5 * IQR(totwbm)) |
+                       #wbm > (quantile(totwbm, 0.75) + 1.5 * IQR(totwbm)))
+
+#select and convert data for wbm analysis
+  bean_yield_clean <- clean_combined |>  
+    filter(!is.na(bean_yield)) |>
+  mutate(bean_yield = as.numeric(bean_yield)) |>  # Convert beanyd to numeric
+    # Exclude rows with NA in beanyd
+  mutate(
+    bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 * ((100 - 0.00001) / (100 - 13))
+  )
+kable(head(bean_yield_clean)) 
+```
+
+| id | location | year | weed_control | block | plot | bean_emergence | bean_biomass | intrarow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight | bean_yield_adj_bu_acre | bean_yield_adj_lbs_acre | bean_yield_adj_kg_ha |
+|:---|:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| CU_B1_P101 | field x | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 46.75977 | 2805.586 | 3144.641 |
+| CU_B1_P102 | field x | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 63.38419 | 3803.051 | 4262.650 |
+| CU_B1_P103 | field x | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 50.42694 | 3025.616 | 3391.262 |
+| CU_B1_P104 | field x | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35.0 | 412.59 | 16.1450 | 46.24197 | 2774.518 | 3109.819 |
+| CU_B1_P105 | field x | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 53.10110 | 3186.066 | 3571.102 |
+| CU_B1_P201 | field x | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 54.24989 | 3254.994 | 3648.359 |
+
+<br>
+
+# Model testing
+
+## Lmer
+
+Block is random Tyler is under the impression that block should always
+be random and that post-hoc comparisons should use TUKEY rather the
+Fischer. Fisher is bogus apparently.
+
+``` r
+random <- lmer( bean_yield_adj_kg_ha  ~ weed_control*location + (1|location:block) , data =  bean_yield_clean)
+
+
+
+resid_panel(random)
+```
+
+![](bean_yield_mowtivation_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+
+``` r
+simulateResiduals(random,plot = TRUE) # Residuals and normality look good
+```
+
+![](bean_yield_mowtivation_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
+
+    ## Object of Class DHARMa with simulated residuals based on 250 simulations with refit = FALSE . See ?DHARMa::simulateResiduals for help. 
+    ##  
+    ## Scaled residual values: 0.264 0.736 0.028 0.112 0.3 0.324 0.828 0.196 0.812 0.736 0.64 0.208 0.448 0.976 0.86 0.872 0.24 0.52 0.196 0.376 ...
+
+``` r
+check_model(random)
+```
+
+![](bean_yield_mowtivation_files/figure-gfm/unnamed-chunk-4-3.png)<!-- -->
+
+<br>
+
+## Joint test (anova)
+
+``` r
+ random |> 
+  joint_tests() |> 
+  kable()  
+```
+
+|     | model term            | df1 | df2 | F.ratio |   p.value |
+|:----|:----------------------|----:|----:|--------:|----------:|
+| 1   | weed_control          |   4 |  36 |   1.205 | 0.3256387 |
+| 3   | location              |   2 |   9 |  34.191 | 0.0000624 |
+| 2   | weed_control:location |   8 |  36 |   1.273 | 0.2881580 |
+
+<br>
+
+## Means comparison
+
+### Weed-control (Not significant)
+
+``` r
+means_weed_control <- emmeans(random, ~  weed_control)
+pairwise_comparisons_weed_control<- pairs(means_weed_control) 
+kable(head(pairwise_comparisons_weed_control))
+```
+
+| contrast  |   estimate |       SE |  df |    t.ratio |   p.value |
+|:----------|-----------:|---------:|----:|-----------:|----------:|
+| RIC - RIM |  -26.07909 | 179.2441 |  36 | -0.1454948 | 0.9999977 |
+| RIC - RNO |   97.89081 | 179.2441 |  36 |  0.5461312 | 0.9951337 |
+| RIC - TIC | -112.01699 | 179.2441 |  36 | -0.6249409 | 0.9900142 |
+| RIC - TIM |  252.17955 | 179.2441 |  36 |  1.4069055 | 0.6683769 |
+| RIM - RNO |  123.96990 | 179.2441 |  36 |  0.6916260 | 0.9831377 |
+| RIM - TIC |  -85.93789 | 179.2441 |  36 | -0.4794461 | 0.9976167 |
+
+<br>
+
+## Fisher compact letter display
+
+### Weed-control (No significant)
+
+``` r
+cld_weed_control_fisher <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
+```
+
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_weed_control_fisher
+```
+
+    ##  weed_control emmean  SE   df lower.CL upper.CL .group
+    ##  TIC            4680 129 44.8     4421     4940  a    
+    ##  RIM            4594 129 44.8     4335     4854  ab   
+    ##  RIC            4568 129 44.8     4309     4828  ab   
+    ##  RNO            4470 129 44.8     4211     4730  ab   
+    ##  TIM            4316 129 44.8     4057     4576   b   
+    ## 
+    ## Results are averaged over the levels of: location 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+# Fisher compact letter display
+
+### location ( significant)
+
+``` r
+cld_location_fisher <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
+```
+
+    ## NOTE: Results may be misleading due to involvement in interactions
+
+``` r
+cld_location_fisher
+```
+
+    ##  location      emmean  SE df lower.CL upper.CL .group
+    ##  field O2 east   4967 106  9     4727     5207  a    
+    ##  field O2 west   4793 106  9     4554     5033  a    
+    ##  field x         3817 106  9     3578     4057   b   
+    ## 
+    ## Results are averaged over the levels of: weed_control 
+    ## Degrees-of-freedom method: kenward-roger 
+    ## Confidence level used: 0.95 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+# Figures using fisher
+
+\###Bu/a \#### Weed-control (NS)
+
+``` r
+bean_yield_clean |> 
+  left_join(cld_weed_control_fisher) |> 
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = bean_yield_adj_bu_acre, fill = weed_control)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "",
+    y = expression(paste("Soybean yield (", bu, "/", a, " at 13% moisture)")),
+    #title = str_c("The influence of interrow weed control on soybean yield"),
+    subtitle = expression(italic("Not signficant"))) +
+  
+  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nhigh-residue\ncultivation",
+                              "Tilled,\ninterrow\nmowing",
+                          "Tilled,\nstandard\ncultivation")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 24),  # Increase font size of axis titles
+    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
+  )
+```
+
+![](bean_yield_mowtivation_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+
+``` r
+ggsave("bean_yield_weed_control_bua.png", width = 10, height = 8, dpi = 300)
+```
+
+\###Kg/hectare \#### Weed-control (NS)
+
+``` r
+bean_yield_clean |> 
+  left_join(cld_weed_control_fisher) |> 
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y =  bean_yield_adj_kg_ha, fill = weed_control)) +
+  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
+  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
+  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  labs(
+    x = "",
+    y = expression(paste("Soybean yield (", kg~ha^{-1}, " at 13% moisture)")),
+
+    #title = str_c("The influence of interrow weed control on soybean yield"),
+    subtitle = expression(italic("Not signficant"))) +
+  
+  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
+                              "Rolled,\ninterrow\nmowing",
+                              "Rolled,\nhigh-residue\ncultivation",
+                              "Tilled,\ninterrow\nmowing",
+                          "Tilled,\nstandard\ncultivation")) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
+   theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title = element_text(size = 24),  # Increase font size of axis titles
+    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
+  )
+```
+
+![](bean_yield_mowtivation_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+
+``` r
+ggsave("bean_yield_weed_control_kgha.png", width = 10, height = 8, dpi = 300)
+```
