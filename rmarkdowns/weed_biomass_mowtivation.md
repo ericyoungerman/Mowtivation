@@ -97,7 +97,7 @@ Fischer. Fisher is bogus apparently.
 \#GLMM
 
 ``` r
-model_tweedie_log <- glmmTMB(weed_biomass_lbs_ac ~  weed_control*location + (1|location:block), 
+model_tweedie_log <- glmmTMB(weed_biomass_kg_ha ~  weed_control*location + (1|location:block), 
   data = weed_biomass_clean, 
   family = tweedie(link = "log")
 
@@ -127,11 +127,11 @@ summary(model_tweedie_log )
 
     ##  Family: tweedie  ( log )
     ## Formula:          
-    ## weed_biomass_lbs_ac ~ weed_control * location + (1 | location:block)
+    ## weed_biomass_kg_ha ~ weed_control * location + (1 | location:block)
     ## Data: weed_biomass_clean
     ## 
     ##      AIC      BIC   logLik deviance df.resid 
-    ##    706.0    743.7   -335.0    670.0       42 
+    ##    718.1    755.8   -341.1    682.1       42 
     ## 
     ## Random effects:
     ## 
@@ -140,13 +140,13 @@ summary(model_tweedie_log )
     ##  location:block (Intercept) 0.2138   0.4624  
     ## Number of obs: 60, groups:  location:block, 12
     ## 
-    ## Dispersion parameter for tweedie family (): 5.81 
+    ## Dispersion parameter for tweedie family (): 6.06 
     ## 
     ## Conditional model:
     ##                                       Estimate Std. Error z value Pr(>|z|)    
-    ## (Intercept)                             0.6233     1.1086   0.562 0.573928    
+    ## (Intercept)                             0.7374     1.1086   0.665 0.505933    
     ## weed_controlRIM                         2.4588     1.2777   1.924 0.054313 .  
-    ## weed_controlRNO                         3.8035     1.2290   3.095 0.001970 ** 
+    ## weed_controlRNO                         3.8035     1.2290   3.095 0.001969 ** 
     ## weed_controlTIC                         3.5248     1.2426   2.837 0.004559 ** 
     ## weed_controlTIM                         4.2203     1.2121   3.482 0.000498 ***
     ## locationfield O2 west                   4.6389     1.2376   3.748 0.000178 ***
@@ -157,7 +157,7 @@ summary(model_tweedie_log )
     ## weed_controlTIM:locationfield O2 west  -4.2300     1.4012  -3.019 0.002538 ** 
     ## weed_controlRIM:locationfield x        -3.0727     1.4191  -2.165 0.030364 *  
     ## weed_controlRNO:locationfield x        -3.9551     1.3606  -2.907 0.003650 ** 
-    ## weed_controlTIC:locationfield x        -2.9297     1.3581  -2.157 0.030983 *  
+    ## weed_controlTIC:locationfield x        -2.9297     1.3581  -2.157 0.030982 *  
     ## weed_controlTIM:locationfield x        -3.2866     1.3261  -2.478 0.013200 *  
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
@@ -183,7 +183,7 @@ model_tweedie_log |>
 |:----|:----------------------|----:|----:|--------:|-------:|----------:|
 | 1   | weed_control          |   4 | Inf |   4.794 | 19.176 | 0.0007254 |
 | 3   | location              |   2 | Inf |  16.145 | 32.290 | 0.0000001 |
-| 2   | weed_control:location |   8 | Inf |   2.892 | 23.136 | 0.0031911 |
+| 2   | weed_control:location |   8 | Inf |   2.892 | 23.136 | 0.0031910 |
 
 ``` r
 options(contrasts = c("contr.sum", "contr.poly"))
@@ -192,11 +192,11 @@ Anova(model_tweedie_log, type = 3)
 
     ## Analysis of Deviance Table (Type III Wald chisquare tests)
     ## 
-    ## Response: weed_biomass_lbs_ac
+    ## Response: weed_biomass_kg_ha
     ##                         Chisq Df Pr(>Chisq)    
-    ## (Intercept)            0.3162  1   0.573928    
-    ## weed_control          14.5176  4   0.005814 ** 
-    ## location              20.2575  2  3.992e-05 ***
+    ## (Intercept)            0.4425  1   0.505933    
+    ## weed_control          14.5177  4   0.005813 ** 
+    ## location              20.2576  2  3.991e-05 ***
     ## weed_control:location 23.1384  8   0.003191 ** 
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
@@ -218,11 +218,11 @@ cld_weed_control_fisher
 ```
 
     ##  weed_control response   SE  df asymp.LCL asymp.UCL .group
-    ##  TIM             296.1 88.2 Inf     165.1       531  a    
-    ##  RNO             166.8 62.8 Inf      79.7       349  ab   
-    ##  TIC              76.8 31.3 Inf      34.6       171   bc  
-    ##  RIM              65.3 24.9 Inf      30.9       138    c  
-    ##  RIC              53.3 24.0 Inf      22.0       129    c  
+    ##  TIM             331.9 98.8 Inf     185.1       595  a    
+    ##  RNO             186.9 70.4 Inf      89.3       391  ab   
+    ##  TIC              86.1 35.1 Inf      38.7       191   bc  
+    ##  RIM              73.2 27.9 Inf      34.6       154    c  
+    ##  RIC              59.7 26.9 Inf      24.7       144    c  
     ## 
     ## Results are averaged over the levels of: location 
     ## Confidence level used: 0.95 
@@ -244,27 +244,163 @@ cld_weed_control_location_fisher
 
     ## location = field O2 east:
     ##  weed_control response     SE  df asymp.LCL asymp.UCL .group
-    ##  TIM            126.92  72.50 Inf    41.434     388.8  a    
-    ##  RNO             83.66  56.10 Inf    22.486     311.3  ab   
-    ##  TIC             63.32  43.50 Inf    16.452     243.7  ab   
-    ##  RIM             21.80  16.10 Inf     5.127      92.7   bc  
-    ##  RIC              1.87   2.07 Inf     0.212      16.4    c  
+    ##  TIM            142.26  81.30 Inf    46.441     435.8  a    
+    ##  RNO             93.77  62.90 Inf    25.204     348.9  ab   
+    ##  TIC             70.97  48.80 Inf    18.440     273.1  ab   
+    ##  RIM             24.44  18.10 Inf     5.746     103.9   bc  
+    ##  RIC              2.09   2.32 Inf     0.238      18.4    c  
     ## 
     ## location = field O2 west:
     ##  weed_control response     SE  df asymp.LCL asymp.UCL .group
-    ##  RIC            192.91 113.00 Inf    61.236     607.7  a    
-    ##  TIM            191.03 102.00 Inf    66.950     545.1  a    
-    ##  RNO            153.37  98.40 Inf    43.633     539.1  a    
-    ##  RIM             56.00  39.30 Inf    14.127     222.0  ab   
-    ##  TIC              9.38   8.14 Inf     1.714      51.3   b   
+    ##  RIC            216.22 127.00 Inf    68.636     681.2  a    
+    ##  TIM            214.12 115.00 Inf    75.041     611.0  a    
+    ##  RNO            171.90 110.00 Inf    48.906     604.2  a    
+    ##  RIM             62.76  44.10 Inf    15.835     248.8  ab   
+    ##  TIC             10.51   9.12 Inf     1.921      57.5   b   
     ## 
     ## location = field x:
     ##  weed_control response     SE  df asymp.LCL asymp.UCL .group
-    ##  TIM           1070.43 446.00 Inf   472.913    2422.9  a    
-    ##  TIC            762.97 332.00 Inf   325.261    1789.7  ab   
-    ##  RIC            420.79 198.00 Inf   167.393    1057.8  abc  
-    ##  RNO            361.57 176.00 Inf   139.646     936.2   bc  
-    ##  RIM            227.73 117.00 Inf    83.302     622.6    c  
+    ##  TIM           1199.79 500.00 Inf   530.064    2715.7  a    
+    ##  TIC            855.17 372.00 Inf   364.569    2006.0  ab   
+    ##  RIC            471.64 222.00 Inf   187.622    1185.6  abc  
+    ##  RNO            405.27 197.00 Inf   156.522    1049.3   bc  
+    ##  RIM            255.25 131.00 Inf    93.368     697.8    c  
+    ## 
+    ## Confidence level used: 0.95 
+    ## Intervals are back-transformed from the log scale 
+    ## Tests are performed on the log scale 
+    ## significance level used: alpha = 0.05 
+    ## NOTE: If two or more means share the same grouping symbol,
+    ##       then we cannot show them to be different.
+    ##       But we also did not show them to be the same.
+
+# GLMM with Location-Specific Dispersion
+
+``` r
+# Fit Alternative Model with Location-Specific Dispersion
+model_tweedie_log_disp <- glmmTMB(
+  weed_biomass_kg_ha ~ weed_control * location + (1|location:block), 
+  data = weed_biomass_clean, 
+  family = tweedie(link = "log"),
+  dispformula = ~location
+)
+### Two checks specifically for a generalize linear approach
+simulateResiduals(model_tweedie_log_disp,plot = TRUE) # Residuals and normality look good
+```
+
+![](weed_biomass_mowtivation_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+
+    ## Object of Class DHARMa with simulated residuals based on 250 simulations with refit = FALSE . See ?DHARMa::simulateResiduals for help. 
+    ##  
+    ## Scaled residual values: 0.62 0.304 0.236 0.98 0.532 0.728 0.648 0.852 0.884 0.28 0.352 0.428 0.716 0.124 0 0.324 0.152 0.764 0.344 0.772 ...
+
+``` r
+check_model(model_tweedie_log_disp) #Perfect, preditions match real data
+```
+
+    ## `check_outliers()` does not yet support models of class `glmmTMB`.
+
+![](weed_biomass_mowtivation_files/figure-gfm/unnamed-chunk-9-2.png)<!-- -->
+
+``` r
+summary(model_tweedie_log_disp )
+```
+
+    ##  Family: tweedie  ( log )
+    ## Formula:          
+    ## weed_biomass_kg_ha ~ weed_control * location + (1 | location:block)
+    ## Dispersion:                          ~location
+    ## Data: weed_biomass_clean
+    ## 
+    ##      AIC      BIC   logLik deviance df.resid 
+    ##    705.9    747.8   -332.9    665.9       40 
+    ## 
+    ## Random effects:
+    ## 
+    ## Conditional model:
+    ##  Groups         Name        Variance  Std.Dev. 
+    ##  location:block (Intercept) 3.608e-09 6.006e-05
+    ## Number of obs: 60, groups:  location:block, 12
+    ## 
+    ## Conditional model:
+    ##                          Estimate Std. Error z value Pr(>|z|)    
+    ## (Intercept)              4.878899   0.167819  29.072  < 2e-16 ***
+    ## weed_control1           -0.689838   0.377724  -1.826  0.06780 .  
+    ## weed_control2           -0.474183   0.338811  -1.400  0.16165    
+    ## weed_control3            0.579664   0.299648   1.934  0.05305 .  
+    ## weed_control4           -0.283132   0.354697  -0.798  0.42473    
+    ## location1               -1.225847   0.267058  -4.590 4.43e-06 ***
+    ## location2               -0.206496   0.256376  -0.805  0.42056    
+    ## weed_control1:location1 -2.141230   0.658643  -3.251  0.00115 ** 
+    ## weed_control2:location1  0.008515   0.539810   0.016  0.98741    
+    ## weed_control3:location1  0.593594   0.468839   1.266  0.20548    
+    ## weed_control4:location1  1.170443   0.512433   2.284  0.02237 *  
+    ## weed_control1:location2  1.624153   0.513895   3.160  0.00158 ** 
+    ## weed_control2:location2  0.276555   0.514926   0.537  0.59121    
+    ## weed_control3:location2  0.258129   0.461897   0.559  0.57627    
+    ## weed_control4:location2 -1.891941   0.593900  -3.186  0.00144 ** 
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+    ## 
+    ## Dispersion model:
+    ##             Estimate Std. Error z value Pr(>|z|)    
+    ## (Intercept)   1.3196     0.2250   5.865 4.48e-09 ***
+    ## location1     0.4970     0.2248   2.211  0.02702 *  
+    ## location2     0.6661     0.2136   3.119  0.00181 ** 
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+``` r
+VarCorr(model_tweedie_log_disp )
+```
+
+    ## 
+    ## Conditional model:
+    ##  Groups         Name        Std.Dev.  
+    ##  location:block (Intercept) 6.0064e-05
+
+### Joint test (anova)
+
+``` r
+model_tweedie_log_disp |> 
+  joint_tests() |> 
+  kable()  
+```
+
+|     | model term            | df1 | df2 | F.ratio | Chisq |   p.value |
+|:----|:----------------------|----:|----:|--------:|------:|----------:|
+| 1   | weed_control          |   4 | Inf |    3.58 | 14.32 | 0.0063371 |
+| 3   | location              |   2 | Inf |   33.35 | 66.70 | 0.0000000 |
+| 2   | weed_control:location |   8 | Inf |    2.68 | 21.44 | 0.0060694 |
+
+``` r
+cld_weed_control_location_fisher_disp <-cld(emmeans(model_tweedie_log_disp, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_location_fisher_disp
+```
+
+    ## location = field O2 east:
+    ##  weed_control response     SE  df asymp.LCL asymp.UCL .group
+    ##  TIM            132.85  86.80 Inf    36.897     478.3  a    
+    ##  RNO            124.75  82.20 Inf    34.282     453.9  a    
+    ##  TIC             93.72  64.10 Inf    24.518     358.3  a    
+    ##  RIM             24.23  19.80 Inf     4.886     120.1  ab   
+    ##  RIC              2.27   2.53 Inf     0.257      20.2   b   
+    ## 
+    ## location = field O2 west:
+    ##  weed_control response     SE  df asymp.LCL asymp.UCL .group
+    ##  RIC            272.25 176.00 Inf    76.529     968.5  a    
+    ##  RNO            247.20 162.00 Inf    68.375     893.7  a    
+    ##  TIM            195.00 132.00 Inf    51.793     734.2  a    
+    ##  RIM             87.77  65.90 Inf    20.144     382.5  ab   
+    ##  TIC             12.15  11.80 Inf     1.804      81.8   b   
+    ## 
+    ## location = field x:
+    ##  weed_control response     SE  df asymp.LCL asymp.UCL .group
+    ##  TIM           1184.35 253.00 Inf   778.652    1801.4  a    
+    ##  TIC            853.73 191.00 Inf   551.064    1322.6  ab   
+    ##  RIC            463.35 112.00 Inf   288.370     744.5   bc  
+    ##  RNO            419.55 103.00 Inf   259.494     678.3    c  
+    ##  RIM            257.75  67.30 Inf   154.452     430.1    c  
     ## 
     ## Confidence level used: 0.95 
     ## Intervals are back-transformed from the log scale 
@@ -280,7 +416,7 @@ cld_weed_control_location_fisher
 
 ``` r
 weed_biomass_clean |> 
-  left_join(cld_weed_control_location_fisher) |> 
+  left_join(cld_weed_control_location_fisher_disp) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = response, fill = weed_control)) +
 facet_wrap( ~location, labeller = labeller(
     location = c("field O2 east" = "Field A", "field O2 west" = "Field B","field x" = "Field C" )))+
@@ -317,7 +453,7 @@ geom_text(aes(label = trimws(.group), y = response + (SE + 48)), size = 7) +
   )
 ```
 
-![](weed_biomass_mowtivation_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](weed_biomass_mowtivation_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
 
 ``` r
 ggsave("weed_biomass_weed_control_location_lb_acre.png", width = 24, height = 8, dpi = 300)
@@ -329,10 +465,10 @@ ggsave("weed_biomass_weed_control_location_lb_acre.png", width = 24, height = 8,
 
 ``` r
 weed_biomass_clean |> 
-  left_join(cld_weed_control_location_fisher) |> 
+  left_join(cld_weed_control_location_fisher_disp) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = response, fill = weed_control)) +
 facet_wrap( ~location, labeller = labeller(
-    location = c("field O2 east" = "Field A", "field O2 west" = "Field B","field x" = "Field C" )))+
+    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field x" = "Field X" )))+
   #stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   #stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
@@ -366,7 +502,7 @@ geom_text(aes(label = trimws(.group), y = response + (SE + 48)), size = 7) +
   )
 ```
 
-![](weed_biomass_mowtivation_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+![](weed_biomass_mowtivation_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
 
 ``` r
 ggsave("weed_biomass_weed_control_location_kg_ha.png", width = 24, height = 8, dpi = 300)
