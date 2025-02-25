@@ -300,7 +300,7 @@ interrow_weed_biomass_clean |>
 geom_text(aes(label = trimws(.group), y = response + (SE + 20)), size = 7) +
   labs(
     x = "",
-    y = expression("Interrow weed biomass" ~ (lbs * "/" * a)),
+    y = expression("Interrow weed biomass" ~ ~ (kg ~ ha^{-1})),
     #title = str_c("Influence of interrow weed control on interrow weed biomass"),
     subtitle = expression(italic("P < 0.005"))) +
   
