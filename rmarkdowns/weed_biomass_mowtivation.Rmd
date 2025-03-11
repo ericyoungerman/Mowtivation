@@ -78,12 +78,10 @@ kable(head(weed_biomass_clean))
 <br>
 # Model testing
 
-Block is random
-Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
 
 
-#GLMM
+#GLMM tweedie
 
 ```{r}
 
@@ -107,12 +105,16 @@ VarCorr(model_tweedie_log )
 
 
 
+
+
 #### Joint test (anova)
 ```{r}
 model_tweedie_log |> 
   joint_tests() |> 
   kable()  
 ```
+
+<br>
 ```{r}
 options(contrasts = c("contr.sum", "contr.poly"))
 Anova(model_tweedie_log, type = 3)
@@ -120,31 +122,21 @@ Anova(model_tweedie_log, type = 3)
 <br>
 
 ## Fisher compact letter display
-### Weed-control (S)
-
-```{r}
-cld_weed_control_fisher <-cld(emmeans(model_tweedie_log, ~  weed_control, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
-cld_weed_control_fisher
-
-
-```
-## Fisher compact letter display
 weed_control|location (Significant)
 
 ```{r}
 cld_weed_control_location_fisher <-cld(emmeans(model_tweedie_log, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
 cld_weed_control_location_fisher
 ```
-# GLMM with Location-Specific Dispersion
+# GLMM tweedie Location-Specific Dispersion   
 ```{r}
-
-
 # Fit Alternative Model with Location-Specific Dispersion
 model_tweedie_log_disp <- glmmTMB(
   weed_biomass_kg_ha ~ weed_control * location + (1|location:block), 
   data = weed_biomass_clean, 
   family = tweedie(link = "log"),
-  dispformula = ~location
+  dispformula = ~location,
+  ziformula = ~1 
 )
 ### Two checks specifically for a generalize linear approach
 simulateResiduals(model_tweedie_log_disp,plot = TRUE) # Residuals and normality look good
@@ -165,6 +157,45 @@ model_tweedie_log_disp |>
 ```{r}
 cld_weed_control_location_fisher_disp <-cld(emmeans(model_tweedie_log_disp, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
 cld_weed_control_location_fisher_disp
+```
+#GLMM Gaussian  Location-Specific Dispersion
+
+```{r}
+
+# Fit Alternative Model with lognormal distribution Location-Specific Dispersion
+model_lognormal_zi <- glmmTMB(
+  weed_biomass_kg_ha ~ weed_control * location + (1|location:block), 
+  data = weed_biomass_clean, 
+  family = gaussian(link = "log"),
+  dispformula = ~location,
+  ziformula = ~1  # Zero-inflation component
+)
+
+# Fit Alternative Model with Location-Specific Dispersion
+
+### Two checks specifically for a generalize linear approach
+simulateResiduals(model_lognormal_disp,plot = TRUE) # Residuals and normality look good
+check_model(model_lognormal_disp) #Perfect, preditions match real data
+
+summary(model_lognormal_zi)
+VarCorr(model_lognormal_zi )
+
+
+
+```
+#### Joint test (anova)
+```{r}
+model_tweedie_log_random |> 
+  joint_tests() |> 
+  kable()  
+```
+## Fisher compact letter display
+### Weed-control (S)
+
+```{r}
+cld_weed_control_fisher_random <-cld(emmeans(model_tweedie_log_random, ~  weed_control, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_fisher_random
+
 ```
 # Figures
 ###lbs/a
