@@ -20,7 +20,7 @@ library(patchwork) ##install.packages("patchwork")
 library(skimr)     ##install.packages("skimr")
 library(readxl)
 library(janitor) ##install.packages("janitor")
-
+library(MASS)
 library(kableExtra) ##install.packages("kableExtra")
 library(webshot) ##install.packages("webshot")
 webshot::install_phantomjs()
@@ -72,12 +72,9 @@ clean_combined <- clean_names(combined_raw) |>
 #select and convert data for wbm analysis
 interrow_weed_biomass_clean <- clean_combined |>
   mutate(
-    interrow_weed_biomass_grams_meter_mr = interrow_weed_biomass / 0.5,
-    interrow_weed_biomass_grams_meter_ey = interrow_weed_biomass / 0.4,
-    interrow_weed_biomass_kg_ha_mr = interrow_weed_biomass_grams_meter_mr * 10,
-    interrow_weed_biomass_kg_ha_ey = interrow_weed_biomass_grams_meter_ey * 10,
-    interrow_weed_biomass_lbs_ac_mr = interrow_weed_biomass_kg_ha_mr * 0.892179,
-    interrow_weed_biomass_lbs_ac_ey = interrow_weed_biomass_kg_ha_ey * 0.892179
+    interrow_weed_biomass_grams_meter = interrow_weed_biomass / 0.5,
+    interrow_weed_biomass_kg_ha = interrow_weed_biomass_grams_meter * 10,
+    interrow_weed_biomass_lbs_ac = interrow_weed_biomass_kg_ha * 0.892179,
   )
 
 kable(head(interrow_weed_biomass_clean))
@@ -88,40 +85,41 @@ kable(head(interrow_weed_biomass_clean))
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
 #Model testing Location fixed
-##Matt Ryan conversion
 ##Glmm with Tweedie Regression 
 ###Metric
 ```{r}
 
-model_tweedie_log_mr <- glmmTMB(
-interrow_weed_biomass_kg_ha_mr ~  weed_control*location +
+model_tweedie_log <- glmmTMB(
+interrow_weed_biomass_kg_ha ~  weed_control*location +
   (1|location:block), 
   data = interrow_weed_biomass_clean, 
   family = tweedie(link = "log")
 
 )
+
+
 ### Two checks specifically for a generalize linear approach
-simulateResiduals(model_tweedie_log_mr,plot = TRUE) # Residuals and normality look good
-check_model(model_tweedie_log_mr) 
-summary(model_tweedie_log_mr )
-VarCorr(model_tweedie_log_mr )
+simulateResiduals(model_tweedie_log,plot = TRUE) # Residuals and normality look good
+check_model(model_tweedie_log) 
+summary(model_tweedie_log )
+VarCorr(model_tweedie_log)
 
 
 ```
 ### Joint test (anova)
 ```{r}
-model_tweedie_log_mr |> 
+model_tweedie_log |> 
   joint_tests() |> 
   kable()  
 ```
 
 
 ### Fisher compact letter display
-### Weed_control|location (significant)
+#### Weed_control|location (significant)
 
 ```{r}
-cld_weed_control_location_fisher_metric_mr<-cld(emmeans(model_tweedie_log_mr, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
-cld_weed_control_location_fisher_metric_mr
+cld_weed_control_location_fisher_metric<-cld(emmeans(model_tweedie_log, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_location_fisher_metric
 
 
 ```
@@ -130,7 +128,7 @@ cld_weed_control_location_fisher_metric_mr
 ##Glmm with zero inflated tweedie model
 ```{r}
 
-model_tweedie_zero_mr <- glmmTMB(interrow_weed_biomass_kg_ha_mr ~  weed_control*location + 
+model_tweedie_zero <- glmmTMB(interrow_weed_biomass_kg_ha ~  weed_control*location + 
   (1|location:block), 
   data = interrow_weed_biomass_clean, 
   family = tweedie(link = "log"),
@@ -138,11 +136,11 @@ model_tweedie_zero_mr <- glmmTMB(interrow_weed_biomass_kg_ha_mr ~  weed_control*
 
 )
 ### Two checks specifically for a generalize linear approach
-simulateResiduals(model_tweedie_zero_mr,plot = TRUE) # Residuals and normality look good
-check_model(model_tweedie_zero_mr) #Perfect, preditions match real data
+simulateResiduals(model_tweedie_zero,plot = TRUE) # Residuals and normality look good
+check_model(model_tweedie_zero) #Perfect, preditions match real data
 
-summary(model_tweedie_zero_mr)
-VarCorr(model_tweedie_zero_mr )
+summary(model_tweedie_zero)
+VarCorr(model_tweedie_zero)
 
 
 ```
@@ -160,7 +158,7 @@ Anova(model_tweedie_zero_mr, type = 3)
 ### Weed_control|location (significant)
 
 ```{r}
-cld_weed_control_fisher_zero_mr <-cld(emmeans(model_tweedie_zero_mr, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_fisher_zero <-cld(emmeans(model_tweedie_zero, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
 cld_weed_control_fisher_zero
 
 
