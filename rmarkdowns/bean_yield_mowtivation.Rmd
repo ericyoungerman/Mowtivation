@@ -25,7 +25,6 @@ library(kableExtra) ##install.packages("kableExtra")
 library(webshot) ##install.packages("webshot")
 webshot::install_phantomjs()
 library(viridis) ##install.packages("viridis")
-library(lme4) ##install.packages("lme4")
 library(lmerTest) ##install.packages("lmerTest")
 library(emmeans) ##install.packages("emmeans")
 library(rstatix) ##install.packages("rstatix")
@@ -38,12 +37,7 @@ library(ggResidpanel) ##install.packages("ggResidpanel")
 #library(glmmTMB)  ##install.packages("glmmTMB")
 library(DHARMa)  ##install.packages("DHARMa")
 library(performance) ##install.packages("performance")
-#Load Functions
-MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
 
-find_logw0=function(x){c=trunc(log(min(x[x>0],na.rm=T)))
-d=exp(c)
-return(d)}
 ```
 
 <br>
@@ -67,9 +61,7 @@ kable(head(combined_raw))
 #Standardaze column names, convert to factors, check for outliers of variable**
 clean_combined <- clean_names(combined_raw) |>  
   rename ('weed_control'= treatment) |> 
-  mutate(across(c(weed_control, block, plot, location, year), as.factor)) #|> 
-  #mutate(is_outlier = totwbm < (quantile(totwbm, 0.25) - 1.5 * IQR(totwbm)) |
-                       #wbm > (quantile(totwbm, 0.75) + 1.5 * IQR(totwbm)))
+  mutate(across(c(weed_control, block, plot, location, year), as.factor)) 
 
 #select and convert data for wbm analysis
   bean_yield_clean <- clean_combined |>  
@@ -92,63 +84,74 @@ Block is random
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
 ```{r}
-random <- lmer( bean_yield_adj_kg_ha  ~ weed_control*location + (1|location:block) , data =  bean_yield_clean)
+yield.lmer <- lmer( bean_yield_adj_kg_ha  ~ weed_control*location + (1|location:block) , data =  bean_yield_clean)
 
 
 
-resid_panel(random)
+resid_panel(yield.lmer)
 
-simulateResiduals(random,plot = TRUE) # Residuals and normality look good
-check_model(random)
+simulateResiduals(yield.lmer,plot = TRUE) # Residuals and normality look good
+check_model(yield.lmer)
 ```
 
 
 <br>
 
-## Joint test (anova)
+## Anova
 ```{r}
- random |> 
-  joint_tests() |> 
-  kable()  
+ joint_tests(emmeans(yield.lmer, ~ weed_control * location))
 ```
 
-<br>
-
-## Means comparison
-### Weed-control (Not significant)
-```{r message=FALSE}
-means_weed_control <- emmeans(random, ~  weed_control)
-pairwise_comparisons_weed_control<- pairs(means_weed_control) 
-kable(head(pairwise_comparisons_weed_control))
-```
 
 
 <br>
 
-## Fisher compact letter display
-### Weed-control (No significant)
+## Tukey means comparisons
+### Weed-control (not significant)
 
 ```{r}
-cld_weed_control_fisher <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
-cld_weed_control_fisher
+tukey_weed_control <- emmeans(yield.lmer, list(pairwise ~ weed_control), adjust = "tukey")
+tukey_weed_control
+
+cld_weed_control_tukey <- cld(emmeans(yield.lmer, ~ weed_control), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
+
+cld_weed_control_tukey
 ```
-# Fisher compact letter display
-### location ( significant)
+<br>
+
+### Location (significant)
 
 ```{r}
-cld_location_fisher <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
-cld_location_fisher
+tukey_location <- emmeans(yield.lmer, list(pairwise ~ location), adjust = "tukey")
+tukey_location
+
+cld_location_tukey <- cld(emmeans(yield.lmer, ~ location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
+
+cld_location_tukey
+```
+<br>
+
+###weed_control:location (not significant)
+
+```{r}
+tukey_weed_control_location <- emmeans(yield.lmer, list(pairwise ~ weed_control|location), adjust = "tukey")
+tukey_weed_control_location
+
+cld_weed_control_location_tukey <- cld(emmeans(yield.lmer, ~ weed_control|location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
+
+cld_weed_control_location_tukey
 ```
 
-
-# Figures using fisher
+# Figures 
 ###Bu/a
-#### Weed-control (NS)
+#### weed_control:location (not significant)
 
 ```{r message=FALSE, warning=FALSE}
 bean_yield_clean |> 
-  left_join(cld_weed_control_fisher) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = bean_yield_adj_bu_acre, fill = weed_control)) +
+  left_join(cld_weed_control_location_tukey) |> 
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = bean_yield_adj_bu_acre, fill = weed_control)) + 
+facet_wrap( ~location, labeller = labeller(
+    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
@@ -156,7 +159,7 @@ bean_yield_clean |>
     x = "",
     y = expression(paste("Soybean yield (", bu, "/", a, " at 13% moisture)")),
     #title = str_c("The influence of interrow weed control on soybean yield"),
-    subtitle = expression(italic("Not signficant"))) +
+    subtitle = expression(italic("Not significant"))) +
   
   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
@@ -169,24 +172,26 @@ bean_yield_clean |>
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 24),  # Increase font size of axis titles
-    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    strip.text = element_text(face = "bold", size = 20),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 20),   # Increase font size of axis labels
     plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
     plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   )
-ggsave("bean_yield_weed_control_bua.png", width = 10, height = 8, dpi = 300)
+ggsave("bean_yield_weed_control_location_bua.png", width = 24, height = 8, dpi = 300)
 ```
 
 
 
 ###Kg/hectare
-#### Weed-control (NS)
+#### weed_control:location (not significant)
 
 ```{r message=FALSE, warning=FALSE}
 bean_yield_clean |> 
-  left_join(cld_weed_control_fisher) |> 
+  left_join(cld_weed_control_location_tukey) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y =  bean_yield_adj_kg_ha, fill = weed_control)) +
+  facet_wrap( ~location, labeller = labeller(
+    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
@@ -195,7 +200,7 @@ bean_yield_clean |>
     y = expression(paste("Soybean yield (", kg~ha^{-1}, " at 13% moisture)")),
 
     #title = str_c("The influence of interrow weed control on soybean yield"),
-    subtitle = expression(italic("Not signficant"))) +
+    subtitle = expression(italic("Not significant"))) +
   
   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
@@ -208,11 +213,11 @@ bean_yield_clean |>
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 24),  # Increase font size of axis titles
-    axis.text = element_text(size = 24),   # Increase font size of axis labels
+    strip.text = element_text(face = "bold", size = 20),
+    axis.title = element_text(size = 20),  # Increase font size of axis titles
+    axis.text = element_text(size = 20),   # Increase font size of axis labels
     plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
     plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   )
-ggsave("bean_yield_weed_control_kgha.png", width = 10, height = 8, dpi = 300)
+ggsave("bean_yield_weed_control_location_kgha.png", width = 24, height = 8, dpi = 300)
 ```
