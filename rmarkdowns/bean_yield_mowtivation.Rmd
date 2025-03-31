@@ -22,8 +22,7 @@ library(skimr)     ##install.packages("skimr")
 library(readxl)
 library(janitor) ##install.packages("janitor")
 library(kableExtra) ##install.packages("kableExtra")
-library(webshot) ##install.packages("webshot")
-webshot::install_phantomjs()
+
 library(viridis) ##install.packages("viridis")
 library(lmerTest) ##install.packages("lmerTest")
 library(emmeans) ##install.packages("emmeans")
@@ -33,11 +32,12 @@ library(multcomp) ##install.packages("multcomp")
 library(multcompView) ##install.packages("multcompView")
 library(ggResidpanel) ##install.packages("ggResidpanel")
 #library(car)
-#library(TMB)  ##install.packages("TMB")
-#library(glmmTMB)  ##install.packages("glmmTMB")
-library(DHARMa)  ##install.packages("DHARMa")
-library(performance) ##install.packages("performance")
 
+## For GLM modeling
+library(monet)
+library(DHARMa)
+library(glmmTMB)
+library(performance)
 ```
 
 <br>
