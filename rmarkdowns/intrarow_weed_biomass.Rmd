@@ -40,7 +40,7 @@ library(DHARMa)  ##install.packages("DHARMa")
 library(performance) ##install.packages("performance")
 #Load Functions
 MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
-
+library(blme)  ##install.packages("blme")
 find_logw0=function(x){c=trunc(log(min(x[x>0],na.rm=T)))
 d=exp(c)
 return(d)}
@@ -79,23 +79,30 @@ kable(head(intrarow_weed_biomass_clean))
 
 
 #GLMM
-#Matt Ryan conversion
 ##Glmm with  Tweedie regression
 ###Metric
 ```{r}
 
-model_tweedie_log <- glmmTMB(
+model_tweedie <- glmmTMB(
 intrarow_weed_biomass_kg_ha ~  weed_control*location +
   (1|location:block), 
   data = intrarow_weed_biomass_clean, 
   family = tweedie(link = "log")
 
 )
+
+model_tweedie.2 <- bglmer(
+intrarow_weed_biomass_kg_ha ~  weed_control*location +
+  (1|location:block), 
+  data = intrarow_weed_biomass_clean, 
+  family = tweedie(link = "log"), fixef.prior = normal(cov=diag (9,15)))
+
+
 ### Two checks specifically for a generalize linear approach
-simulateResiduals(model_tweedie_log,plot = TRUE) # Residuals and normality look good
-check_model(model_tweedie_log) 
-summary(model_tweedie_log)
-VarCorr(model_tweedie_log )
+simulateResiduals(model_tweedie,plot = TRUE) # Residuals and normality look good
+check_model(model_tweedie) 
+summary(model_tweedie)
+VarCorr(model_tweedie)
 
 
 ```
@@ -107,15 +114,65 @@ VarCorr(model_tweedie_log )
 
 ### Joint test (anova)
 ```{r}
-model_tweedie_log |> 
+model_tweedie |> 
   joint_tests() |> 
   kable()  
 ```
+
+#### Anova
+
+```{r}
+intrarow_weed_biomass_model_tweedie.anova <- Anova(model_tweedie, type = 3)
+print(intrarow_weed_biomass_model_tweedie.anova)
+
+```
+## Tukey means comparisons with fisher cld
+### Weed-control (significant)
+
+```{r}
+#model predicted means
+tukey_weed_control <- emmeans(model_tweedie, pairwise ~ weed_control, adjust = "tukey", type = "response")
+tukey_weed_control
+
+#raw means
+raw_weed_control <- aggregate(intrarow_weed_biomass_kg_ha ~ weed_control, data = intrarow_weed_biomass_clean, mean)
+print(raw_weed_control)
+
+
+cld_weed_control_fisher <-cld(emmeans(model_tweedie, ~  weed_control, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_fisher 
+```
+
+### location (significant)
+
+```{r}
+
+#model predicted means
+tukey_location <- emmeans(model_tweedie, pairwise ~ location, adjust = "tukey", type = "response")
+tukey_location
+
+#raw means
+raw_location <- aggregate(intrarow_weed_biomass_kg_ha ~ location, data = intrarow_weed_biomass_clean, mean)
+print(raw_location)
+
+
+cld_location_fisher <-cld(emmeans(model_tweedie, ~  location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_location_fisher
+```
+
 ### Fisher compact letter display
 ### Weed_control|location (significant)
 
 ```{r}
-cld_weed_control_location_fisher<-cld(emmeans(model_tweedie_log, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+#model predicted means
+tukey_weed_control_location <- emmeans(model_tweedie, pairwise ~ weed_control|location, adjust = "tukey", type = "response")
+tukey_weed_control_location
+
+#raw means
+raw_weed_control_location <- aggregate(intrarow_weed_biomass_kg_ha ~ weed_control + location, data = intrarow_weed_biomass_clean, mean)
+print(raw_weed_control_location)
+
+cld_weed_control_location_fisher<-cld(emmeans(model_tweedie, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
 cld_weed_control_location_fisher
 
 
@@ -127,7 +184,7 @@ model_tweedie_zero<- glmmTMB(intrarow_weed_biomass_kg_ha ~  weed_control*locatio
   (1|location:block), 
   data = intrarow_weed_biomass_clean, 
   family = tweedie(link = "log"),
-  zi = ~ 1
+  zi = ~ weed_control
 
 )
 ### Two checks specifically for a generalize linear approach
@@ -138,12 +195,33 @@ summary(model_tweedie_zero)
 VarCorr(model_tweedie_zero)
 
 
+
 ```
 ### Joint test (anova)
 ```{r}
 model_tweedie_zero |> 
   joint_tests() |> 
   kable()  
+```
+#### Anova
+
+```{r}
+intrarow_weed_biomass_model_tweedie_zero.anova <- Anova(model_tweedie_zero, type = 3)
+print(intrarow_weed_biomass_model_tweedie_zero.anova)
+
+```
+```{r}
+#model predicted means
+tukey_weed_control <- emmeans(model_tweedie_zero, pairwise ~ weed_control, adjust = "tukey", type = "response")
+tukey_weed_control
+
+#raw means
+raw_weed_control <- aggregate(intrarow_weed_biomass_kg_ha ~ weed_control, data = intrarow_weed_biomass_clean, mean)
+print(raw_weed_control)
+
+
+cld_weed_control_fisher <-cld(emmeans(model_tweedie_zero, ~  weed_control, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_fisher 
 ```
 # Fisher compact letter display
 ### Weed_control|location (significant)

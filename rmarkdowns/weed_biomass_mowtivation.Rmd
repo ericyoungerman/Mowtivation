@@ -19,24 +19,24 @@ library(patchwork) ##install.packages("patchwork")
 library(skimr)     ##install.packages("skimr")
 library(readxl)
 library(janitor) ##install.packages("janitor")
-
 library(kableExtra) ##install.packages("kableExtra")
-library(webshot) ##install.packages("webshot")
-webshot::install_phantomjs()
+
 library(viridis) ##install.packages("viridis")
-library(lme4) ##install.packages("lme4")
+
 library(lmerTest) ##install.packages("lmerTest")
 library(emmeans) ##install.packages("emmeans")
 library(rstatix) ##install.packages("rstatix")
-#library(Matrix) ##install.packages("Matrix")
 library(multcomp) ##install.packages("multcomp")
 library(multcompView) ##install.packages("multcompView")
 library(ggResidpanel) ##install.packages("ggResidpanel")
-#library(car)
-#library(TMB)  ##install.packages("TMB")
-library(glmmTMB)  ##install.packages("glmmTMB")
-library(DHARMa)  ##install.packages("DHARMa")
-library(performance) ##install.packages("performance")
+
+
+## For GLM modeling
+library(monet)
+library(DHARMa)
+library(glmmTMB)
+library(performance)
+
 
 #Load Functions
 MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
@@ -84,19 +84,42 @@ kable(head(weed_biomass_clean))
 #GLMM tweedie
 
 ```{r}
+options(contrasts = c("contr.sum", "contr.poly"))
 
-model_tweedie_log <- glmmTMB(weed_biomass_kg_ha ~  weed_control*location + (1|location:block), 
+model_tweedie <- glmmTMB(weed_biomass_kg_ha ~  weed_control*location + (1|location:block), 
   data = weed_biomass_clean, 
-  family = tweedie(link = "log")
+  family = tweedie(link = "log"))
 
-)
+
+model_nb <- glmmTMB(weed_biomass_kg_ha ~ weed_control*location + (1|location:block), 
+                    data = weed_biomass_clean, 
+                    family = nbinom2(link = "log"))
+
+model_tweedie_zi <- glmmTMB(weed_biomass_kg_ha ~ weed_control*location + (1|location:block), 
+                            data = weed_biomass_clean, 
+                            family = tweedie(link = "log"), 
+                            ziformula = ~1)
+
+model_tweedie_disp <- glmmTMB(weed_biomass_kg_ha ~ weed_control * location + (1|location:block), 
+                              data = weed_biomass_clean, 
+                              family = tweedie(link = "log"),
+                              dispformula = ~location,
+                              ziformula = ~1 )
+
+
+
+
+
+AIC(model_tweedie, model_nb,model_tweedie_zi,model_tweedie_disp )
+
+
 
 ### Two checks specifically for a generalize linear approach
-simulateResiduals(model_tweedie_log,plot = TRUE) # Residuals and normality look good
-check_model(model_tweedie_log) #Perfect, preditions match real data
+simulateResiduals(model_tweedie,plot = TRUE) # 
+check_model(model_tweedie) 
 
-summary(model_tweedie_log )
-VarCorr(model_tweedie_log )
+summary(model_tweedie)
+VarCorr(model_tweedie)
 
 
 ```
@@ -107,103 +130,55 @@ VarCorr(model_tweedie_log )
 
 
 
-#### Joint test (anova)
+#### Anova
+
 ```{r}
-model_tweedie_log |> 
-  joint_tests() |> 
-  kable()  
+weed_biomass_model_tweedie.anova <- Anova(model_tweedie, type = 3)
+print(weed_biomass_model_tweedie.anova)
+
 ```
+
 
 <br>
-```{r}
-options(contrasts = c("contr.sum", "contr.poly"))
-Anova(model_tweedie_log, type = 3)
-```
-<br>
 
+## Tukey means comparisons with fisher cld
+### Weed-control (significant)
+
+```{r}
+
+tukey_weed_control <- emmeans(model_tweedie, pairwise ~ weed_control, adjust = "tukey", type = "response")
+tukey_weed_control
+
+
+cld_weed_control_fisher <-cld(emmeans(model_tweedie, ~  weed_control, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_fisher 
+```
+### location (significant)
+
+```{r}
+
+tukey_location <- emmeans(model_tweedie, pairwise ~ location, adjust = "tukey", type = "response")
+tukey_location
+
+
+cld_weed_control_fisher <-cld(emmeans(model_tweedie, ~  weed_control, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_fisher 
+```
 ## Fisher compact letter display
 weed_control|location (Significant)
 
 ```{r}
-cld_weed_control_location_fisher <-cld(emmeans(model_tweedie_log, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
+cld_weed_control_location_fisher <-cld(emmeans(model_tweedie, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
 cld_weed_control_location_fisher
 ```
-# GLMM tweedie Location-Specific Dispersion   
-```{r}
-# Fit Alternative Model with Location-Specific Dispersion
-model_tweedie_log_disp <- glmmTMB(
-  weed_biomass_kg_ha ~ weed_control * location + (1|location:block), 
-  data = weed_biomass_clean, 
-  family = tweedie(link = "log"),
-  dispformula = ~location,
-  ziformula = ~1 
-)
-### Two checks specifically for a generalize linear approach
-simulateResiduals(model_tweedie_log_disp,plot = TRUE) # Residuals and normality look good
-check_model(model_tweedie_log_disp) #Perfect, preditions match real data
 
-summary(model_tweedie_log_disp )
-VarCorr(model_tweedie_log_disp )
-
-
-
-```
-### Joint test (anova)
-```{r}
-model_tweedie_log_disp |> 
-  joint_tests() |> 
-  kable()  
-```
-```{r}
-cld_weed_control_location_fisher_disp <-cld(emmeans(model_tweedie_log_disp, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
-cld_weed_control_location_fisher_disp
-```
-#GLMM Gaussian  Location-Specific Dispersion
-
-```{r}
-
-# Fit Alternative Model with lognormal distribution Location-Specific Dispersion
-model_lognormal_zi <- glmmTMB(
-  weed_biomass_kg_ha ~ weed_control * location + (1|location:block), 
-  data = weed_biomass_clean, 
-  family = gaussian(link = "log"),
-  dispformula = ~location,
-  ziformula = ~1  # Zero-inflation component
-)
-
-# Fit Alternative Model with Location-Specific Dispersion
-
-### Two checks specifically for a generalize linear approach
-simulateResiduals(model_lognormal_disp,plot = TRUE) # Residuals and normality look good
-check_model(model_lognormal_disp) #Perfect, preditions match real data
-
-summary(model_lognormal_zi)
-VarCorr(model_lognormal_zi )
-
-
-
-```
-#### Joint test (anova)
-```{r}
-model_tweedie_log_random |> 
-  joint_tests() |> 
-  kable()  
-```
-## Fisher compact letter display
-### Weed-control (S)
-
-```{r}
-cld_weed_control_fisher_random <-cld(emmeans(model_tweedie_log_random, ~  weed_control, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
-cld_weed_control_fisher_random
-
-```
 # Figures
 ###lbs/a
 #### Weed_control|Location (Significant)
 
 ```{r message=FALSE}
 weed_biomass_clean |> 
-  left_join(cld_weed_control_location_fisher_disp) |> 
+  left_join(cld_weed_control_location_fisher) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = response, fill = weed_control)) +
 facet_wrap( ~location, labeller = labeller(
     location = c("field O2 east" = "Field A", "field O2 west" = "Field B","field x" = "Field C" )))+
@@ -247,22 +222,22 @@ ggsave("weed_biomass_weed_control_location_lb_acre.png", width = 24, height = 8,
 
 ```{r message=FALSE}
 weed_biomass_clean |> 
-  left_join(cld_weed_control_location_fisher_disp) |> 
+  left_join(cld_weed_control_location_fisher) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = response, fill = weed_control)) +
 facet_wrap( ~location, labeller = labeller(
-    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field x" = "Field X" )))+
+    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
   #stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   #stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   geom_bar(stat="identity", position=position_dodge()) + 
   geom_errorbar(aes(ymin=response-SE, ymax=response+SE), width=.2,
                  position=position_dodge(.9))+
-geom_text(aes(label = trimws(.group), y = response + (SE + 48)), size = 7) +
+geom_text(aes(label = trimws(.group), y = response + (SE + 50)), size = 7) +
   labs(
     x = "",
      y = expression("Weed biomass" ~ (kg~ha^{-1})),
     #title = str_c("Influence of interrow weed control on weed biomass"),
-    subtitle = expression(italic("P < 0.005"))) +
+    subtitle = expression(italic("P < 0.001"))) +
   
   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
