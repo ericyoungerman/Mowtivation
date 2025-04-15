@@ -85,82 +85,68 @@ Tyler is under the impression that block should always be random and that post-h
 
 ## Lmer
 ```{r}
-random <- lmer(bean_biomass_lbs_ac  ~ weed_control + (1|location) , data =bean_biomass_clean)
+biomass.lmer <- lmer(bean_biomass_kg_ha  ~ weed_control*location + (1|location:block) , data =bean_biomass_clean)
 
-resid_panel(random)
-simulateResiduals(random,plot = TRUE) # Residuals and normality look good
-check_model(random) #Perfect, preditions match real data
-
-```
-## Summary
-```{r}
-summary(random)
-isSingular(random, tol = 1e-4)
-VarCorr(random)
-
+resid_panel(biomass.lmer)
+simulateResiduals(biomass.lmer ,plot = TRUE) # Residuals and normality look good
+check_model(biomass.lmer ) #Perfect, preditions match real data
 
 ```
+
 
 ## Joint test (anova)
 ```{r}
-random |> 
-  joint_tests() |> 
-  kable()  
+
+joint_tests(emmeans(biomass.lmer, ~ weed_control * location))
 ```
 ```{r}
 options(contrasts = c("contr.sum", "contr.poly"))
-Anova(random, type = 3)
+biomass.anova <- anova(biomass.lmer, ddf = "Satterthwaite")
+print(biomass.anova)
 ```
 <br>
 
-## Means comparison
-### Weed-control (Significant)
-```{r message=FALSE}
-means_weed_control <- emmeans(random, ~  weed_control)
-pairwise_comparisons_weed_control<- pairs(means_weed_control) 
-kable(head(pairwise_comparisons_weed_control))
-```
-<br>
-
-### Location (Significant)
-```{r message=FALSE}
-means_location <- emmeans(random, ~  location)
-pairwise_comparisons_location<- pairs(means_location) 
-kable(head(pairwise_comparisons_location))
-```
-## Tukey compact letter display
-### Weed-control (Significant)
+## Tukey means comparisons
+### Weed-control (significant)
 
 ```{r}
-cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+tukey_weed_control <- emmeans(biomass.lmer, pairwise ~ weed_control, adjust = "tukey")
+tukey_weed_control
+
+cld_weed_control_tukey <- cld(emmeans(biomass.lmer, ~ weed_control), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
+
 cld_weed_control_tukey
 ```
+
+
 <br>
 
 ### Location (Significant)
 ```{r}
-#location
-cld_location_tukey <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, sort = TRUE, reversed=TRUE)
+tukey_location <- emmeans(biomass.lmer, list(pairwise ~ location), adjust = "tukey")
+tukey_location
+
+cld_location_tukey <- cld(emmeans(biomass.lmer, ~ location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
+
 cld_location_tukey
 ```
 
-
-## Fisher compact letter display
-### Weed-control (Significant)
+###weed_control:location (not significant)
 
 ```{r}
-cld_weed_control_fisher <-cld(emmeans(random, ~  weed_control , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
-cld_weed_control_fisher
-```
+tukey_weed_control_location <- emmeans(biomass.lmer, list(pairwise ~ weed_control|location), adjust = "tukey")
+tukey_weed_control_location
 
-### Location (Significant)
-```{r}
-#location
-cld_location_fisher <-cld(emmeans(random, ~  location , type = "response"), Letters = letters, adjust = "none",sort = TRUE, reversed=TRUE)
-cld_location_fisher
+cld_weed_control_location_tukey <- cld(emmeans(biomass.lmer, ~ weed_control|location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
+
+cld_weed_control_location_tukey
 ```
 
 
+
+
+
+#
 
 # Figures using Tukey
 ## Weed-control (Significant)
@@ -168,15 +154,15 @@ cld_location_fisher
 ```{r message=FALSE}
 bean_biomass_clean |> 
   left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")),, y = bean_biomass_lbs_ac, fill = weed_control)) +
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")),, y = bean_biomass_kg_ha, fill = weed_control)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Interrow weed control",
-    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
-    title = str_c("Influence of interrow weed control on soybean biomass at peak weed sampling"),
-    subtitle = expression(italic("P < 0.005"))) +
+    x = "",
+    y = expression(paste("Soybean biomass (", kg~ha^{-1}, ")")),
+    title = str_c(""),
+    subtitle = expression(italic("P < 0.001"))) +
   
   scale_x_discrete(labels =  c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
@@ -203,15 +189,15 @@ ggsave("bean_biomass_weed_control_tukey_lbA.png", width = 10, height = 6, dpi = 
 ```{r message=FALSE}
 bean_biomass_clean |> 
   left_join(cld_location_tukey) |> 
-  ggplot(aes(x = location, y = bean_biomass_lbs_ac, fill = location)) +
+  ggplot(aes(x = location, y = bean_biomass_kg_ha, fill = location)) +
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
   stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Location",
-    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
-    title = str_c("Influence of site-year soybean biomass at peak weed sampling"),
-    subtitle = expression(italic("P < 0.005"))) +
+    x = "",
+    y = expression(paste("Soybean biomass (", kg~ha^{-1}, ")")),
+    title = str_c(""),
+    subtitle = expression(italic("P < 0.001"))) +
   
    scale_x_discrete(labels = c("Field O2 East ",
                               "Field O2 West",
@@ -232,27 +218,26 @@ bean_biomass_clean |>
 ggsave("bean_biomass_location_tukey_lbA.png", width = 12, height = 6, dpi = 300)
 ```
 
+###Kg/hectare
+#### weed_control:location (not significant)
 
-
-
-
-# Figures using Fisher
-## Weed-control (Significant)
-
-```{r message=FALSE}
+```{r message=FALSE, warning=FALSE}
 bean_biomass_clean |> 
-  left_join(cld_weed_control_fisher) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = bean_biomass_lbs_ac, fill = weed_control)) +
+  left_join(cld_weed_control_location_tukey ) |> 
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y =  bean_biomass_kg_ha, fill = weed_control)) +
+  facet_wrap( ~location, labeller = labeller(
+    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Interrow weed control",
-    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
-    title = str_c("Influence of interrow weed control on soybean biomass"),
-    subtitle = expression(italic("P < 0.005"))) +
+    x = "",
+    y = expression(paste("Soybean biomass (", kg~ha^{-1}, ")")),
+
+    #title = str_c("The influence of interrow weed control on soybean yield"),
+    subtitle = expression(italic("Not significant"))) +
   
-  scale_x_discrete(labels =  c("Rolled,\nno additional\nweed control",
+  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
                               "Rolled,\nhigh-residue\ncultivation",
                               "Tilled,\ninterrow\nmowing",
@@ -263,44 +248,13 @@ bean_biomass_clean |>
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12),
+    strip.text = element_text(face = "bold", size = 20),
     axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 16),   # Increase font size of axis labels
-    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
-  
+    axis.text = element_text(size = 20),   # Increase font size of axis labels
+    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   )
-ggsave("bean_biomass_weed_control_fisher_lbA.png", width = 10, height = 6, dpi = 300)
+ggsave("bean_biomass_weed_control_location_kgha.png", width = 24, height = 8, dpi = 300)
 ```
 
-## Location (Significant)
-```{r message=FALSE}
-bean_biomass_clean |> 
-  left_join(cld_location_fisher) |> 
-  ggplot(aes(x = location, y = bean_biomass_lbs_ac, fill = location)) +
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
-  labs(
-    x = "Location",
-    y = expression("Soybean biomass" ~ (lbs * "/" * a)),
-    title = str_c("Influence of site-year on soybean biomass"),
-    subtitle = expression(italic("P < 0.005"))) +
-  
-   scale_x_discrete(labels = c("Field O2 East ",
-                              "Field O2 West",
-                              "Field X")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
-  theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 16),   # Increase font size of axis labels
-    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
-  )
-ggsave("bean_biomass_location_fisher_lbA.png", width = 12, height = 6, dpi = 300)
-```
+
