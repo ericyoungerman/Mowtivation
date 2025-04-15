@@ -164,86 +164,23 @@ tukey_weed_control_location
 raw_weed_control_location <- aggregate(interrow_weed_biomass_kg_ha ~ weed_control+location, data = interrow_weed_biomass_clean, mean)
 print(raw_weed_control_location)
 
-cld_weed_control_location_fisher<-cld(emmeans(model_tweedie, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
-cld_weed_control_location_fisher
-
-
-```
-
-
-##Glmm with zero inflated tweedie model
-```{r}
-
-model_tweedie_zero <- glmmTMB(interrow_weed_biomass_kg_ha ~  weed_control*location + 
-  (1|location:block), 
-  data = interrow_weed_biomass_clean, 
-  family = tweedie(link = "log"),
-  zi = ~ 1
-
+# Perform pairwise comparisons and generate compact letter displays
+cld_weed_control_location_fisher <- cld(
+  emmeans(model_tweedie, ~ weed_control | location, type = "response"),
+  Letters = letters,
+  adjust = "none",
+  sort = TRUE,
+  reversed = TRUE
 )
-### Two checks specifically for a generalize linear approach
-simulateResiduals(model_tweedie_zero,plot = TRUE) # Residuals and normality look good
-check_model(model_tweedie_zero) #Perfect, preditions match real data
 
-summary(model_tweedie_zero)
-VarCorr(model_tweedie_zero)
+# Display the results
+print(cld_weed_control_location_fisher)
 
 
-```
-### Joint test (anova)
-```{r}
-model_tweedie_zero_mr |> 
-  joint_tests() |> 
-  kable()  
-```
-```{r}
-options(contrasts = c("contr.sum", "contr.poly"))
-Anova(model_tweedie_zero_mr, type = 3)
-```
-## Fisher compact letter display
-### Weed_control|location (significant)
-
-```{r}
-cld_weed_control_fisher_zero <-cld(emmeans(model_tweedie_zero, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
-cld_weed_control_fisher_zero
-
-
-```
-# GLmm with Location-Specific Dispersion
-```{r}
-
-
-# Fit Alternative Model with Location-Specific Dispersion
-model_tweedie_log_disp_mr <- glmmTMB(
-  interrow_weed_biomass_kg_ha_mr ~ weed_control * location + (1|location:block), 
-  data = interrow_weed_biomass_clean, 
-  family = tweedie(link = "log"),
-  dispformula = ~location
-)
-### Two checks specifically for a generalize linear approach
-simulateResiduals(model_tweedie_log_disp_mr,plot = TRUE) # Residuals and normality look good
-check_model(model_tweedie_log_disp_mr) #Perfect, preditions match real data
-
-summary(model_tweedie_log_disp_mr )
-VarCorr(model_tweedie_log_disp_mr )
-
-
-
-```
-### Joint test (anova)
-```{r}
-model_tweedie_log_disp_mr |> 
-  joint_tests() |> 
-  kable()  
-```
-```{r}
-cld_weed_control_location_fisher_disp_mr <-cld(emmeans(model_tweedie_log_disp_mr, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
-cld_weed_control_location_fisher_disp_mr
 ```
 
 # Figures
 ##lbs/a
-###Matt conversion
 ```{r message=FALSE}
 interrow_weed_biomass_clean |> 
   left_join(cld_weed_control_fisher_zero) |> 

@@ -86,9 +86,12 @@ Tyler is under the impression that block should always be random and that post-h
 ```{r}
 yield.lmer <- lmer( bean_yield_adj_kg_ha  ~ weed_control*location + (1|location:block) , data =  bean_yield_clean)
 
+yield.lmer.1 <- lmer( bean_yield_adj_kg_ha  ~ weed_control*location + (1|block)
+                      +(1|location:block) , data =  bean_yield_clean)
 
 
-resid_panel(yield.lmer)
+
+resid_panel(yield.lmer.1)
 
 simulateResiduals(yield.lmer,plot = TRUE) # Residuals and normality look good
 check_model(yield.lmer)
@@ -99,7 +102,7 @@ check_model(yield.lmer)
 
 ## Anova
 ```{r}
- joint_tests(emmeans(yield.lmer, ~ weed_control * location))
+ joint_tests(emmeans(yield.lmer.1, ~ weed_control * location))
 ```
 
 

@@ -90,6 +90,8 @@ model_tweedie <- glmmTMB(weed_biomass_kg_ha ~  weed_control*location + (1|locati
   data = weed_biomass_clean, 
   family = tweedie(link = "log"))
 
+ranef(model_tweedie)
+
 
 model_nb <- glmmTMB(weed_biomass_kg_ha ~ weed_control*location + (1|location:block), 
                     data = weed_biomass_clean, 
@@ -165,7 +167,7 @@ cld_weed_control_fisher <-cld(emmeans(model_tweedie, ~  weed_control, type = "re
 cld_weed_control_fisher 
 ```
 ## Fisher compact letter display
-weed_control|location (Significant)
+###weed_control|location (Significant)
 
 ```{r}
 cld_weed_control_location_fisher <-cld(emmeans(model_tweedie, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)

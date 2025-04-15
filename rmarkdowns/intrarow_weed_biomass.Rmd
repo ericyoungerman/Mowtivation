@@ -41,6 +41,7 @@ library(performance) ##install.packages("performance")
 #Load Functions
 MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
 library(blme)  ##install.packages("blme")
+library(brms) ##install.packages("brms")
 find_logw0=function(x){c=trunc(log(min(x[x>0],na.rm=T)))
 d=exp(c)
 return(d)}
@@ -84,18 +85,14 @@ kable(head(intrarow_weed_biomass_clean))
 ```{r}
 
 model_tweedie <- glmmTMB(
-intrarow_weed_biomass_kg_ha ~  weed_control*location +
-  (1|location:block), 
-  data = intrarow_weed_biomass_clean, 
-  family = tweedie(link = "log")
-
+  intrarow_weed_biomass_kg_ha ~ weed_control * location + (1|location:block),
+  data = intrarow_weed_biomass_clean,
+  family = tweedie(link = "log"),
+  control = glmmTMBControl(optimizer = optim, optArgs = list(method="BFGS"))
 )
 
-model_tweedie.2 <- bglmer(
-intrarow_weed_biomass_kg_ha ~  weed_control*location +
-  (1|location:block), 
-  data = intrarow_weed_biomass_clean, 
-  family = tweedie(link = "log"), fixef.prior = normal(cov=diag (9,15)))
+
+
 
 
 ### Two checks specifically for a generalize linear approach
@@ -106,9 +103,6 @@ VarCorr(model_tweedie)
 
 
 ```
-
-
-
 
 
 
@@ -175,41 +169,14 @@ print(raw_weed_control_location)
 cld_weed_control_location_fisher<-cld(emmeans(model_tweedie, ~  weed_control|location, type = "response"), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
 cld_weed_control_location_fisher
 
-
-```
-##Glmm with zero inflated tweedie model
-```{r}
-
-model_tweedie_zero<- glmmTMB(intrarow_weed_biomass_kg_ha ~  weed_control*location + 
-  (1|location:block), 
-  data = intrarow_weed_biomass_clean, 
-  family = tweedie(link = "log"),
-  zi = ~ weed_control
-
-)
-### Two checks specifically for a generalize linear approach
-simulateResiduals(model_tweedie_zero,plot = TRUE) # Residuals and normality look good
-check_model(model_tweedie_zero) #Perfect, preditions match real data
-
-summary(model_tweedie_zero)
-VarCorr(model_tweedie_zero)
-
+ld_weed_control_location_fisher <- cld(emmeans(model_tweedie, ~ weed_control | location, type = "link"),
+                                        Letters = letters, adjust = "none", sort = TRUE, reversed = TRUE)
 
 
 ```
-### Joint test (anova)
-```{r}
-model_tweedie_zero |> 
-  joint_tests() |> 
-  kable()  
-```
-#### Anova
 
-```{r}
-intrarow_weed_biomass_model_tweedie_zero.anova <- Anova(model_tweedie_zero, type = 3)
-print(intrarow_weed_biomass_model_tweedie_zero.anova)
 
-```
+
 ```{r}
 #model predicted means
 tukey_weed_control <- emmeans(model_tweedie_zero, pairwise ~ weed_control, adjust = "tukey", type = "response")
