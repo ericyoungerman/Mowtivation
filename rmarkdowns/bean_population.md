@@ -101,7 +101,7 @@ be random and that post-hoc comparisons should use TUKEY rather the
 Fischer. Fisher is bogus apparently.
 
 ``` r
-population.lmer <- lmer(bean_population_acre  ~ weed_control*location + (1|location:block) , data = bean_population_clean)
+population.lmer <- lmer(bean_population_hectare  ~ weed_control*location + (1|location:block) , data = bean_population_clean)
 ```
 
     ## boundary (singular) fit: see help('isSingular')
@@ -149,9 +149,9 @@ print(population.anova)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                           Sum Sq    Mean Sq NumDF DenDF F value    Pr(>F)    
-    ## weed_control          9.8064e+08 2.4516e+08     4    45  0.5409    0.7064    
-    ## location              2.4255e+10 1.2127e+10     2    45 26.7583 2.205e-08 ***
-    ## weed_control:location 4.5273e+09 5.6592e+08     8    45  1.2487    0.2941    
+    ## weed_control          5.9876e+09 1.4969e+09     4    45  0.5409    0.7064    
+    ## location              1.4810e+11 7.4048e+10     2    45 26.7583 2.205e-08 ***
+    ## weed_control:location 2.7643e+10 3.4554e+09     8    45  1.2487    0.2941    
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
@@ -172,29 +172,29 @@ tukey_weed_control
 ```
 
     ## $emmeans
-    ##  weed_control emmean   SE df lower.CL upper.CL
-    ##  RIC          225052 6150 45   212674   237429
-    ##  RIM          220183 6150 45   207805   232561
-    ##  RNO          220183 6150 45   207805   232561
-    ##  TIC          230805 6150 45   218427   243183
-    ##  TIM          221511 6150 45   209133   233889
+    ##  weed_control emmean    SE df lower.CL upper.CL
+    ##  RIC          556102 15200 45   525517   586688
+    ##  RIM          544073 15200 45   513487   574658
+    ##  RNO          544073 15200 45   513487   574658
+    ##  TIC          570319 15200 45   539734   600905
+    ##  TIM          547354 15200 45   516768   577939
     ## 
     ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
     ## 
     ## $contrasts
-    ##  contrast  estimate   SE df t.ratio p.value
-    ##  RIC - RIM     4868 8690 36   0.560  0.9799
-    ##  RIC - RNO     4868 8690 36   0.560  0.9799
-    ##  RIC - TIC    -5754 8690 36  -0.662  0.9632
-    ##  RIC - TIM     3541 8690 36   0.407  0.9940
-    ##  RIM - RNO        0 8690 36   0.000  1.0000
-    ##  RIM - TIC   -10622 8690 36  -1.222  0.7387
-    ##  RIM - TIM    -1328 8690 36  -0.153  0.9999
-    ##  RNO - TIC   -10622 8690 36  -1.222  0.7387
-    ##  RNO - TIM    -1328 8690 36  -0.153  0.9999
-    ##  TIC - TIM     9294 8690 36   1.069  0.8208
+    ##  contrast  estimate    SE df t.ratio p.value
+    ##  RIC - RIM    12030 21500 36   0.560  0.9799
+    ##  RIC - RNO    12030 21500 36   0.560  0.9799
+    ##  RIC - TIC   -14217 21500 36  -0.662  0.9632
+    ##  RIC - TIM     8749 21500 36   0.407  0.9940
+    ##  RIM - RNO        0 21500 36   0.000  1.0000
+    ##  RIM - TIC   -26247 21500 36  -1.222  0.7387
+    ##  RIM - TIM    -3281 21500 36  -0.153  0.9999
+    ##  RNO - TIC   -26247 21500 36  -1.222  0.7387
+    ##  RNO - TIM    -3281 21500 36  -0.153  0.9999
+    ##  TIC - TIM    22966 21500 36   1.069  0.8208
     ## 
     ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
@@ -213,12 +213,12 @@ cld_weed_control_tukey <- cld(emmeans(population.lmer, ~ weed_control), adjust =
 cld_weed_control_tukey
 ```
 
-    ##  weed_control emmean   SE df lower.CL upper.CL .group
-    ##  TIC          230805 6150 45   214325   247285  a    
-    ##  RIC          225052 6150 45   208571   241532  a    
-    ##  TIM          221511 6150 45   205031   237991  a    
-    ##  RNO          220183 6150 45   203703   236663  a    
-    ##  RIM          220183 6150 45   203703   236663  a    
+    ##  weed_control emmean    SE df lower.CL upper.CL .group
+    ##  TIC          570319 15200 45   529596   611042  a    
+    ##  RIC          556102 15200 45   515380   596825  a    
+    ##  TIM          547354 15200 45   506631   588076  a    
+    ##  RIM          544073 15200 45   503350   584795  a    
+    ##  RNO          544073 15200 45   503350   584795  a    
     ## 
     ## Results are averaged over the levels of: location 
     ## Degrees-of-freedom method: kenward-roger 
@@ -245,20 +245,20 @@ tukey_location
 ```
 
     ## $`emmeans of location`
-    ##  location      emmean   SE df lower.CL upper.CL
-    ##  field O2 east 239391 4760  9   228622   250160
-    ##  field O2 west 236072 4760  9   225303   246840
-    ##  field v       195177 4760  9   184409   205946
+    ##  location      emmean    SE df lower.CL upper.CL
+    ##  field O2 east 591535 11800  9   564926   618145
+    ##  field O2 west 583333 11800  9   556724   609943
+    ##  field v       482284 11800  9   455674   508893
     ## 
     ## Results are averaged over the levels of: weed_control 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
     ## 
     ## $`pairwise differences of location`
-    ##  1                             estimate   SE df t.ratio p.value
-    ##  field O2 east - field O2 west     3319 6730  9   0.493  0.8763
-    ##  field O2 east - field v          44214 6730  9   6.568  0.0003
-    ##  field O2 west - field v          40894 6730  9   6.074  0.0005
+    ##  1                             estimate    SE df t.ratio p.value
+    ##  field O2 east - field O2 west     8202 16600  9   0.493  0.8763
+    ##  field O2 east - field v         109252 16600  9   6.568  0.0003
+    ##  field O2 west - field v         101050 16600  9   6.074  0.0005
     ## 
     ## Results are averaged over the levels of: weed_control 
     ## Degrees-of-freedom method: kenward-roger 
@@ -277,10 +277,10 @@ cld_location_tukey <- cld(emmeans(population.lmer, ~ location), adjust = "tukey"
 cld_location_tukey
 ```
 
-    ##  location      emmean   SE df lower.CL upper.CL .group
-    ##  field O2 east 239391 4760  9   225477   253305  a    
-    ##  field O2 west 236072 4760  9   222158   249986  a    
-    ##  field v       195177 4760  9   181264   209091   b   
+    ##  location      emmean    SE df lower.CL upper.CL .group
+    ##  field O2 east 591535 11800  9   557154   625917  a    
+    ##  field O2 west 583333 11800  9   548952   617715  a    
+    ##  field v       482284 11800  9   447902   516665   b   
     ## 
     ## Results are averaged over the levels of: weed_control 
     ## Degrees-of-freedom method: kenward-roger 
@@ -302,27 +302,27 @@ tukey_weed_control_location
     ## $`emmeans of weed_control | location`
     ## location = field O2 east:
     ##  weed_control emmean    SE df lower.CL upper.CL
-    ##  RIC          255590 10600 45   234150   277029
-    ##  RIM          241648 10600 45   220209   263087
-    ##  RNO          237665 10600 45   216226   259104
-    ##  TIC          234346 10600 45   212907   255785
-    ##  TIM          227707 10600 45   206268   249146
+    ##  RIC          631562 26300 45   578586   684538
+    ##  RIM          597113 26300 45   544137   650089
+    ##  RNO          587270 26300 45   534294   640246
+    ##  TIC          579068 26300 45   526092   632044
+    ##  TIM          562664 26300 45   509688   615640
     ## 
     ## location = field O2 west:
     ##  weed_control emmean    SE df lower.CL upper.CL
-    ##  RIC          233018 10600 45   211579   254457
-    ##  RIM          228371 10600 45   206932   249810
-    ##  RNO          242312 10600 45   220873   263751
-    ##  TIC          245631 10600 45   224192   267071
-    ##  TIM          231026 10600 45   209587   252465
+    ##  RIC          575787 26300 45   522812   628763
+    ##  RIM          564304 26300 45   511328   617280
+    ##  RNO          598753 26300 45   545777   651729
+    ##  TIC          606955 26300 45   553980   659931
+    ##  TIM          570866 26300 45   517890   623842
     ## 
     ## location = field v:
     ##  weed_control emmean    SE df lower.CL upper.CL
-    ##  RIC          186547 10600 45   165108   207986
-    ##  RIM          190530 10600 45   169091   211969
-    ##  RNO          180572 10600 45   159133   202011
-    ##  TIC          212438 10600 45   190999   233877
-    ##  TIM          205799 10600 45   184360   227238
+    ##  RIC          460958 26300 45   407982   513934
+    ##  RIM          470800 26300 45   417825   523776
+    ##  RNO          446194 26300 45   393218   499170
+    ##  TIC          524934 26300 45   471958   577910
+    ##  TIM          508530 26300 45   455554   561506
     ## 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
@@ -330,42 +330,42 @@ tukey_weed_control_location
     ## $`pairwise differences of weed_control | location`
     ## location = field O2 east:
     ##  2         estimate    SE df t.ratio p.value
-    ##  RIC - RIM    13941 15100 36   0.926  0.8849
-    ##  RIC - RNO    17924 15100 36   1.191  0.7565
-    ##  RIC - TIC    21244 15100 36   1.411  0.6246
-    ##  RIC - TIM    27882 15100 36   1.852  0.3608
-    ##  RIM - RNO     3983 15100 36   0.265  0.9989
-    ##  RIM - TIC     7303 15100 36   0.485  0.9883
-    ##  RIM - TIM    13941 15100 36   0.926  0.8849
-    ##  RNO - TIC     3319 15100 36   0.221  0.9994
-    ##  RNO - TIM     9958 15100 36   0.662  0.9633
-    ##  TIC - TIM     6639 15100 36   0.441  0.9918
+    ##  RIC - RIM    34449 37200 36   0.926  0.8849
+    ##  RIC - RNO    44291 37200 36   1.191  0.7565
+    ##  RIC - TIC    52493 37200 36   1.411  0.6246
+    ##  RIC - TIM    68898 37200 36   1.852  0.3608
+    ##  RIM - RNO     9843 37200 36   0.265  0.9989
+    ##  RIM - TIC    18045 37200 36   0.485  0.9883
+    ##  RIM - TIM    34449 37200 36   0.926  0.8849
+    ##  RNO - TIC     8202 37200 36   0.221  0.9994
+    ##  RNO - TIM    24606 37200 36   0.662  0.9633
+    ##  TIC - TIM    16404 37200 36   0.441  0.9918
     ## 
     ## location = field O2 west:
     ##  2         estimate    SE df t.ratio p.value
-    ##  RIC - RIM     4647 15100 36   0.309  0.9979
-    ##  RIC - RNO    -9294 15100 36  -0.617  0.9714
-    ##  RIC - TIC   -12614 15100 36  -0.838  0.9169
-    ##  RIC - TIM     1992 15100 36   0.132  0.9999
-    ##  RIM - RNO   -13941 15100 36  -0.926  0.8849
-    ##  RIM - TIC   -17261 15100 36  -1.147  0.7808
-    ##  RIM - TIM    -2655 15100 36  -0.176  0.9998
-    ##  RNO - TIC    -3319 15100 36  -0.221  0.9994
-    ##  RNO - TIM    11286 15100 36   0.750  0.9430
-    ##  TIC - TIM    14605 15100 36   0.970  0.8667
+    ##  RIC - RIM    11483 37200 36   0.309  0.9979
+    ##  RIC - RNO   -22966 37200 36  -0.617  0.9714
+    ##  RIC - TIC   -31168 37200 36  -0.838  0.9169
+    ##  RIC - TIM     4921 37200 36   0.132  0.9999
+    ##  RIM - RNO   -34449 37200 36  -0.926  0.8849
+    ##  RIM - TIC   -42651 37200 36  -1.147  0.7808
+    ##  RIM - TIM    -6562 37200 36  -0.176  0.9998
+    ##  RNO - TIC    -8202 37200 36  -0.221  0.9994
+    ##  RNO - TIM    27887 37200 36   0.750  0.9430
+    ##  TIC - TIM    36089 37200 36   0.970  0.8667
     ## 
     ## location = field v:
     ##  2         estimate    SE df t.ratio p.value
-    ##  RIC - RIM    -3983 15100 36  -0.265  0.9989
-    ##  RIC - RNO     5975 15100 36   0.397  0.9945
-    ##  RIC - TIC   -25891 15100 36  -1.720  0.4350
-    ##  RIC - TIM   -19252 15100 36  -1.279  0.7055
-    ##  RIM - RNO     9958 15100 36   0.662  0.9633
-    ##  RIM - TIC   -21908 15100 36  -1.455  0.5971
-    ##  RIM - TIM   -15269 15100 36  -1.014  0.8471
-    ##  RNO - TIC   -31866 15100 36  -2.117  0.2353
-    ##  RNO - TIM   -25227 15100 36  -1.676  0.4611
-    ##  TIC - TIM     6639 15100 36   0.441  0.9918
+    ##  RIC - RIM    -9843 37200 36  -0.265  0.9989
+    ##  RIC - RNO    14764 37200 36   0.397  0.9945
+    ##  RIC - TIC   -63976 37200 36  -1.720  0.4350
+    ##  RIC - TIM   -47572 37200 36  -1.279  0.7055
+    ##  RIM - RNO    24606 37200 36   0.662  0.9633
+    ##  RIM - TIC   -54134 37200 36  -1.455  0.5971
+    ##  RIM - TIM   -37730 37200 36  -1.014  0.8471
+    ##  RNO - TIC   -78740 37200 36  -2.117  0.2353
+    ##  RNO - TIM   -62336 37200 36  -1.676  0.4611
+    ##  TIC - TIM    16404 37200 36   0.441  0.9918
     ## 
     ## Degrees-of-freedom method: kenward-roger 
     ## P value adjustment: tukey method for comparing a family of 5 estimates
@@ -383,27 +383,27 @@ cld_weed_control_location_tukey
 
     ## location = field O2 east:
     ##  weed_control emmean    SE df lower.CL upper.CL .group
-    ##  RIC          255590 10600 45   227045   284134  a    
-    ##  RIM          241648 10600 45   213104   270193  a    
-    ##  RNO          237665 10600 45   209120   266210  a    
-    ##  TIC          234346 10600 45   205801   262890  a    
-    ##  TIM          227707 10600 45   199162   256252  a    
+    ##  RIC          631562 26300 45   561028   702096  a    
+    ##  RIM          597113 26300 45   526579   667647  a    
+    ##  RNO          587270 26300 45   516736   657804  a    
+    ##  TIC          579068 26300 45   508534   649602  a    
+    ##  TIM          562664 26300 45   492130   633198  a    
     ## 
     ## location = field O2 west:
     ##  weed_control emmean    SE df lower.CL upper.CL .group
-    ##  TIC          245631 10600 45   217087   274176  a    
-    ##  RNO          242312 10600 45   213767   270857  a    
-    ##  RIC          233018 10600 45   204473   261563  a    
-    ##  TIM          231026 10600 45   202482   259571  a    
-    ##  RIM          228371 10600 45   199826   256916  a    
+    ##  TIC          606955 26300 45   536421   677489  a    
+    ##  RNO          598753 26300 45   528219   669287  a    
+    ##  RIC          575787 26300 45   505253   646321  a    
+    ##  TIM          570866 26300 45   500332   641400  a    
+    ##  RIM          564304 26300 45   493770   634838  a    
     ## 
     ## location = field v:
     ##  weed_control emmean    SE df lower.CL upper.CL .group
-    ##  TIC          212438 10600 45   183893   240983  a    
-    ##  TIM          205799 10600 45   177255   234344  a    
-    ##  RIM          190530 10600 45   161986   219075  a    
-    ##  RIC          186547 10600 45   158002   215092  a    
-    ##  RNO          180572 10600 45   152028   209117  a    
+    ##  TIC          524934 26300 45   454400   595468  a    
+    ##  TIM          508530 26300 45   437996   579064  a    
+    ##  RIM          470800 26300 45   400267   541334  a    
+    ##  RIC          460958 26300 45   390424   531492  a    
+    ##  RNO          446194 26300 45   375660   516728  a    
     ## 
     ## Degrees-of-freedom method: kenward-roger 
     ## Confidence level used: 0.95 
@@ -461,7 +461,7 @@ ggsave("bean_population_weed_control_a.png", width = 10, height = 6, dpi = 300)
 ``` r
 bean_population_clean |> 
   left_join(cld_weed_control_location_tukey ) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y =  bean_population_acre, fill = weed_control)) +
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y =  bean_population_hectare, fill = weed_control)) +
   facet_wrap( ~location, labeller = labeller(
     location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +

@@ -86,7 +86,7 @@ kable(head(bean_population_clean))
 Block is random
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently.
 ```{r}
-population.lmer <- lmer(bean_population_acre  ~ weed_control*location + (1|location:block) , data = bean_population_clean)
+population.lmer <- lmer(bean_population_hectare  ~ weed_control*location + (1|location:block) , data = bean_population_clean)
 
 resid_panel(population.lmer)
 simulateResiduals(population.lmer,plot = TRUE) # Residuals and normality look good
@@ -188,7 +188,7 @@ ggsave("bean_population_weed_control_a.png", width = 10, height = 6, dpi = 300)
 ```{r message=FALSE, warning=FALSE}
 bean_population_clean |> 
   left_join(cld_weed_control_location_tukey ) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y =  bean_population_acre, fill = weed_control)) +
+  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y =  bean_population_hectare, fill = weed_control)) +
   facet_wrap( ~location, labeller = labeller(
     location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
