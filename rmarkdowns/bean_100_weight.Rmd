@@ -88,108 +88,110 @@ Block is random
 Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
 
 ```{r}
-random <- lmer( seed_weight  ~ weed_control +(1|location:block) , data =  seed_weight_clean)
+weight.lmer <- lmer( seed_weight  ~ weed_control*location + (1|location:block), data =  seed_weight_clean)
 
-resid_panel(random)
-simulateResiduals(random,plot = TRUE) # Residuals and normality look good
-check_model(random)
+resid_panel(weight.lmer)
+simulateResiduals(weight.lmer,plot = TRUE) # Residuals and normality look good
+check_model(weight.lmer)
 ```
 
 ## Joint test (anova)
+##Joint test (anova)
 ```{r}
- random |> 
-  joint_tests() |> 
-  kable()  
-```
 
-## Means comparison
-### Weed-control (S)
-```{r message=FALSE}
-means_weed_control <- emmeans(random, ~  weed_control)
-pairwise_comparisons_weed_control<- pairs(means_weed_control) 
-kable(head(pairwise_comparisons_weed_control))
+joint_tests(emmeans(weight.lmer, ~ weed_control * location))
 ```
 
 
-
-## Tukey compact letter display
-### Weed-control (S)
 ```{r}
+options(contrasts = c("contr.sum", "contr.poly"))
+weight.anova <- anova(weight.lmer, ddf = "Satterthwaite")
+print(weight.anova)
+```
 
-cld_weed_control_tukey <-cld(emmeans(random, ~  weed_control), Letters = letters, sort = TRUE, reversed=TRUE)
+br>
+
+## Tukey means comparisons
+### Weed-control (significant)
+
+```{r}
+tukey_weed_control <- emmeans(weight.lmer, pairwise ~ weed_control, adjust = "tukey")
+tukey_weed_control
+
+cld_weed_control_tukey <- cld(emmeans(weight.lmer, ~ weed_control), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
+
 cld_weed_control_tukey
 ```
-# Tukey compact letter display
-### Weed-control (S)
-```{r}
+<br>
 
-cld_weed_control_fisher <-cld(emmeans(random, ~  weed_control), Letters = letters,adjust = "none", sort = TRUE, reversed=TRUE)
-cld_weed_control_fisher
+### Location (Significant)
+```{r}
+tukey_location <- emmeans(weight.lmer, list(pairwise ~ location), adjust = "tukey")
+tukey_location
+
+cld_location_tukey <- cld(emmeans(weight.lmer, ~ location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
+
+cld_location_tukey
 ```
+
+###weed_control:location (not significant)
+
+```{r}
+tukey_weed_control_location <- emmeans(weight.lmer, list(pairwise ~ weed_control|location), adjust = "tukey")
+tukey_weed_control_location
+
+cld_weed_control_location_tukey <- cld(emmeans(weight.lmer, ~ weed_control|location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
+
+cld_weed_control_location_tukey
+```
+
+
+
+
+
 
 <br>
 # Figures
 
-## Weed-control (S)
+
+
+#### weed_control:location (not significant)
 
 ```{r message=FALSE, warning=FALSE}
 seed_weight_clean |> 
-  left_join(cld_weed_control_fisher) |> 
+  left_join(cld_weed_control_location_tukey ) |> 
   ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = seed_weight, fill = weed_control)) +
+  facet_wrap( ~location, labeller = labeller(
+    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
   stat_summary(geom = "bar", fun = "mean", width = 0.7) +
   stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
   labs(
-    x = "Interrow weed control",
-      y = expression("Seed weight" ~ (g/100 ~ seeds)),
-  
-    title = str_c("The influence of interrow weed control on 100 seed weight of soybeans"),
-    subtitle = expression(italic("P < 0.005"))) +
+    x = "",
+     y = expression("Seed weight" ~ (g/100 ~ seeds)),
+
+    #title = str_c("The influence of interrow weed control on soybean yield"),
+    subtitle = expression(italic("Not significant"))) +
   
   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
                               "Rolled,\ninterrow\nmowing",
                               "Rolled,\nhigh-residue\ncultivation",
                               "Tilled,\ninterrow\nmowing",
                           "Tilled,\nstandard\ncultivation")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
+  scale_y_continuous(
+  labels = scales::label_comma(),
+  expand = expansion(mult = c(0.05, 0.3))
+) +
   scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
    theme_bw() +
   theme(
     legend.position = "none",
     strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12),
+    strip.text = element_text(face = "bold", size = 20),
     axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 16),   # Increase font size of axis labels
-    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
+    axis.text = element_text(size = 20),   # Increase font size of axis labels
+    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
+    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
   )
-ggsave("bean_100_weight_weed_control_.png", width = 10, height = 6, dpi = 300)
-```
-
-## Location (S)
-
-```{r message=FALSE, warning=FALSE}
-seed_weight_clean |> 
-  left_join(cld_location_tukey) |> 
-  ggplot(aes(x = location, y = seed_weight, fill = location)) +
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
-  labs(
-    x = "Location",
-   y = expression("Weed biomass" ~ (g/100 ~ seeds)),
-    title = str_c("The influence of location on 100 seed weight of soybeans"),
-    subtitle = expression(italic("P < 0.005"))) +
-   scale_x_discrete(labels = c("Field O2 East ",
-                              "Field O2 West",
-                              "Field X")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
-  theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12)
-  )
-ggsave("seed_weigjt_location.png", width = 8, height = 6, dpi = 300)
+ggsave("seed_weight_weed_control_location_kgha.png", width = 24, height = 8, dpi = 300)
 ```
