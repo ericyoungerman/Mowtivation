@@ -6,82 +6,532 @@ output: github_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-# Load libraries
+#Packages/setup
+```{r setup, message=FALSE, warning=FALSE}
 
-```{r message=FALSE, warning=FALSE}
-#Set work directory
-setwd("/Users/ey239/Github/Mowtivation/rmarkdowns")
-
-#Load packages 
-library(tidyverse) ##install.packages("tidyverse")
-library(knitr)
-library(patchwork) ##install.packages("patchwork")
-library(skimr)     ##install.packages("skimr")
+# packages only once
+library(tidyverse)
+library(janitor)
 library(readxl)
-library(janitor) ##install.packages("janitor")
-library(kableExtra) ##install.packages("kableExtra")
-
-library(viridis) ##install.packages("viridis")
-
-library(lmerTest) ##install.packages("lmerTest")
-library(emmeans) ##install.packages("emmeans")
-library(rstatix) ##install.packages("rstatix")
-library(multcomp) ##install.packages("multcomp")
-library(multcompView) ##install.packages("multcompView")
-library(ggResidpanel) ##install.packages("ggResidpanel")
-
-
-## For GLM modeling
-library(monet)
-library(DHARMa)
 library(glmmTMB)
-library(performance)
+library(DHARMa)
+library(emmeans)
+library(multcomp)
+library(car)
+library(kableExtra)
+
+library(conflicted)
+conflicts_prefer(dplyr::select)
+conflicts_prefer(dplyr::filter)
 
 
-#Load Functions
-MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
+# helper: tidy emmeans regardless of CI column names
+tidy_emm <- function(emm_df, ref_levels = NULL) {
+  lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+  ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+  if (is.na(lcl_col) || is.na(ucl_col)) {
+    stop("Could not find CI columns in emmeans output.")
+  }
+  out <- emm_df %>%
+    mutate(
+      ci_low  = .data[[lcl_col]],
+      ci_high = .data[[ucl_col]]
+    )
+  if (!is.null(ref_levels)) {
+    out <- out %>%
+      mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+  }
+  out
+}
 
-find_logw0=function(x){c=trunc(log(min(x[x>0],na.rm=T)))
-d=exp(c)
-return(d)}
 ```
+
 <br>
 
-# Load and clean data
+### 1. Data import & prep
 
-## Load data
 
 ``` {r}
-combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
-kable(head(combined_raw))
-
-```
-##Clean data
-
-```{r}
 
 
-#Standardaze column names, convert to factors, check for outliers of variable**
-clean_combined <- clean_names(combined_raw) |>  
-  rename ('weed_control'= treatment) |> 
-  mutate(across(c(weed_control, block, plot, location, year), as.factor)) #|> 
-  #mutate(is_outlier = totwbm < (quantile(totwbm, 0.25) - 1.5 * IQR(totwbm)) |
-                       #wbm > (quantile(totwbm, 0.75) + 1.5 * IQR(totwbm)))
+# read + clean
+soy <- readxl::read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx") %>%
+  janitor::clean_names() %>%
+  # 1) rename treatment -> weed_trt
+  dplyr::rename(weed_trt = treatment) %>%
+  # 2) recode the 5 treatment codes to readable names
+  dplyr::mutate(
+    weed_trt = dplyr::recode(
+      weed_trt,
+      "RNO" = "Rolled, no control",
+      "RIM" = "Rolled + mowing",
+      "RIC" = "Rolled + high-residue cult.",
+      "TIM" = "Tilled + mowing",
+      "TIC" = "Tilled + cultivation"
+    ),
+    # 3) site-year from year × location
+    site_year = interaction(year, location, drop = TRUE),
+    site_year = factor(site_year),
+    block     = factor(block),
+    # 4) convert to kg/ha assuming 0.5 m² quadrat
+    weed_biomass_kg_ha        = (weed_biomass            / 0.5) * 10000 / 1000,
+    inrow_weed_biomass_kg_ha  = (inrow_weed_biomass      / 0.5) * 10000 / 1000,
+    interrow_weed_biomass_kg_ha = (interrow_weed_biomass / 0.5) * 10000 / 1000
+  )
 
-#select and convert data for wbm analysis
-weed_biomass_clean <-clean_combined |> 
-  mutate(weed_biomass_grams_meter = (weed_biomass /0.5)) |> 
-  mutate(weed_biomass_kg_ha = (weed_biomass_grams_meter *(10000))/(1000)) |>
-  mutate(weed_biomass_lbs_ac = ((weed_biomass_grams_meter *(10000))/(1000))* 0.892179)
-kable(head(weed_biomass_clean)) 
+# 5) lock in agronomic order
+mow_levels <- c(
+  "Rolled, no control",
+  "Rolled + mowing",
+  "Rolled + high-residue cult.",
+  "Tilled + mowing",
+  "Tilled + cultivation"
+)
+
+soy <- soy %>%
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels)
+  )
+
+knitr::kable(head(soy), caption = "Cleaned soybean weed dataset")
+
+
+
 ```
 <br>
 # Model testing
+### 2. Exploratory: raw by site-year
+```{r}
+# table
+soy %>%
+  group_by(site_year, weed_trt) %>%
+  summarise(
+    n     = n(),
+    mean  = mean(weed_biomass_kg_ha, na.rm = TRUE),
+    median = median(weed_biomass_kg_ha, na.rm = TRUE),
+    sd    = sd(weed_biomass_kg_ha, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(site_year, weed_trt) %>%
+  kable(digits = 1, caption = "Raw weed biomass (kg/ha) by site-year × treatment")
+
+# faceted boxplot
+ggplot(soy, aes(x = weed_trt, y = weed_biomass_kg_ha)) +
+  geom_boxplot(outlier.shape = NA, width = 0.55, color = "black") +
+  geom_jitter(width = 0.12, height = 0, alpha = 0.4, size = 1.8) +
+  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  scale_x_discrete(labels = function(x) stringr::str_replace_all(x, " ", "\n")) +
+  labs(x = NULL, y = "Weed biomass (kg/ha)",
+       title = "Weed biomass by treatment, each site-year") +
+  theme_classic(base_size = 14)
+
+```
+
+### 3. Total weed biomass (main analysis)
+```{r}
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# candidate models
+m_tw <- glmmTMB(
+  weed_biomass_kg_ha ~ weed_trt + site_year + (1|site_year:block),
+  family = tweedie(link = "log"),
+  data   = soy
+)
+
+m_nb <- glmmTMB(
+  weed_biomass_kg_ha ~ weed_trt + site_year + (1|site_year:block),
+  family = nbinom2(link = "log"),
+  data   = soy
+)
+
+m_tw_zi <- glmmTMB(
+  weed_biomass_kg_ha ~ weed_trt + site_year + (1|site_year:block),
+  family    = tweedie(link = "log"),
+  ziformula = ~ 1,
+  data      = soy
+)
+
+m_tw_disp <- glmmTMB(
+  weed_biomass_kg_ha ~ weed_trt + site_year + (1|site_year:block),
+  family      = tweedie(link = "log"),
+  ziformula   = ~ 1,
+  dispformula = ~ site_year,
+  data        = soy
+)
+
+aic_tbl <- tibble::tibble(
+  model = c("Tweedie", "NB", "Tweedie + ZI", "Tweedie + ZI + disp(site_year)"),
+  AIC   = c(AIC(m_tw), AIC(m_nb), AIC(m_tw_zi), AIC(m_tw_disp))
+)
+kable(aic_tbl, digits = 1, caption = "Soybean biomass: model AICs")
+
+# pick simplest reasonable
+best_mod  <- m_tw
+best_name <- "Tweedie"
+if (AIC(m_nb) + 2 < AIC(best_mod))       { best_mod <- m_nb;       best_name <- "NB" }
+if (AIC(m_tw_zi) + 2 < AIC(best_mod))    { best_mod <- m_tw_zi;    best_name <- "Tweedie + ZI" }
+if (AIC(m_tw_disp) + 2 < AIC(best_mod))  { best_mod <- m_tw_disp;  best_name <- "Tweedie + ZI + disp(site_year)" }
+
+cat("Selected model:", best_name, "\n")
+
+# diagnostics
+res <- DHARMa::simulateResiduals(best_mod)
+plot(res)
+testDispersion(best_mod)
+testZeroInflation(best_mod)
+
+# Type III
+car::Anova(best_mod, type = 3)
+
+```
+#### Plot pooled total biomass
+```{r}
+
+emm_tot <- emmeans(best_mod, ~ weed_trt, type = "response")
+cld_tot <- multcomp::cld(emm_tot, adjust = "tukey", Letters = letters) %>%
+  as.data.frame() %>%
+  mutate(.group = trimws(.group))
+
+emm_df  <- tidy_emm(as.data.frame(emm_tot), ref_levels = mow_levels)
+
+plot_tot <- emm_df %>%
+  left_join(cld_tot %>% select(weed_trt, .group),
+            by = "weed_trt")
+
+ggplot(plot_tot, aes(weed_trt, response, fill = weed_trt)) +
+  geom_col(width = 0.75, color = "black") +
+  geom_errorbar(aes(ymin = ci_low, ymax = ci_high), width = 0.12) +
+  geom_text(aes(y = ci_high * 1.04, label = .group), vjust = 0, size = 4) +
+  scale_x_discrete(labels = c(
+    "Rolled, no control"          = "Rolled,\nno control",
+    "Rolled + mowing"             = "Rolled +\nmowing",
+    "Rolled + high-residue cult." = "Rolled +\nHRC",
+    "Tilled + mowing"             = "Tilled +\nmowing",
+    "Tilled + cultivation"        = "Tilled +\ncultivation"
+  )) +
+  scale_fill_brewer(palette = "Set2", guide = "none") +
+  labs(x = NULL,
+       y = "Weed biomass (kg/ha)",
+       title = "Weed biomass by weed-control treatment (pooled across site-years)") +
+  theme_classic(base_size = 14)
+
+```
+### 4. In-row weed biomass
+```{r}
+
+m_inrow <- glmmTMB(
+  inrow_weed_biomass_kg_ha ~ weed_trt + site_year + (1|site_year:block),
+  family = tweedie(link = "log"),
+  data   = soy
+)
+
+res_inrow <- DHARMa::simulateResiduals(m_inrow)
+plot(res_inrow)
+testDispersion(m_inrow)
+testZeroInflation(m_inrow)
+
+emm_in  <- emmeans(m_inrow, ~ weed_trt, type = "response")
+cld_in  <- multcomp::cld(emm_in, adjust = "tukey", Letters = letters) %>%
+  as.data.frame() %>%
+  mutate(.group = trimws(.group))
+
+in_df <- tidy_emm(as.data.frame(emm_in), ref_levels = mow_levels) %>%
+  left_join(cld_in %>% select(weed_trt, .group), by = "weed_trt")
+
+ggplot(in_df, aes(weed_trt, response, fill = weed_trt)) +
+  geom_col(width = 0.75, color = "black") +
+  geom_errorbar(aes(ymin = ci_low, ymax = ci_high), width = 0.12) +
+  geom_text(aes(y = ci_high * 1.04, label = .group), vjust = 0, size = 4) +
+  scale_x_discrete(labels = c(
+    "Rolled, no control"          = "Rolled,\nno control",
+    "Rolled + mowing"             = "Rolled +\nmowing",
+    "Rolled + high-residue cult." = "Rolled +\nHRC",
+    "Tilled + mowing"             = "Tilled +\nmowing",
+    "Tilled + cultivation"        = "Tilled +\ncultivation"
+  )) +
+  scale_fill_brewer(palette = "Set2", guide = "none") +
+  labs(x = NULL, y = "In-row weed biomass (kg/ha)",
+       title = "In-row weed biomass (pooled across site-years)") +
+  theme_classic(base_size = 14)
+
+```
+### 5. Interrow weed biomass
+```{r}
+
+m_inter <- glmmTMB(
+  interrow_weed_biomass_kg_ha ~ weed_trt + site_year + (1|site_year:block),
+  family = tweedie(link = "log"),
+  data   = soy
+)
+
+res_inter <- DHARMa::simulateResiduals(m_inter)
+plot(res_inter)
+testDispersion(m_inter)
+testZeroInflation(m_inter)
+
+emm_inter  <- emmeans(m_inter, ~ weed_trt, type = "response")
+cld_inter  <- multcomp::cld(emm_inter, adjust = "tukey", Letters = letters) %>%
+  as.data.frame() %>%
+  mutate(.group = trimws(.group))
+
+inter_df <- tidy_emm(as.data.frame(emm_inter), ref_levels = mow_levels) %>%
+  left_join(cld_inter %>% select(weed_trt, .group), by = "weed_trt")
+
+ggplot(inter_df, aes(weed_trt, response, fill = weed_trt)) +
+  geom_col(width = 0.75, color = "black") +
+  geom_errorbar(aes(ymin = ci_low, ymax = ci_high), width = 0.12) +
+  geom_text(aes(y = ci_high * 1.04, label = .group), vjust = 0, size = 4) +
+  scale_x_discrete(labels = c(
+    "Rolled, no control"          = "Rolled,\nno control",
+    "Rolled + mowing"             = "Rolled +\nmowing",
+    "Rolled + high-residue cult." = "Rolled +\nHRC",
+    "Tilled + mowing"             = "Tilled +\nmowing",
+    "Tilled + cultivation"        = "Tilled +\ncultivation"
+  )) +
+  scale_fill_brewer(palette = "Set2", guide = "none") +
+  labs(x = NULL, y = "Interrow weed biomass (kg/ha)",
+       title = "Interrow weed biomass (pooled across site-years)") +
+  theme_classic(base_size = 14)
+
+```
 
 
+```{r}
+# =========================================
+# build site_year and model soybean biomass
+# =========================================
+
+# start from the cleaned df we made (called `soy`)
+soy2 <- soy %>%
+  mutate(
+    # make an explicit site-year factor from year × location
+    site_year = interaction(year, location, drop = TRUE),
+    site_year = factor(site_year),
+    block     = factor(block),
+    weed_trt  = factor(weed_trt, levels = levels(weed_trt))  # keep agronomic order
+  )
+
+# choose which biomass to analyze
+resp <- "weed_biomass_kg_ha"          # total
+# resp <- "inrow_weed_biomass_kg_ha"  # in-row
+# resp <- "interrow_weed_biomass_kg_ha" # interrow
+
+dat_bio <- soy2 %>%
+  filter(!is.na(.data[[resp]]))
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# 1) Tweedie: treatment + site_year fixed, block random within site_year
+m_tw <- glmmTMB(
+  as.formula(paste(resp, "~ weed_trt + site_year + (1|site_year:block)")),
+  family = tweedie(link = "log"),
+  data   = dat_bio
+)
+
+# 2) NB version (often worth keeping)
+m_nb <- glmmTMB(
+  as.formula(paste(resp, "~ weed_trt + site_year + (1|site_year:block)")),
+  family = nbinom2(link = "log"),
+  data   = dat_bio
+)
+
+# 3) Tweedie + ZI (ONLY if you really have a bunch of structural zeros)
+m_tw_zi <- glmmTMB(
+  as.formula(paste(resp, "~ weed_trt + site_year + (1|site_year:block)")),
+  family    = tweedie(link = "log"),
+  ziformula = ~ 1,
+  data      = dat_bio
+)
+
+# 4) Tweedie with site_year-specific dispersion (your original idea)
+m_tw_disp <- glmmTMB(
+  as.formula(paste(resp, "~ weed_trt + site_year + (1|site_year:block)")),
+  family      = tweedie(link = "log"),
+  ziformula   = ~ 1,
+  dispformula = ~ site_year,
+  data        = dat_bio
+)
+
+# compare
+aic_tbl <- tibble::tibble(
+  model = c("Tweedie", "NB", "Tweedie + ZI", "Tweedie + ZI + disp(site_year)"),
+  AIC   = c(AIC(m_tw), AIC(m_nb), AIC(m_tw_zi), AIC(m_tw_disp))
+)
+knitr::kable(aic_tbl, digits = 1, caption = "Soybean biomass: fixed site-year models")
+
+# pick a winner (keep it simple)
+best_mod  <- m_tw
+best_name <- "Tweedie"
+if (AIC(m_nb) + 2 < AIC(best_mod)) {
+  best_mod  <- m_nb
+  best_name <- "NB"
+}
+if (AIC(m_tw_zi) + 2 < AIC(best_mod)) {
+  best_mod  <- m_tw_zi
+  best_name <- "Tweedie + ZI"
+}
+if (AIC(m_tw_disp) + 2 < AIC(best_mod)) {
+  best_mod  <- m_tw_disp
+  best_name <- "Tweedie + ZI + disp(site_year)"
+}
+
+cat("Selected model:", best_name, "\n")
+
+# diagnostics
+res <- DHARMa::simulateResiduals(best_mod)
+plot(res)
+testDispersion(best_mod)
+testZeroInflation(best_mod)
+
+# Type III
+car::Anova(best_mod, type = 3)
+
+# emmeans on treatment, averaged over the 3 site-years
+emm <- emmeans(best_mod, ~ weed_trt, type = "response")
+cld_tbl <- multcomp::cld(emm, adjust = "tukey", Letters = letters) %>%
+  as.data.frame() %>%
+  dplyr::mutate(.group = trimws(.group))
+knitr::kable(cld_tbl, caption = paste("Weed biomass –", best_name, "model"))
 
 
-#GLMM tweedie
+-----
+  # 1) raw means by site-year × treatment
+soy2 %>%
+  group_by(site_year, weed_trt) %>%
+  summarise(
+    n     = n(),
+    mean  = mean(weed_biomass_kg_ha, na.rm = TRUE),
+    median = median(weed_biomass_kg_ha, na.rm = TRUE),
+    sd    = sd(weed_biomass_kg_ha, na.rm = TRUE)
+  ) %>%
+  arrange(site_year, weed_trt) %>%
+  knitr::kable(digits = 1,
+               caption = "Raw weed biomass (kg/ha) by site-year × treatment")
+
+-------
+ggplot(soy2,
+       aes(x = weed_trt, y = weed_biomass_kg_ha)) +
+  geom_boxplot(outlier.shape = NA, width = 0.55, color = "black") +
+  geom_jitter(width = 0.12, height = 0, alpha = 0.4, size = 1.8) +
+  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  scale_y_continuous(name = "Weed biomass (kg/ha)") +
+  scale_x_discrete(labels = function(x) stringr::str_replace_all(x, " ", "\n")) +
+  theme_classic(base_size = 14) +
+  theme(
+    strip.background = element_rect(color = NA, fill = "white"),
+    axis.text.x = element_text(size = 10, lineheight = 0.9)
+  )
+
+----
+
+# emmeans from the simple model
+emm_s <- emmeans(m_tw_simple, ~ weed_trt, type = "response")
+cld_s <- multcomp::cld(emm_s, adjust = "tukey", Letters = letters) |>
+  as.data.frame() |>
+  dplyr::mutate(.group = trimws(.group))
+
+# turn emmeans into a df
+emm_df <- as.data.frame(emm_s)
+
+# figure out which CI column names we have
+lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+
+if (is.na(lcl_col) || is.na(ucl_col)) {
+  stop("Could not find CI columns in emmeans output. Got: ",
+       paste(names(emm_df), collapse = ", "))
+}
+
+# build plotting df
+plot_df <- emm_df |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = levels(soy2$weed_trt)),
+    ci_low   = .data[[lcl_col]],
+    ci_high  = .data[[ucl_col]]
+  ) |>
+  dplyr::left_join(
+    cld_s |>
+      dplyr::select(weed_trt, .group) |>
+      dplyr::mutate(
+        # reverse if you want a = highest:
+        # .group = chartr("ab", "ba", .group)
+        weed_trt = factor(weed_trt, levels = levels(soy2$weed_trt))
+      ),
+    by = "weed_trt"
+  )
+
+ggplot(plot_df, aes(weed_trt, response, fill = weed_trt)) +
+  geom_col(width = 0.75, color = "black") +
+  geom_errorbar(aes(ymin = ci_low, ymax = ci_high), width = 0.12) +
+  geom_text(aes(y = ci_high * 1.04, label = .group), size = 4, vjust = 0) +
+  scale_fill_brewer(palette = "Set2", guide = "none") +
+  labs(
+    x = NULL,
+    y = "Weed biomass (kg/ha)",
+    title = "Weed biomass by weed-control treatment (pooled across site-years)"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(axis.text.x = element_text(lineheight = 0.95))
+
+---
+  # =========================
+# stacked components (descriptive)
+# =========================
+
+# same order + pretty labels
+mow_levels <- c(
+  "Rolled, no control",
+  "Rolled + mowing",
+  "Rolled + high-residue cult.",
+  "Tilled + mowing",
+  "Tilled + cultivation"
+)
+mow_labels <- c(
+  "Rolled,\nno control",
+  "Rolled +\nmowing",
+  "Rolled +\nHRC",
+  "Tilled +\nmowing",
+  "Tilled +\ncultivation"
+)
+
+comp_df <- soy2 %>%
+  group_by(weed_trt) %>%
+  summarise(
+    inrow_mean    = mean(inrow_weed_biomass_kg_ha,    na.rm = TRUE),
+    interrow_mean = mean(interrow_weed_biomass_kg_ha, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  # pivot to long for stacking
+  tidyr::pivot_longer(
+    cols = c(inrow_mean, interrow_mean),
+    names_to = "position",
+    values_to = "biomass"
+  ) %>%
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    position = factor(position,
+                      levels = c("inrow_mean", "interrow_mean"),
+                      labels = c("In-row", "Interrow"))
+  )
+
+ggplot(comp_df,
+       aes(x = weed_trt, y = biomass, fill = position)) +
+  geom_col(width = 0.75, color = "black") +
+  scale_x_discrete(labels = mow_labels) +
+  scale_fill_manual(values = c("In-row" = "#6C9BD2", "Interrow" = "#94C973"),
+                    name = NULL) +
+  labs(
+    x = NULL,
+    y = "Weed biomass (kg/ha)",
+    title = "Partitioning weed biomass into in-row and interrow components"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(axis.text.x = element_text(lineheight = 0.95))
+
+---
+  
+```
 
 ```{r}
 options(contrasts = c("contr.sum", "contr.poly"))
