@@ -1,0 +1,80 @@
+.
+├── figures and tables
+│   ├── bean_yield_weed_control_bua.png
+│   ├── bean_yield_weed_control_kgha.png
+│   ├── interrow_weed_biomass_weed_control_kgha_ey.png
+│   ├── interrow_weed_biomass_weed_control_kgha_mr.png
+│   ├── interrow_weed_biomass_weed_control_lbac_ey.png
+│   ├── interrow_weed_biomass_weed_control_lbac_mr.png
+│   ├── interrow_weed_biomass_weed_control_lbac.png
+│   ├── interrow_weed_biomass_weed_control_location_kg_ha_mr.png
+│   ├── intrarow_weed_biomass_weed_control_lbac.png
+│   ├── intrarow_weed_biomass_weed_control_location_kg_ha.png
+│   ├── intrarow_weed_biomass_weed_control_location_lbA.png
+│   ├── seed_weight_weed_control_.png
+│   ├── weed_biomass_weed_control_kgha.png
+│   ├── weed_biomass_weed_control_lbA.png
+│   ├── weed_biomass_weed_control_lbsacre.png
+│   ├── weed_biomass_weed_control_location_kg_ha.png
+│   ├── weed_biomass_weed_control_location_lb_acre.png
+│   ├── weed_biomass_weed_control_location_lbsacre_log.png
+│   └── weed_biomass_weed_control_location_lbsacre.png
+├── interrow_mowing_soybean.mp4
+├── Mowtivation.Rproj
+├── processed-data
+├── raw-data
+│   ├── All Treatments
+│   └── Rolled Treatments
+├── README.md
+├── repo_structure_mowtivation.txt
+├── results
+├── rmarkdowns
+│   ├── bean_100_weight_files
+│   ├── bean_100_weight.md
+│   ├── bean_100_weight.Rmd
+│   ├── bean_biomass_files
+│   ├── bean_biomass_location_tukey_lbA.png
+│   ├── bean_biomass_weed_control_location_kgha.png
+│   ├── bean_biomass_weed_control_tukey_lbA.png
+│   ├── bean_biomass.md
+│   ├── bean_biomass.Rmd
+│   ├── bean_emergence_files
+│   ├── bean_emergence_location_plantsAc.png
+│   ├── bean_emergence_weed_control_location_kgha.png
+│   ├── bean_emergence.md
+│   ├── bean_emergence.Rmd
+│   ├── bean_population_files
+│   ├── bean_population_weed_control_a.png
+│   ├── bean_population_weed_control_location_kgha.png
+│   ├── bean_population.md
+│   ├── bean_population.Rmd
+│   ├── bean_yield_files
+│   ├── bean_yield_mowtivation_files
+│   ├── bean_yield_mowtivation.md
+│   ├── bean_yield_mowtivation.Rmd
+│   ├── bean_yield_weed_control_location_bua.png
+│   ├── bean_yield_weed_control_location_kgha.png
+│   ├── bean_yield.md
+│   ├── fig_interrow_biomass_mowing_raw_2023.png
+│   ├── fig_weed_biomass_mowing_raw_2023.png
+│   ├── fig-soybean-weed-biomass_partitioned_inrow-interrow_kgha.png
+│   ├── fig-soybean-weed-biomass_trt_model-mb_kgha.png
+│   ├── interrow_weed_biomass_files
+│   ├── interrow_weed_biomass_mowtivation_files
+│   ├── interrow_weed_biomass_mowtivation.md
+│   ├── interrow_weed_biomass_mowtivation.Rmd
+│   ├── interrow_weed_biomass_weed_control_location_kg_ha.png
+│   ├── interrow_weed_biomass.md
+│   ├── intrarow_weed_biomass_files
+│   ├── intrarow_weed_biomass.md
+│   ├── intrarow_weed_biomass.Rmd
+│   ├── seed_weight_weed_control_location_kgha.png
+│   ├── weed_biomass_files
+│   ├── weed_biomass_mowtivation_files
+│   ├── weed_biomass_mowtivation.md
+│   ├── weed_biomass_mowtivation.Rmd
+│   ├── weed_biomass_weed_control_location_kg_ha.png
+│   └── weed_biomass.md
+└── scripts
+
+20 directories, 58 files
