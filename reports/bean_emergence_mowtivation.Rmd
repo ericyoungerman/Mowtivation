@@ -1,0 +1,373 @@
+---
+title: "Soybean emergence"
+output: github_document
+---
+#Setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.path = "figs/analysis/weed_emergence-"
+)
+```
+#Packages
+```{r setup, message=FALSE, warning=FALSE}
+# Packages
+library(tidyverse)    # includes dplyr, ggplot2, readr, tibble, etc.
+library(janitor)
+library(readxl)
+library(glmmTMB)
+library(DHARMa)
+library(emmeans)
+library(multcomp)
+library(car)
+library(kableExtra)
+library(here)
+library(conflicted)
+library(lme4)
+# Handle conflicts
+conflicts_prefer(dplyr::select)
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(dplyr::recode)
+
+# Helper: tidy emmeans regardless of CI column names
+tidy_emm <- function(emm_df, ref_levels = NULL) {
+  lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+  ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+  if (is.na(lcl_col) || is.na(ucl_col)) {
+    stop("Could not find CI columns in emmeans output.")
+  }
+  out <- emm_df |>
+    mutate(
+      ci_low  = .data[[lcl_col]],
+      ci_high = .data[[ucl_col]]
+    )
+  if (!is.null(ref_levels)) {
+    out <- out |>
+      mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+  }
+  out
+}
+
+```
+
+
+# Data imort and prep
+
+```{r}
+# 1) Read + clean master
+bean_emergence_clean <- read_excel(here("data", "raw", "All Treatments", "combined_raw.xlsx")) |>
+  clean_names() |>
+  rename(weed_trt = treatment) |>
+  mutate(
+    weed_trt = recode(
+      weed_trt,
+      "RNO" = "Rolled, no control",
+      "RIM" = "Rolled + mowing",
+      "RIC" = "Rolled + high-residue cult.",
+      "TIM" = "Tilled + mowing",
+      "TIC" = "Tilled + cultivation"
+    ),
+    site_year = factor(interaction(year, location, drop = TRUE)),
+    block = factor(block),
+    bean_emergence_two_meter = bean_emergence * 2,
+    bean_emergence_acre = ((bean_emergence / 0.762) * 10000) / 2.471,
+    bean_emergence_hectare = (bean_emergence / 0.762) * 10000
+  ) |>
+  filter(!is.na(bean_yield))
+
+# 2) Lock in agronomic order
+mow_levels <- c(
+  "Rolled, no control",
+  "Rolled + mowing",
+  "Rolled + high-residue cult.",
+  "Tilled + mowing",
+  "Tilled + cultivation"
+)
+
+bean_emergence_clean <- bean_emergence_clean |>
+  mutate(weed_trt = factor(weed_trt, levels = mow_levels))
+
+# 3) Make the 2023 Field V subset
+bean_emergence_field_v_2023 <- bean_emergence_clean |>
+  filter(year == 2023, location == "field v") |>
+  mutate(weed_trt = factor(weed_trt, levels = mow_levels))
+
+# Quick check
+kable(head(bean_emergence_clean), caption = "All site-years, cleaned (bean emergence)")
+
+```
+
+
+#Model testing
+### Exploratory Analysis: Bean Emergence
+```{r}
+
+
+# 1) Summary table: bean emergence by site-year × treatment
+bean_emergence_clean |>
+  group_by(site_year, weed_trt) |>
+  summarise(
+    n      = n(),
+    mean   = mean(bean_emergence_hectare, na.rm = TRUE),
+    median = median(bean_emergence_hectare, na.rm = TRUE),
+    sd     = sd(bean_emergence_hectare, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(site_year, weed_trt) |>
+  kable(
+    digits  = 1,
+    caption = "Bean emergence (plants/ha) by site-year × treatment"
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+# 2) Faceted boxplot: all site-years
+ggplot(bean_emergence_clean, aes(x = weed_trt, y = bean_emergence_hectare)) +
+  geom_boxplot(outlier.shape = NA, width = 0.55, color = "black", fill = "#69b3a2") +
+  geom_jitter(width = 0.12, height = 0, alpha = 0.4, size = 1.8, color = "#333333") +
+  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  scale_x_discrete(labels = \(x) stringr::str_replace_all(x, " ", "\n")) +
+  labs(
+    x     = NULL,
+    y     = "Bean emergence (plants/ha)",
+    title = "Bean emergence by treatment across site-years"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(size = 10),
+    strip.text  = element_text(face = "bold")
+  )
+
+# 3) Boxplot: 2023 – Field V only
+bean_emergence_clean |>
+  filter(year == 2023, location == "field v") |>
+  ggplot(aes(x = weed_trt, y = bean_emergence_hectare)) +
+  geom_boxplot(outlier.shape = NA, width = 0.55, color = "black", fill = "#69b3a2") +
+  geom_jitter(width = 0.12, height = 0, alpha = 0.4, size = 1.8, color = "#333333") +
+  scale_x_discrete(labels = \(x) stringr::str_replace_all(x, " ", "\n")) +
+  labs(
+    x     = NULL,
+    y     = "Bean emergence (plants/ha)",
+    title = "Bean emergence by treatment, 2023 – Field V"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(axis.text.x = element_text(size = 10))
+
+
+```
+##Selection
+```{r}
+### Model testing / selection for bean emergence (plants/ha)
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# Interaction model: weed_trt * site_year --------------------------------
+emergence_int <- lmer(
+  bean_emergence_hectare ~ weed_trt * site_year + (1 | site_year:block),
+  data = bean_emergence_clean
+)
+
+# Additive model: weed_trt + site_year -----------------------------------
+emergence_add <- lmer(
+  bean_emergence_hectare ~ weed_trt + site_year + (1 | site_year:block),
+  data = bean_emergence_clean
+)
+
+# Compare models (AIC + LRT) ---------------------------------------------
+aic_emergence <- tibble(
+  model = c("Additive: weed_trt + site_year",
+            "Interaction: weed_trt * site_year"),
+  AIC   = c(AIC(emergence_add), AIC(emergence_int))
+)
+
+kable(aic_emergence, digits = 1,
+      caption = "Bean emergence (plants/ha): model comparison (additive vs interaction)")
+
+anova(emergence_add, emergence_int)  # LRT: is the interaction worth keeping?
+
+# Choose simpler additive model unless interaction is clearly needed -----
+emergence.lmer <- emergence_add
+
+# Diagnostics on chosen model --------------------------------------------
+res_emergence <- DHARMa::simulateResiduals(emergence.lmer)
+plot(res_emergence)
+DHARMa::testDispersion(emergence.lmer)
+
+car::Anova(emergence.lmer, type = 3)
+```
+
+###Post-hoc summary table
+```{r}
+###  for bean emergence (plants/ha) with Fisher's LSD CLDs
+
+# Estimated marginal means for weed_trt
+emm_emergence <- emmeans(emergence.lmer, ~ weed_trt)
+
+# Compact letter display (Fisher's LSD, no adjustment)
+cld_emergence <- cld(emm_emergence, adjust = "none", Letters = letters)
+
+# Tidy and format for reporting
+cld_emergence |>
+  as_tibble() |>
+  select(weed_trt, emmean, SE, lower.CL, upper.CL, .group) |>
+  mutate(across(c(emmean, SE, lower.CL, upper.CL), round, 1)) |>
+  kable(
+    caption = "Estimated means (plants/ha) with 95% CI and Fisher's LSD group letters",
+    col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+#Figures
+
+```{r}
+#Figure: Bean emergence by weed management treatment (pooled across site-years)
+
+# Estimated marginal means for treatments
+emm_emergence <- emmeans(emergence.lmer, ~ weed_trt)
+
+# Convert to data frame for plotting
+emm_emergence_df <- emm_emergence |>
+  as.data.frame() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    response = emmean,
+    ymin     = pmax(response - SE, 0),
+    ymax     = response + SE
+  )
+
+# CLDs for treatments (Fisher's LSD)
+cld_emergence <- cld(
+  emm_emergence,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as.data.frame() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = trimws(.group)
+  )
+
+# Merge means and CLDs
+plot_df_emergence <- left_join(
+  emm_emergence_df,
+  cld_emergence |> select(weed_trt, .group),
+  by = "weed_trt"
+)
+
+# Define colors (optional)
+fill_cols <- viridis::viridis(length(mow_levels), option = "D", end = 0.9, begin = 0.1)
+
+# Plot
+ggplot(plot_df_emergence, aes(x = weed_trt, y = response, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust = 0, fontface = "bold", size = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = \(x) stringr::str_replace_all(x, " \\+ ", "\n+ ")) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x = NULL,
+    y = "Bean emergence (plants/ha)",
+    title = "Bean emergence by weed management treatment (pooled across site-years)",
+    caption = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold")
+  )
+
+# Save figure
+ggsave(
+  filename = here::here("figs", "analysis", "fig_bean_emergence_mowing_pooled.png"),
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
+```
+
+
+```{r}
+### Figure: Bean emergence by weed management treatment, faceted by site-year
+
+# Estimated marginal means for weed_trt × site_year
+emm_emergence_sy <- emmeans(emergence.lmer, ~ weed_trt | site_year)
+
+# Convert to data frame for plotting
+emm_sy_df <- emm_emergence_sy |>
+  as.data.frame() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    response = emmean,
+    ymin     = pmax(response - SE, 0),
+    ymax     = response + SE
+  )
+
+# CLDs for each site-year
+cld_sy <- cld(
+  emm_emergence_sy,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as.data.frame() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = trimws(.group)
+  )
+
+# Merge means and CLDs
+plot_df_sy <- left_join(
+  emm_sy_df,
+  cld_sy |> select(weed_trt, site_year, .group),
+  by = c("weed_trt", "site_year")
+)
+
+# Define colors
+fill_cols <- viridis::viridis(length(mow_levels), option = "D", end = 0.9, begin = 0.1)
+
+# Plot faceted by site-year
+ggplot(plot_df_sy, aes(x = weed_trt, y = response, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust = 0, fontface = "bold", size = 5
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = \(x) stringr::str_replace_all(x, " \\+ ", "\n+ ")) +
+  scale_y_continuous(labels = scales::label_comma()) +  
+  labs(
+    x = NULL,
+    y = "Bean emergence (plants/ha)",
+    title = "Bean emergence by treatment within each site-year",
+    caption = "Model-based means ± SE; letters = Fisher-style CLD for treatment effect within site-year."
+  ) +
+  facet_wrap(~ site_year, scales = "free_y") +
+  theme_classic(base_size = 16) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    strip.text   = element_text(face = "bold", size = 14),
+    plot.title   = element_text(face = "bold")
+  )
+
+# Save figure
+ggsave(
+  filename = here::here("figs", "analysis", "fig_bean_emergence_by_site_year.png"),
+  width    = 10,
+  height   = 6.5,
+  dpi      = 300
+)
+```
+
+
