@@ -1,225 +1,519 @@
 ---
 title: "Soybean population"
-output: github_document
+
+output:
+  github_document:
+    toc: true
+always_allow_html: true
+
+
 ---
-
-Only location had a sigificant impact on soybean population. 
-
-
+#Setup
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.path = "figs/analysis/bean_yield-"
+)
 ```
+# Packages
+```{r}
 
-# Load libraries
-
-```{r message=FALSE, warning=FALSE}
-#Set work directory
-setwd("/Users/ey239/Github/Mowtivation/rmarkdowns")
-
-#Load packages 
-library(tidyverse) ##install.packages("tidyverse")
-library(knitr)
-library(patchwork) ##install.packages("patchwork")
-library(skimr)     ##install.packages("skimr")
+# Packages
+library(tidyverse) # includes dplyr, ggplot2, readr, tibble, etc.
+library(janitor)
 library(readxl)
-library(janitor) ##install.packages("janitor")
+library(glmmTMB)
+library(DHARMa)
+library(emmeans)
+library(multcomp)
+library(car)
+library(kableExtra)
+library(here)
+library(conflicted)
+library(lme4)
 
-library(kableExtra) ##install.packages("kableExtra")
-library(webshot) ##install.packages("webshot")
-webshot::install_phantomjs()
-library(viridis) ##install.packages("viridis")
-library(lme4) ##install.packages("lme4")
-library(lmerTest) ##install.packages("lmerTest")
-library(emmeans) ##install.packages("emmeans")
-library(rstatix) ##install.packages("rstatix")
-#library(Matrix) ##install.packages("Matrix")
-library(multcomp) ##install.packages("multcomp")
-library(multcompView) ##install.packages("multcompView")
-library(ggResidpanel) ##install.packages("ggResidpanel")
-#library(car)
-#library(TMB)  ##install.packages("TMB")
-#library(glmmTMB)  ##install.packages("glmmTMB")
-library(DHARMa)  ##install.packages("DHARMa")
-library(performance) ##install.packages("performance")
-#Load Functions
-MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
+# Handle conflicts
+conflicts_prefer(dplyr::select)
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(dplyr::recode)
 
-find_logw0=function(x){c=trunc(log(min(x[x>0],na.rm=T)))
-d=exp(c)
-return(d)}
+# Treatment level order (use everywhere)
+mow_levels <- c(
+"Rolled, no control",
+"Rolled + mowing",
+"Rolled + high-residue cult.",
+"Tilled + mowing",
+"Tilled + cultivation"
+)
+
+# One consistent color palette for all figures
+
+fill_cols <- c(
+"Rolled, no control" = "#0072B2", # blue
+"Rolled + mowing" = "#009E73", # green
+"Rolled + high-residue cult." = "#F0E442", # yellow
+"Tilled + mowing" = "#D55E00", # reddish
+"Tilled + cultivation" = "#CC79A7" # magenta
+)
+
+#x-axis label helpers
+
+label_break_spaces <- function(x) {
+  stringr::str_replace_all(x, " ", "\n")
+}
+
+label_break_plus <- function(x) {
+  stringr::str_replace_all(x, " \\+ ", "\n+ ")
+}
+
+
+#Helper: tidy emmeans output regardless of CI column names
+#(works directly on an emmeans object)
+
+tidy_emm <- function(emm, ref_levels = NULL) {
+emm_df <- as.data.frame(emm)
+
+lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+
+if (is.na(lcl_col) || is.na(ucl_col)) {
+stop("Could not find CI columns in emmeans output.")
+}
+
+out <- emm_df |>
+mutate(
+ci_low = .data[[lcl_col]],
+ci_high = .data[[ucl_col]]
+)
+
+if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
+out <- out |>
+mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+}
+
+out
+}
 ```
-<br>
-# Load and clean data**
 
-## Load data
+
+# Data import & prep
 
 ``` {r}
-combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
-kable(head(combined_raw))
+bean_population_clean <- read_excel(
+  here("data", "raw", "All Treatments", "combined_raw.xlsx")
+) |>
+  clean_names() |>
+  rename(weed_trt = treatment) |>
+  mutate(
+    year      = factor(year),
+    location  = factor(location),
+    site_year = factor(interaction(year, location, drop = TRUE)),
+    block     = factor(block),
+    weed_trt  = recode(
+      weed_trt,
+      "RNO" = "Rolled, no control",
+      "RIM" = "Rolled + mowing",
+      "RIC" = "Rolled + high-residue cult.",
+      "TIM" = "Tilled + mowing",
+      "TIC" = "Tilled + cultivation"
+    ),
+    weed_trt = factor(weed_trt, levels = mow_levels)
+  ) |>
+  # keep only rows with non-missing population
+  filter(!is.na(bean_population)) |>
+  # optional per-area metrics, analogous to emergence
+  mutate(
+    bean_population_two_meter = bean_population * 2,
+    bean_population_hectare   = (bean_population / 0.762) * 10000,
+    bean_population_acre      = bean_population_hectare / 2.471
+  )
+
+# 2023 Field V subset (for the boxplot later)
+bean_population_field_v_2023 <- bean_population_clean |>
+  filter(year == 2023, location == "field v")
+
+# Quick check
+kable(
+  head(bean_population_clean),
+  caption = "All site-years, cleaned (bean population)"
+)
 
 ```
 
-<br>
-
-## Clean data
-
+#Model testing
+### Exploratory Analysis: Soybean population
 ```{r}
-#Standardaze column names, convert to factors, check for outliers of variable**
-clean_combined <- clean_names(combined_raw) |>  
-  rename ('weed_control'= treatment) |> 
-  mutate(across(c(weed_control, block, plot, location, year), as.factor)) |>
-  mutate(bean_population = as.numeric(bean_population)) #|> 
-  #mutate(is_outlier = totwbm < (quantile(totwbm, 0.25) - 1.5 * IQR(totwbm)) |
-                       #wbm > (quantile(totwbm, 0.75) + 1.5 * IQR(totwbm)))
+# 1) Summary table: bean population by site-year × treatment
+bean_population_clean |>
+  group_by(site_year, weed_trt) |>
+  summarise(
+    n      = n(),
+    mean   = mean(bean_population_hectare, na.rm = TRUE),
+    median = median(bean_population_hectare, na.rm = TRUE),
+    sd     = sd(bean_population_hectare, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(site_year, weed_trt) |>
+  kable(
+    digits  = 1,
+    caption = "Bean population (plants/ha) by site-year × treatment"
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
-#select and convert data for wbm analysis
-bean_population_clean <- clean_combined |> 
-  mutate(bean_population_two_meter = (bean_population * 2)) |> 
-  mutate(bean_population_acre = (((bean_population/0.762) * 10000) / 2.471)) |> 
-  mutate(bean_population_hectare = ((bean_population / 0.762) * 10000))
+# 2) Faceted boxplot: all site-years
+bean_population_clean |>
+  ggplot(aes(x = weed_trt, y = bean_population_hectare, fill = weed_trt)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    width  = 0.55,
+    color  = "black"
+  ) +
+  geom_jitter(
+    width  = 0.12,
+    height = 0,
+    alpha  = 0.4,
+    size   = 1.8,
+    color  = "grey30"
+  ) +
+  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  labs(
+    x     = NULL,
+    y     = "Bean population (plants/ha)",
+    title = "Bean population by treatment across site-years"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(size = 10),
+    strip.text  = element_text(face = "bold")
+  )
 
-
-kable(head(bean_population_clean)) 
+# 3) Boxplot: 2023 – Field V only
+bean_population_field_v_2023 |>
+  ggplot(aes(x = weed_trt, y = bean_population_hectare, fill = weed_trt)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    width  = 0.55,
+    color  = "black"
+  ) +
+  geom_jitter(
+    width  = 0.12,
+    height = 0,
+    alpha  = 0.4,
+    size   = 1.8,
+    color  = "grey30"
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  labs(
+    x     = NULL,
+    y     = "Bean population (plants/ha)",
+    title = "Bean population by treatment, 2023 – Field V"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
 ```
-# Model testing
-## Lmer
-Block is random
-Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently.
+##Selection
 ```{r}
-population.lmer <- lmer(bean_population_hectare  ~ weed_control*location + (1|location:block) , data = bean_population_clean)
+### Model testing / selection for bean population (plants/ha)
 
-resid_panel(population.lmer)
-simulateResiduals(population.lmer,plot = TRUE) # Residuals and normality look good
-check_model(population.lmer)
-```
-
-br>
-
-
-## Joint test (anova)
-```{r}
-
-joint_tests(emmeans(population.lmer, ~ weed_control * location))
-```
-
-```{r}
 options(contrasts = c("contr.sum", "contr.poly"))
-population.anova <- anova(population.lmer, ddf = "Satterthwaite")
-print(population.anova)
+
+# Interaction model: weed_trt * site_year --------------------------------
+pop_int <- lmer(
+  bean_population_hectare ~ weed_trt * site_year + (1 | site_year:block),
+  data = bean_population_clean
+)
+
+# Additive model: weed_trt + site_year -----------------------------------
+pop_add <- lmer(
+  bean_population_hectare ~ weed_trt + site_year + (1 | site_year:block),
+  data = bean_population_clean
+)
+
+# Compare models (AIC + LRT) ---------------------------------------------
+aic_population <- tibble(
+  model = c(
+    "Additive: weed_trt + site_year",
+    "Interaction: weed_trt * site_year"
+  ),
+  AIC = c(AIC(pop_add), AIC(pop_int))
+)
+
+kable(
+  aic_population,
+  digits  = 1,
+  caption = "Bean population (plants/ha): model comparison (additive vs interaction)"
+)
+
+anova(pop_add, pop_int)  # LRT: is the interaction worth keeping?
+
+# Choose simpler additive model unless interaction is clearly needed -----
+# (this is the model used in all downstream emmeans/plots)
+pop.lmer <- pop_add
+
+# Diagnostics on chosen model --------------------------------------------
+set.seed(123)
+res_pop <- DHARMa::simulateResiduals(pop.lmer)
+plot(res_pop)
+DHARMa::testDispersion(pop.lmer)
+
+car::Anova(pop.lmer, type = 3)
 ```
-
-<br>
-
-## Tukey means comparisons
-### Weed-control (significant)
-
+###Post-hoc summary table
 ```{r}
-tukey_weed_control <- emmeans(population.lmer, pairwise ~ weed_control, adjust = "tukey")
-tukey_weed_control
+### Bean population (plants/ha) with Fisher's LSD CLDs
 
-cld_weed_control_tukey <- cld(emmeans(population.lmer, ~ weed_control), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
+# Estimated marginal means for weed_trt
+emm_pop <- emmeans(pop.lmer, ~ weed_trt)
 
-cld_weed_control_tukey
+# Tidy emmeans (adds ci_low / ci_high and enforces treatment order)
+emm_pop_df <- tidy_emm(emm_pop, ref_levels = mow_levels) |>
+  as_tibble()
+
+# Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
+cld_pop <- cld(
+  emm_pop,
+  adjust  = "none",
+  Letters = letters,
+  sort    = TRUE,   # default, but explicit
+  reversed = TRUE   # now 'a' goes to the highest group(s)
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# Join emmeans + CLDs and format for reporting
+emm_pop_df |>
+  left_join(cld_pop, by = "weed_trt") |>
+  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
+  mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))) |>
+  kable(
+    caption   = "Estimated bean population (plants/ha) with 95% CI and Fisher's LSD group letters",
+    col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
 ```
-<br>
-
-### Location (Significant)
 ```{r}
-tukey_location <- emmeans(population.lmer, list(pairwise ~ location), adjust = "tukey")
-tukey_location
+### ANOVA-style summary tables for bean population
+## 1) P-value summary (Location, Treatment, Interaction) -----------------
 
-cld_location_tukey <- cld(emmeans(population.lmer, ~ location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
+# Type-III tests for additive model (weed_trt + site_year)
+anova_pop <- Anova(pop.lmer, type = 3)
 
-cld_location_tukey
-```
+anova_pop_df <- anova_pop |>
+  as.data.frame() |>
+  tibble::rownames_to_column("Effect")
 
-###weed_control:location (not significant)
+# LRT for interaction (additive vs interaction models)
+anova_interaction_pop <- anova(pop_add, pop_int)
 
-```{r}
-tukey_weed_control_location <- emmeans(population.lmer, list(pairwise ~ weed_control|location), adjust = "tukey")
-tukey_weed_control_location
-
-cld_weed_control_location_tukey <- cld(emmeans(population.lmer, ~ weed_control|location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
-
-cld_weed_control_location_tukey
-```
-
-
-# Figures
-
-## Weed-control (Not significant)
-
-```{r message=FALSE, warning=FALSE}
-bean_population_clean |> 
-  left_join(cld_weed_control_tukey) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = bean_population_acre, fill = weed_control)) +
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
-  
-  labs(
-    x = "Interrow weed control",
-    y = expression("Soybean population" ~ (plants * "/" * a)),
-    title = str_c("The influence of interrow weed control on soybean population"),
-    subtitle = expression(italic("Not significant"))) +
-   scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
-                              "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nhigh-residue\ncultivation",
-                              "Tilled,\ninterrow\nmowing",
-                          "Tilled,\nstandard\ncultivation")) +
-  scale_y_continuous(labels = scales::label_comma(),expand = expansion(mult = c(0.05, 0.3))) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
-  theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 12),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 16),   # Increase font size of axis labels
-    plot.title = element_text(size = 22, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 18, face = "italic")  # Increase font size of subtitle
+pvals_pop <- tibble(
+  Effect = c("Location (site_year)", "Treatment (weed_trt)", "Location × Treatment"),
+  p_raw  = c(
+    anova_pop_df$`Pr(>Chisq)`[anova_pop_df$Effect == "site_year"],
+    anova_pop_df$`Pr(>Chisq)`[anova_pop_df$Effect == "weed_trt"],
+    anova_interaction_pop$`Pr(>Chisq)`[2]
   )
-ggsave("bean_population_weed_control_a.png", width = 10, height = 6, dpi = 300)
-```
+) |>
+  mutate(
+    `P-value` = case_when(
+      p_raw < 0.001 ~ "<0.001",
+      p_raw < 0.01  ~ "<0.01",
+      TRUE          ~ sprintf("%.3f", p_raw)
+    )
+  ) |>
+  select(Effect, `P-value`)
 
-###Kg/hectare
-#### weed_control:location (not significant)
+pvals_pop |>
+  kable(
+    caption   = "Bean population (plants/ha): P-values for location, treatment, and interaction",
+    col.names = c("Effect", "P-value")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
-```{r message=FALSE, warning=FALSE}
-bean_population_clean |> 
-  left_join(cld_weed_control_location_tukey ) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y =  bean_population_hectare, fill = weed_control)) +
-  facet_wrap( ~location, labeller = labeller(
-    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
-  labs(
-    x = "",
-    y = expression(paste("Soybean populations (", plants~ha^{-1}, ")")),
 
-    #title = str_c("The influence of interrow weed control on soybean yield"),
-    subtitle = expression(italic("Not significant"))) +
-  
-  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
-                              "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nhigh-residue\ncultivation",
-                              "Tilled,\ninterrow\nmowing",
-                          "Tilled,\nstandard\ncultivation")) +
-  scale_y_continuous(
-  labels = scales::label_comma(),
-  expand = expansion(mult = c(0.05, 0.3))
-) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
-  theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 20),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 20),   # Increase font size of axis labels
-    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
+## 2) Location block: site-year means (model + raw) ----------------------
+
+# Model-based emmeans by site_year
+emm_loc_pop <- emmeans(pop.lmer, ~ site_year)
+
+emm_loc_pop_df <- tidy_emm(emm_loc_pop) |>
+  as_tibble() |>
+  mutate(
+    site_year  = as.factor(site_year),
+    model_mean = emmean
+  ) |>
+  select(site_year, model_mean)
+
+# CLDs for site_year (a = highest)
+cld_loc_pop <- cld(
+  emm_loc_pop,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    site_year = as.factor(site_year),
+    loc_CLD   = str_trim(.group)
+  ) |>
+  select(site_year, loc_CLD)
+
+# Raw means by site_year
+raw_loc_pop <- bean_population_clean |>
+  group_by(site_year) |>
+  summarise(
+    raw_mean = mean(bean_population_hectare, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(site_year = as.factor(site_year))
+
+loc_summary_pop <- emm_loc_pop_df |>
+  left_join(cld_loc_pop, by = "site_year") |>
+  left_join(raw_loc_pop, by = "site_year") |>
+  mutate(
+    model_mean = round(model_mean, 1),
+    raw_mean   = round(raw_mean, 1),
+    raw_CLD    = loc_CLD  # use same letters for model + raw
+  ) |>
+  arrange(site_year)
+
+loc_summary_pop |>
+  kable(
+    caption   = "Bean population (plants/ha): location (site-year) means with CLDs",
+    col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+## 3) Treatment block: means (model + raw) -------------------------------
+
+# emmeans for treatment
+emm_pop <- emmeans(pop.lmer, ~ weed_trt)
+
+emm_trt_pop_df <- tidy_emm(emm_pop, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    weed_trt   = factor(weed_trt, levels = mow_levels),
+    model_mean = emmean
+  ) |>
+  select(weed_trt, model_mean)
+
+# CLDs for treatment (a = highest)
+cld_pop <- cld(
+  emm_pop,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    trt_CLD  = str_trim(.group)
+  ) |>
+  select(weed_trt, trt_CLD)
+
+# Raw means by treatment
+raw_trt_pop <- bean_population_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    raw_mean = mean(bean_population_hectare, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(weed_trt = factor(weed_trt, levels = mow_levels))
+
+trt_summary_pop <- emm_trt_pop_df |>
+  left_join(cld_pop, by = "weed_trt") |>
+  left_join(raw_trt_pop, by = "weed_trt") |>
+  mutate(
+    model_mean = round(model_mean, 1),
+    raw_mean   = round(raw_mean, 1),
+    raw_CLD    = trt_CLD
+  ) |>
+  arrange(weed_trt)
+
+trt_summary_pop |>
+  kable(
+    caption   = "Bean population (plants/ha): treatment means with CLDs",
+    col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+## 4) Interaction block: site-year × treatment means ---------------------
+
+# Model emmeans by treatment within site_year
+emm_sy_pop <- emmeans(pop.lmer, ~ weed_trt | site_year)
+
+emm_sy_pop_df <- tidy_emm(emm_sy_pop, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    weed_trt   = factor(weed_trt, levels = mow_levels),
+    site_year  = as.factor(site_year),
+    model_mean = emmean
+  ) |>
+  select(site_year, weed_trt, model_mean)
+
+# CLDs within each site_year (a = highest within that site_year)
+cld_sy_pop <- cld(
+  emm_sy_pop,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt  = factor(weed_trt, levels = mow_levels),
+    site_year = as.factor(site_year),
+    int_CLD   = str_trim(.group)
+  ) |>
+  select(site_year, weed_trt, int_CLD)
+
+# Raw means by site_year × treatment
+raw_sy_pop <- bean_population_clean |>
+  group_by(site_year, weed_trt) |>
+  summarise(
+    raw_mean = mean(bean_population_hectare, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(
+    site_year = as.factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels)
   )
-ggsave("bean_population_weed_control_location_kgha.png", width = 24, height = 8, dpi = 300)
+
+int_summary_pop <- emm_sy_pop_df |>
+  left_join(cld_sy_pop, by = c("site_year", "weed_trt")) |>
+  left_join(raw_sy_pop, by = c("site_year", "weed_trt")) |>
+  mutate(
+    model_mean = round(model_mean, 1),
+    raw_mean   = round(raw_mean, 1),
+    raw_CLD    = int_CLD
+  ) |>
+  arrange(site_year, weed_trt)
+
+int_summary_pop |>
+  kable(
+    caption   = "Bean population (plants/ha): site-year × treatment means with CLDs",
+    col.names = c(
+      "Site-year", "Treatment",
+      "Model mean", "Model CLD",
+      "Raw mean",   "Raw CLD"
+    )
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
 ```
+
