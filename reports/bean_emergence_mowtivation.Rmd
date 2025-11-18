@@ -12,7 +12,7 @@ knitr::opts_chunk$set(
 )
 ```
 #Packages
-```{r setup, message=FALSE, warning=FALSE}
+```{r}
 # Packages
 library(tidyverse)    # includes dplyr, ggplot2, readr, tibble, etc.
 library(janitor)
