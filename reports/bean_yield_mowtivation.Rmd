@@ -2,6 +2,7 @@
 title: "Bean Yield"
 output: github_document
 ---
+#Setup
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -12,7 +13,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-#Packages/setup
+#Packages
 ```{r setup, message=FALSE, warning=FALSE}
 
 # packages only once
@@ -53,7 +54,7 @@ tidy_emm <- function(emm_df, ref_levels = NULL) {
 
 ```
 
- ### 1. Data import & prep
+# Data import & prep
 ```{r}
 
 # 1) read + clean master
@@ -123,7 +124,6 @@ knitr::kable(head(bean_yield_field_v_2023), caption = "Field V only, 2023 (bean 
 
 ```{r}
 # table
-# 1) table
 # 1) table: bean yield by site-year × treatment
 bean_yield_clean |>
   dplyr::group_by(site_year, weed_trt) |>

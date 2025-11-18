@@ -2,7 +2,7 @@
 title: "Weed biomass"
 output: github_document
 ---
-
+#Setup
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo    = TRUE,
@@ -11,7 +11,7 @@ knitr::opts_chunk$set(
   fig.path = "figs/analysis/weed_biomass-"
 )
 ```
-#Packages/setup
+#Packages
 ```{r setup, message=FALSE, warning=FALSE}
 
 # packages only once
@@ -53,7 +53,7 @@ tidy_emm <- function(emm_df, ref_levels = NULL) {
 
 <br>
 
-### 1. Data import & prep
+# Data import & prep
 
 
 ``` {r}
