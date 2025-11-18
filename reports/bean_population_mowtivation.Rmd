@@ -142,7 +142,7 @@ kable(
 
 ```
 
-#Model testing
+# Model testing
 ### Exploratory Analysis: Soybean population
 ```{r}
 # 1) Summary table: bean population by site-year × treatment
@@ -218,7 +218,7 @@ bean_population_field_v_2023 |>
     axis.text.x = element_text(size = 10)
   )
 ```
-##Selection
+## Selection
 ```{r}
 ### Model testing / selection for bean population (plants/ha)
 
@@ -265,7 +265,7 @@ DHARMa::testDispersion(pop.lmer)
 
 car::Anova(pop.lmer, type = 3)
 ```
-###Post-hoc summary table
+### Post-hoc summary table
 ```{r}
 ### Bean population (plants/ha) with Fisher's LSD CLDs
 
@@ -303,8 +303,9 @@ emm_pop_df |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 ```
-```{r}
 ### ANOVA-style summary tables for bean population
+```{r}
+
 ## 1) P-value summary (Location, Treatment, Interaction) -----------------
 
 # Type-III tests for additive model (weed_trt + site_year)
@@ -515,5 +516,153 @@ int_summary_pop |>
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
+```
+# Figures
+## Pooled model
+```{r}
+
+# Figure: Bean population by weed management treatment (pooled across site-years)
+
+# Estimated marginal means for treatments
+emm_pop <- emmeans(pop.lmer, ~ weed_trt)
+
+# Tidy emmeans for plotting
+emm_pop_df <- tidy_emm(emm_pop, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    response = emmean,
+    ymin     = pmax(response - SE, 0),
+    ymax     = response + SE
+  )
+
+# CLDs for treatments (Fisher's LSD, "a" = highest)
+cld_pop <- cld(
+  emm_pop,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# Merge means and CLDs
+plot_df_pop <- emm_pop_df |>
+  left_join(cld_pop, by = "weed_trt")
+
+# Plot
+ggplot(plot_df_pop, aes(x = weed_trt, y = response, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x        = NULL,
+    y        = "Bean population (plants/ha)",
+    title    = "Bean population by weed management treatment",
+    caption  = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold")
+  )
+
+# Save figure
+ggsave(
+  filename = here("figs", "analysis", "fig_bean_population_mowing_pooled.png"),
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
+
+```
+## Pooled Raw
+
+```{r}
+# Figure: Bean population by weed management treatment (raw means ± SE, model CLDs)
+
+# 1) Raw means and SE by treatment --------------------------------------
+raw_pop_summary <- bean_population_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    n    = n(),
+    mean = mean(bean_population_hectare, na.rm = TRUE),
+    sd   = sd(bean_population_hectare, na.rm = TRUE),
+    se   = sd / sqrt(n),
+    .groups = "drop"
+  ) |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    ymin     = pmax(mean - se, 0),
+    ymax     = mean + se
+  )
+
+# 2) Model-based CLDs for treatment main effect -------------------------
+emm_pop <- emmeans(pop.lmer, ~ weed_trt)
+
+cld_pop <- cld(
+  emm_pop,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE   # "a" = highest mean
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# 3) Join raw means and model CLDs --------------------------------------
+plot_df_pop_raw <- raw_pop_summary |>
+  left_join(cld_pop, by = "weed_trt")
+
+# 4) Plot ---------------------------------------------------------------
+ggplot(plot_df_pop_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x        = NULL,
+    y        = "Bean population (plants/ha)",
+    title    = "Bean population by weed management treatment",
+    caption  = "Raw means ± SE; letters = model-based Fisher-style CLD for treatment main effect."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold")
+  )
+
+# Save figure
+ggsave(
+  filename = here("figs", "analysis", "fig_bean_population_mowing_pooled_raw.png"),
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
 ```
 
