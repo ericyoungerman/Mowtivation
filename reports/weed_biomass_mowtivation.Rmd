@@ -4,7 +4,12 @@ output: github_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.path = "figs/analysis/weed_biomass-"
+)
 ```
 #Packages/setup
 ```{r setup, message=FALSE, warning=FALSE}
@@ -19,7 +24,7 @@ library(emmeans)
 library(multcomp)
 library(car)
 library(kableExtra)
-
+library(here)##install.packages("here")
 library(conflicted)
 conflicts_prefer(dplyr::select)
 conflicts_prefer(dplyr::filter)
@@ -53,7 +58,7 @@ tidy_emm <- function(emm_df, ref_levels = NULL) {
 
 ``` {r}
 # 1) read + clean master
-soy_all <- readxl::read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx") |>
+soy_all <- readxl::read_excel("~/Github/Mowtivation/data/raw/All Treatments/combined_raw.xlsx") |>
   janitor::clean_names() |>
   dplyr::rename(weed_trt = treatment) |>
   dplyr::mutate(
@@ -1059,7 +1064,14 @@ ggplot(plot_df, aes(x = weed_trt, y = mean, fill = weed_trt)) +
   coord_cartesian(clip = "off")
 
 # 8) save figs
-ggsave("fig_weed_biomass_mowing_raw_2023.png", width = 7.5, height = 5.5, dpi = 300)
+# 8) save figs
+ggsave(
+  filename = here::here("figs", "analysis", "fig_weed_biomass_mowing_raw_2023.png"),
+  width  = 7.5,
+  height = 5.5,
+  dpi    = 300
+)
+
 
 ```
 ####  In-row model pooled
@@ -1587,7 +1599,13 @@ ggplot(plot_df, aes(x = weed_trt, y = mean, fill = weed_trt)) +
   coord_cartesian(clip = "off")
 
 # 8) save figs
-ggsave("fig_interrow_biomass_mowing_raw_2023.png", width = 7.5, height = 5.5, dpi = 300)
+ggsave(
+  filename = here::here("figs", "analysis", "fig_interrow_biomass_mowing_raw_2023.png"),
+  width  = 7.5,
+  height = 5.5,
+  dpi    = 300
+)
+
 ```
 
 ```{r}
@@ -1795,55 +1813,3 @@ ggplot(stacked, aes(x = weed_trt, y = biomass, fill = position)) +
   )
 ```
 
-```{r}
-comp_df <- soy %>%
-  group_by(weed_trt) %>%
-  summarise(
-    inrow_mean    = mean(inrow_weed_biomass_kg_ha,    na.rm = TRUE),
-    interrow_mean = mean(interrow_weed_biomass_kg_ha, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  tidyr::pivot_longer(
-    cols = c(inrow_mean, interrow_mean),
-    names_to = "position",
-    values_to = "biomass"
-  ) %>%
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    position = factor(position,
-                      levels = c("inrow_mean", "interrow_mean"),
-                      labels = c("In-row", "Interrow"))
-  )
-
-ggplot(comp_df, aes(weed_trt, biomass, fill = position)) +
-  geom_col(width = 0.75, color = "black") +
-  scale_x_discrete(labels = c(
-    "Rolled, no control"          = "Rolled,\nno control",
-    "Rolled + mowing"             = "Rolled +\nmowing",
-    "Rolled + high-residue cult." = "Rolled +\nHRC",
-    "Tilled + mowing"             = "Tilled +\nmowing",
-    "Tilled + cultivation"        = "Tilled +\ncultivation"
-  )) +
- scale_fill_manual(values = c("In-row" = "#0072B2", "Interrow" = "#009E73"), name = NULL)+
-  labs(x = NULL, y = "Weed biomass (kg/ha)",
-       title = "Partitioning weed biomass into in-row and interrow components")+
-  theme_classic(base_size = 18) +   # was 16
-  theme(
-    legend.position     = "bottom",
-    plot.title.position = "plot",              # start at y-axis
-    plot.title          = element_text(hjust = 0.5,
-                                       size = 18,
-                                       face = "bold"),
-    axis.text.x         = element_text(size = 15, lineheight = 0.95),
-    plot.caption        = element_text(hjust = 0, size = 11, color = "grey30")
-  )
-
-  
-
-
-ggsave(
-  "fig-soybean-weed-biomass_partitioned_inrow-interrow_kgha.png",
-  width = 8.5, height = 5.5, dpi = 300
-)
-
-```

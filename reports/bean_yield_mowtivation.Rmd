@@ -4,225 +4,396 @@ output: github_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.path = "figs/analysis/bean_yield-"
+)
 ```
 
-# Load libraries
+#Packages/setup
+```{r setup, message=FALSE, warning=FALSE}
 
-
-```{r message=FALSE, warning=FALSE}
-#Set work directory
-setwd("/Users/ey239/Github/Mowtivation/rmarkdowns")
-
-#Load packages 
-library(tidyverse) ##install.packages("tidyverse")
-library(knitr)
-library(patchwork) ##install.packages("patchwork")
-library(skimr)     ##install.packages("skimr")
+# packages only once
+library(tidyverse)
+library(janitor)
 library(readxl)
-library(janitor) ##install.packages("janitor")
-library(kableExtra) ##install.packages("kableExtra")
-
-library(viridis) ##install.packages("viridis")
-library(lmerTest) ##install.packages("lmerTest")
-library(emmeans) ##install.packages("emmeans")
-library(rstatix) ##install.packages("rstatix")
-#library(Matrix) ##install.packages("Matrix")
-library(multcomp) ##install.packages("multcomp")
-library(multcompView) ##install.packages("multcompView")
-library(ggResidpanel) ##install.packages("ggResidpanel")
-#library(car)
-
-## For GLM modeling
-library(monet)
-library(DHARMa)
 library(glmmTMB)
-library(performance)
+library(DHARMa)
+library(emmeans)
+library(lme4)
+library(multcomp)
+library(car)
+library(kableExtra)
+library(here)##install.packages("here")
+library(conflicted)
+conflicts_prefer(dplyr::select)
+conflicts_prefer(dplyr::filter)
+
+
+# helper: tidy emmeans regardless of CI column names
+tidy_emm <- function(emm_df, ref_levels = NULL) {
+  lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+  ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+  if (is.na(lcl_col) || is.na(ucl_col)) {
+    stop("Could not find CI columns in emmeans output.")
+  }
+  out <- emm_df %>%
+    mutate(
+      ci_low  = .data[[lcl_col]],
+      ci_high = .data[[ucl_col]]
+    )
+  if (!is.null(ref_levels)) {
+    out <- out %>%
+      mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+  }
+  out
+}
+
 ```
 
-<br>
-
-# Load and clean data
-
- 
-## Load data
-``` {r}
-combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
-kable(head(combined_raw))
-
-```
-
-<br>
-
-## Clean data
+ ### 1. Data import & prep
 ```{r}
 
-
-#Standardaze column names, convert to factors, check for outliers of variable**
-clean_combined <- clean_names(combined_raw) |>  
-  rename ('weed_control'= treatment) |> 
-  mutate(across(c(weed_control, block, plot, location, year), as.factor)) 
-
-#select and convert data for wbm analysis
-  bean_yield_clean <- clean_combined |>  
-    filter(!is.na(bean_yield)) |>
-  mutate(bean_yield = as.numeric(bean_yield)) |>  # Convert beanyd to numeric
-    # Exclude rows with NA in beanyd
-  mutate(
-    bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 13)),
-    bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 13)),
-    bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 * ((100 - 0.00001) / (100 - 13))
+# 1) read + clean master
+bean_yield_clean <- readxl::read_excel(
+  here::here("data", "raw", "All Treatments", "combined_raw.xlsx")
+) |>
+  janitor::clean_names() |>
+  dplyr::rename(weed_trt = treatment) |>
+  dplyr::mutate(
+    weed_trt = dplyr::recode(
+      weed_trt,
+      "RNO" = "Rolled, no control",
+      "RIM" = "Rolled + mowing",
+      "RIC" = "Rolled + high-residue cult.",
+      "TIM" = "Tilled + mowing",
+      "TIC" = "Tilled + cultivation"
+    ),
+    # make site-year
+    site_year = interaction(year, location, drop = TRUE),
+    site_year = factor(site_year),
+    block     = factor(block)
+  ) |>
+  # optional: drop rows with missing yield (adjust if your column is named differently)
+  dplyr::filter(!is.na(bean_yield)) |>
+  # 2) add adjusted yield columns
+  dplyr::mutate(
+    bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) *
+      ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) *
+      ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 *
+      ((100 - 0.00001) / (100 - 13))
   )
-kable(head(bean_yield_clean)) 
 
-v=subset(combined_raw, (combined_raw$year==2023))
+# 3) lock in agronomic order
+mow_levels <- c(
+  "Rolled, no control",
+  "Rolled + mowing",
+  "Rolled + high-residue cult.",
+  "Tilled + mowing",
+  "Tilled + cultivation"
+)
+
+bean_yield_clean <- bean_yield_clean |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels)
+  )
+
+# 4) make the 2023 Field V subset 
+bean_yield_field_v_2023 <- bean_yield_clean |>
+  dplyr::filter(year == 2023, location == "field v") |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels)
+  )
+
+# quick check
+knitr::kable(head(bean_yield_clean), caption = "All site-years, cleaned (bean yield)")
+knitr::kable(head(bean_yield_field_v_2023), caption = "Field V only, 2023 (bean yield)")
+
 ```
+
+
 <br>
-
-
 # Model testing
-## Lmer
-Block is random
-Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
+### Exploratory: 
+####Raw by site-year
 
 ```{r}
-wb.lmerv <- lmer( weed_biomass ~ treatment+ (1|block) , data = v)
-
-yield.lmer.1 <- lmer( bean_yield_adj_kg_ha  ~ weed_control*location + (1|block)
-                      +(1|location:block) , data =  bean_yield_clean)
-
-
-
-resid_panel(yield.lmer.1)
-
-simulateResiduals(yield.lmer,plot = TRUE) # Residuals and normality look good
-check_model(yield.lmer)
-```
-
-
-<br>
-
-## Anova
-```{r}
- joint_tests(emmeans(wb.lmerv, ~ treatment))
-```
-
-
-
-<br>
-
-## Tukey means comparisons
-### Weed-control (not significant)
-
-```{r}
-tukey_weed_control <- emmeans(wb.lmerv, list(pairwise ~ treatment), adjust = "none")
-tukey_weed_control
-
-cld_weed_control_tukey <- cld(emmeans(wb.lmerv, ~ treatment), adjust = "none", Letters = letters, sort = TRUE, reversed = TRUE)
-
-cld_weed_control_tukey
-```
-<br>
-
-### Location (significant)
-
-```{r}
-tukey_location <- emmeans(yield.lmer, list(pairwise ~ location), adjust = "tukey")
-tukey_location
-
-cld_location_tukey <- cld(emmeans(yield.lmer, ~ location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
-
-cld_location_tukey
-```
-<br>
-
-###weed_control:location (not significant)
-
-```{r}
-tukey_weed_control_location <- emmeans(yield.lmer, list(pairwise ~ weed_control|location), adjust = "tukey")
-tukey_weed_control_location
-
-cld_weed_control_location_tukey <- cld(emmeans(yield.lmer, ~ weed_control|location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
-
-cld_weed_control_location_tukey
-```
-
-# Figures 
-###Bu/a
-#### weed_control:location (not significant)
-
-```{r message=FALSE, warning=FALSE}
-bean_yield_clean |> 
-  left_join(cld_weed_control_location_tukey) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = bean_yield_adj_bu_acre, fill = weed_control)) + 
-facet_wrap( ~location, labeller = labeller(
-    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
-  labs(
-    x = "",
-    y = expression(paste("Soybean yield (", bu, "/", a, " at 13% moisture)")),
-    #title = str_c("The influence of interrow weed control on soybean yield"),
-    subtitle = expression(italic("Not significant"))) +
-  
-  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
-                              "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nhigh-residue\ncultivation",
-                              "Tilled,\ninterrow\nmowing",
-                          "Tilled,\nstandard\ncultivation")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
-  theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 20),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 20),   # Increase font size of axis labels
-    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
+# table
+# 1) table
+# 1) table: bean yield by site-year × treatment
+bean_yield_clean |>
+  dplyr::group_by(site_year, weed_trt) |>
+  dplyr::summarise(
+    n      = dplyr::n(),
+    mean   = mean(bean_yield_adj_kg_ha, na.rm = TRUE),
+    median = median(bean_yield_adj_kg_ha, na.rm = TRUE),
+    sd     = sd(bean_yield_adj_kg_ha, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  dplyr::arrange(site_year, weed_trt) |>
+  knitr::kable(
+    digits  = 1,
+    caption = "Raw bean yield (kg/ha) by site-year × treatment"
   )
-ggsave("bean_yield_weed_control_location_bua.png", width = 24, height = 8, dpi = 300)
-```
 
-
-
-###Kg/hectare
-#### weed_control:location (not significant)
-
-```{r message=FALSE, warning=FALSE}
-bean_yield_clean |> 
-  left_join(cld_weed_control_location_tukey) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y =  bean_yield_adj_kg_ha, fill = weed_control)) +
-  facet_wrap( ~location, labeller = labeller(
-    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+# 2) faceted boxplot: all site-years
+ggplot(bean_yield_clean, aes(x = weed_trt, y = bean_yield_adj_kg_ha)) +
+  geom_boxplot(outlier.shape = NA, width = 0.55, color = "black") +
+  geom_jitter(width = 0.12, height = 0, alpha = 0.4, size = 1.8) +
+  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  scale_x_discrete(labels = \(x) stringr::str_replace_all(x, " ", "\n")) +
   labs(
-    x = "",
-    y = expression(paste("Soybean yield (", kg~ha^{-1}, " at 13% moisture)")),
+    x     = NULL,
+    y     = "Bean yield (kg/ha)",
+    title = "Bean yield by treatment, each site-year"
+  ) +
+  theme_classic(base_size = 14)
 
-    #title = str_c("The influence of interrow weed control on soybean yield"),
-    subtitle = expression(italic("Not significant"))) +
-  
-  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
-                              "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nhigh-residue\ncultivation",
-                              "Tilled,\ninterrow\nmowing",
-                          "Tilled,\nstandard\ncultivation")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
-  theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 20),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 20),   # Increase font size of axis labels
-    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
-  )
-ggsave("bean_yield_weed_control_location_kgha.png", width = 24, height = 8, dpi = 300)
+# 3) boxplot: 2023 – Field V only
+bean_yield_field_v_2023 |>
+  ggplot(aes(x = weed_trt, y = bean_yield_adj_kg_ha)) +
+  geom_boxplot(outlier.shape = NA, width = 0.55, color = "black") +
+  geom_jitter(width = 0.12, height = 0, alpha = 0.4, size = 1.8) +
+  scale_x_discrete(labels = \(x) stringr::str_replace_all(x, " ", "\n")) +
+  labs(
+    x     = NULL,
+    y     = "Bean yield (kg/ha)",
+    title = "Bean yield by treatment, 2023 – Field V"
+  ) +
+  theme_classic(base_size = 14)
 ```
+### Selection: 
+#### Pooled, Raw by site-year
+```{r}
+### Model testing / selection for bean yield (kg/ha)
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# interaction model: weed_trt * site_year --------------------------------
+yield_int <- lmer(
+  bean_yield_adj_kg_ha ~ weed_trt * site_year + (1 | site_year:block),
+  data = bean_yield_clean
+)
+
+# additive model: weed_trt + site_year -----------------------------------
+yield_add <- lmer(
+  bean_yield_adj_kg_ha ~ weed_trt + site_year + (1 | site_year:block),
+  data = bean_yield_clean
+)
+
+# compare models (AIC + LRT) ---------------------------------------------
+aic_yield <- tibble::tibble(
+  model = c("Additive: weed_trt + site_year",
+            "Interaction: weed_trt * site_year"),
+  AIC   = c(AIC(yield_add), AIC(yield_int))
+)
+
+knitr::kable(
+  aic_yield,
+  digits  = 1,
+  caption = "Bean yield (kg/ha): model comparison (additive vs interaction)"
+)
+
+anova(yield_add, yield_int)  # LRT: is the interaction worth keeping?
+
+# choose the simpler additive model unless the interaction is clearly needed
+yield.lmer <- yield_add
+
+# diagnostics on chosen model --------------------------------------------
+res_yield <- DHARMa::simulateResiduals(yield.lmer)
+plot(res_yield)
+DHARMa::testDispersion(yield.lmer)
+
+car::Anova(yield.lmer, type = 3)
+
+```
+
+####2023 Raw
+```{r}
+### Selection: 2023 – Field V only
+
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# Field V 2023 subset
+bean_yield_field_v_2023 <- bean_yield_clean |>
+  dplyr::filter(year == 2023, location == "field v") |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels)
+  )
+
+# 1) treatment model: yield ~ weed_trt + (1|block)
+yield_fv.lmer <- lmer(
+  bean_yield_adj_kg_ha ~ weed_trt + (1 | block),
+  data = bean_yield_field_v_2023
+)
+
+# 2) optional null model: no treatment effect
+yield_fv.null <- lmer(
+  bean_yield_adj_kg_ha ~ 1 + (1 | block),
+  data = bean_yield_field_v_2023
+)
+
+# compare models (does weed_trt help?)
+AIC(yield_fv.null, yield_fv.lmer)
+anova(yield_fv.null, yield_fv.lmer)
+
+# diagnostics on the treatment model
+res_yield_fv <- DHARMa::simulateResiduals(yield_fv.lmer)
+plot(res_yield_fv)
+DHARMa::testDispersion(yield_fv.lmer)
+
+car::Anova(yield_fv.lmer, type = 3)
+
+```
+
+### Figures
+#### Pooled
+
+```{r}
+
+
+# reuse mow_levels and fill_cols from before
+emm_trt <- emmeans(yield.lmer, ~ weed_trt)
+
+emm_trt_df <- emm_trt |>
+  as.data.frame() |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    response = emmean,
+    ymin     = pmax(response - SE, 0),
+    ymax     = response + SE
+  )
+
+cld_trt <- cld(
+  emmeans(yield.lmer, ~ weed_trt),
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as.data.frame() |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = trimws(.group)
+  )
+
+plot_df_trt <- dplyr::left_join(
+  emm_trt_df,
+  cld_trt |> dplyr::select(weed_trt, .group),
+  by = "weed_trt"
+)
+
+ggplot(plot_df_trt, aes(x = weed_trt, y = response, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust = 0, fontface = "bold", size = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = \(x) stringr::str_replace_all(x, " \\+ ", "\n+ ")) +
+  labs(
+    x = NULL,
+    y = "Bean yield (kg/ha)",
+    title = "Bean yield by weed management treatment (pooled across site-years)",
+    caption = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold")
+  )
+
+# optional save
+ggsave(
+  filename = here::here("figs", "analysis", "fig_bean_yield_mowing_raw_pooled.png"),
+  plot     = p_yield_fv,
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
+
+
+```
+####2023 
+```{r}
+
+
+# assumes:
+# - yield_fv.lmer: lmer(bean_yield_adj_kg_ha ~ weed_trt + (1|block),
+#                       data = bean_yield_field_v_2023)
+# - mow_levels and fill_cols already defined
+
+emm_fv_trt <- emmeans(yield_fv.lmer, ~ weed_trt)
+
+emm_fv_df <- emm_fv_trt |>
+  as.data.frame() |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    response = emmean,
+    ymin     = pmax(response - SE, 0),
+    ymax     = response + SE
+  )
+
+cld_fv_trt <- cld(
+  emmeans(yield_fv.lmer, ~ weed_trt),
+  adjust   = "none",      # or "tukey" if you want
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as.data.frame() |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = trimws(.group)
+  )
+
+plot_df_fv <- dplyr::left_join(
+  emm_fv_df,
+  cld_fv_trt |> dplyr::select(weed_trt, .group),
+  by = "weed_trt"
+)
+
+p_yield_fv <- ggplot(plot_df_fv,
+                     aes(x = weed_trt, y = response, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust = 0, fontface = "bold", size = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = \(x) stringr::str_replace_all(x, " \\+ ", "\n+ ")) +
+  labs(
+    x = NULL,
+    y = "Bean yield (kg/ha)",
+    title = "Bean yield by weed management – 2023, Field V",
+    caption = "Model-based means ± SE; letters = CLD for treatment within Field V 2023."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold")
+  )
+
+p_yield_fv
+
+# optional save
+ggsave(
+  filename = here::here("figs", "analysis", "fig_bean_yield_mowing_raw_2023.png"),
+  plot     = p_yield_fv,
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
+
+```
+
+
