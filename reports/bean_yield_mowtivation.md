@@ -1,488 +1,2592 @@
-Bean Yield
+Soybean eield
 ================
 
-# Load libraries
+- [Data import & prep](#data-import--prep)
+- [Model testing](#model-testing)
+  - [Exploratory:](#exploratory)
+  - [Selection:](#selection)
+  - [Post-hoc summary table](#post-hoc-summary-table)
+  - [ANOVA-style summary tables for bean
+    yield](#anova-style-summary-tables-for-bean-yield)
+  - [Figures](#figures)
+
+\#Setup
+
+\#Packages
 
 ``` r
-#Set work directory
-setwd("/Users/ey239/Github/Mowtivation/rmarkdowns")
-
-#Load packages 
-library(tidyverse) ##install.packages("tidyverse")
-library(knitr)
-library(patchwork) ##install.packages("patchwork")
-library(skimr)     ##install.packages("skimr")
+# Packages
+library(tidyverse) # includes dplyr, ggplot2, readr, tibble, etc.
+library(janitor)
 library(readxl)
-library(janitor) ##install.packages("janitor")
-library(kableExtra) ##install.packages("kableExtra")
-library(webshot) ##install.packages("webshot")
-webshot::install_phantomjs()
-library(viridis) ##install.packages("viridis")
-library(lmerTest) ##install.packages("lmerTest")
-library(emmeans) ##install.packages("emmeans")
-library(rstatix) ##install.packages("rstatix")
-#library(Matrix) ##install.packages("Matrix")
-library(multcomp) ##install.packages("multcomp")
-library(multcompView) ##install.packages("multcompView")
-library(ggResidpanel) ##install.packages("ggResidpanel")
-#library(car)
-#library(TMB)  ##install.packages("TMB")
-#library(glmmTMB)  ##install.packages("glmmTMB")
-library(DHARMa)  ##install.packages("DHARMa")
-library(performance) ##install.packages("performance")
-#Load Functions
-MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
+library(glmmTMB)
+library(DHARMa)
+library(emmeans)
+library(multcomp)
+library(car)
+library(kableExtra)
+library(here)
+library(conflicted)
+library(lme4)
 
-find_logw0=function(x){c=trunc(log(min(x[x>0],na.rm=T)))
-d=exp(c)
-return(d)}
+# Handle conflicts
+conflicts_prefer(dplyr::select)
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(dplyr::recode)
+
+# Treatment level order (use everywhere)
+mow_levels <- c(
+"Rolled, no control",
+"Rolled + mowing",
+"Rolled + high-residue cult.",
+"Tilled + mowing",
+"Tilled + cultivation"
+)
+
+# One consistent color palette for all figures
+
+fill_cols <- c(
+"Rolled, no control" = "#0072B2", # blue
+"Rolled + mowing" = "#009E73", # green
+"Rolled + high-residue cult." = "#F0E442", # yellow
+"Tilled + mowing" = "#D55E00", # reddish
+"Tilled + cultivation" = "#CC79A7" # magenta
+)
+
+#x-axis label helpers
+
+label_break_spaces <- function(x) {
+  stringr::str_replace_all(x, " ", "\n")
+}
+
+label_break_plus <- function(x) {
+  stringr::str_replace_all(x, " \\+ ", "\n+ ")
+}
+
+
+#Helper: tidy emmeans output regardless of CI column names
+#(works directly on an emmeans object)
+
+tidy_emm <- function(emm, ref_levels = NULL) {
+emm_df <- as.data.frame(emm)
+
+lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+
+if (is.na(lcl_col) || is.na(ucl_col)) {
+stop("Could not find CI columns in emmeans output.")
+}
+
+out <- emm_df |>
+mutate(
+ci_low = .data[[lcl_col]],
+ci_high = .data[[ucl_col]]
+)
+
+if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
+out <- out |>
+mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+}
+
+out
+}
 ```
 
-<br>
-
-# Load and clean data
-
-## Load data
+# Data import & prep
 
 ``` r
-combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
-kable(head(combined_raw))
-```
-
-| id | location | year | treatment | block | plot | bean_emergence | bean_biomass | intrarow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight |
-|:---|:---|---:|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| CU_B1_P101 | field v | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 |
-| CU_B1_P102 | field v | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 |
-| CU_B1_P103 | field v | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 |
-| CU_B1_P104 | field v | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35.0 | 412.59 | 16.1450 |
-| CU_B1_P105 | field v | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 |
-| CU_B1_P201 | field v | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 |
-
-<br>
-
-## Clean data
-
-``` r
-#Standardaze column names, convert to factors, check for outliers of variable**
-clean_combined <- clean_names(combined_raw) |>  
-  rename ('weed_control'= treatment) |> 
-  mutate(across(c(weed_control, block, plot, location, year), as.factor)) 
-
-#select and convert data for wbm analysis
-  bean_yield_clean <- clean_combined |>  
-    filter(!is.na(bean_yield)) |>
-  mutate(bean_yield = as.numeric(bean_yield)) |>  # Convert beanyd to numeric
-    # Exclude rows with NA in beanyd
+bean_yield_clean <- read_excel(
+  here("data", "raw", "All Treatments", "combined_raw.xlsx")
+) |>
+  clean_names() |>
+  rename(weed_trt = treatment) |>
   mutate(
-    bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 13)),
-    bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 13)),
-    bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 * ((100 - 0.00001) / (100 - 13))
+    year      = factor(year),
+    location  = factor(location),
+    site_year = factor(interaction(year, location, drop = TRUE)),
+    block     = factor(block),
+    weed_trt  = recode(
+      weed_trt,
+      "RNO" = "Rolled, no control",
+      "RIM" = "Rolled + mowing",
+      "RIC" = "Rolled + high-residue cult.",
+      "TIM" = "Tilled + mowing",
+      "TIC" = "Tilled + cultivation"
+    ),
+    weed_trt = factor(weed_trt, levels = mow_levels)
+  ) |>
+  # keep only rows with non-missing yield
+  filter(!is.na(bean_yield)) |>
+  # add adjusted yield columns (no adjusted emergence here)
+  mutate(
+    bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) *
+      ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) *
+      ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 *
+      ((100 - 0.00001) / (100 - 13))
   )
-kable(head(bean_yield_clean)) 
+
+# convenience aliases for plotting / modeling
+bean_yield_clean <- bean_yield_clean |>
+  mutate(
+    bean_yield_kg_ha   = bean_yield_adj_kg_ha,
+    bean_yield_bu_acre = bean_yield_adj_bu_acre
+  )
+
+# 2023 Field V subset (for the boxplot later)
+bean_yield_field_v_2023 <- bean_yield_clean |>
+  filter(year == 2023, location == "field v")
+
+# Quick check
+kable(
+  head(bean_yield_clean),
+  caption = "All site-years, cleaned (bean yield)"
+)
 ```
 
-| id | location | year | weed_control | block | plot | bean_emergence | bean_biomass | intrarow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight | bean_yield_adj_bu_acre | bean_yield_adj_lbs_acre | bean_yield_adj_kg_ha |
-|:---|:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| CU_B1_P101 | field v | 2023 | TIM | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 46.75977 | 2805.586 | 3144.641 |
-| CU_B1_P102 | field v | 2023 | TIC | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 63.38419 | 3803.051 | 4262.650 |
-| CU_B1_P103 | field v | 2023 | RIM | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 50.42694 | 3025.616 | 3391.262 |
-| CU_B1_P104 | field v | 2023 | RNO | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35.0 | 412.59 | 16.1450 | 46.24197 | 2774.518 | 3109.819 |
-| CU_B1_P105 | field v | 2023 | RIC | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 53.10110 | 3186.066 | 3571.102 |
-| CU_B1_P201 | field v | 2023 | RIC | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 54.24989 | 3254.994 | 3648.359 |
+| id | location | year | weed_trt | block | plot | bean_emergence | bean_biomass | inrow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight | site_year | bean_yield_adj_bu_acre | bean_yield_adj_lbs_acre | bean_yield_adj_kg_ha | bean_yield_kg_ha | bean_yield_bu_acre |
+|:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---|---:|---:|---:|---:|---:|
+| CU_B1_P101 | field v | 2023 | Tilled + mowing | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 2023.field v | 46.75977 | 2805.586 | 3144.641 | 3144.641 | 46.75977 |
+| CU_B1_P102 | field v | 2023 | Tilled + cultivation | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 2023.field v | 63.38419 | 3803.051 | 4262.650 | 4262.650 | 63.38419 |
+| CU_B1_P103 | field v | 2023 | Rolled + mowing | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 2023.field v | 50.42694 | 3025.616 | 3391.262 | 3391.262 | 50.42694 |
+| CU_B1_P104 | field v | 2023 | Rolled, no control | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35.0 | 412.59 | 16.1450 | 2023.field v | 46.24197 | 2774.518 | 3109.819 | 3109.819 | 46.24197 |
+| CU_B1_P105 | field v | 2023 | Rolled + high-residue cult. | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 2023.field v | 53.10110 | 3186.066 | 3571.102 | 3571.102 | 53.10110 |
+| CU_B1_P201 | field v | 2023 | Rolled + high-residue cult. | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 2023.field v | 54.24989 | 3254.994 | 3648.359 | 3648.359 | 54.24989 |
+
+All site-years, cleaned (bean yield)
 
 <br>
 
 # Model testing
 
-## Lmer
+### Exploratory:
 
-Block is random Tyler is under the impression that block should always
-be random and that post-hoc comparisons should use TUKEY rather the
-Fischer. Fisher is bogus apparently.
+\####Raw by site-year
 
 ``` r
-yield.lmer <- lmer( bean_yield_adj_kg_ha  ~ weed_control*location + (1|location:block) , data =  bean_yield_clean)
-
-
-
-resid_panel(yield.lmer)
+# 1) Summary table: bean yield by site-year × treatment
+bean_yield_clean |>
+  group_by(site_year, weed_trt) |>
+  summarise(
+    n      = n(),
+    mean   = mean(bean_yield_kg_ha, na.rm = TRUE),
+    median = median(bean_yield_kg_ha, na.rm = TRUE),
+    sd     = sd(bean_yield_kg_ha, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(site_year, weed_trt) |>
+  kable(
+    digits  = 1,
+    caption = "Bean yield (kg/ha) by site-year × treatment"
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
 
-![](bean_yield_mowtivation_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+
+<caption>
+
+Bean yield (kg/ha) by site-year × treatment
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+site_year
+</th>
+
+<th style="text-align:left;">
+
+weed_trt
+</th>
+
+<th style="text-align:right;">
+
+n
+</th>
+
+<th style="text-align:right;">
+
+mean
+</th>
+
+<th style="text-align:right;">
+
+median
+</th>
+
+<th style="text-align:right;">
+
+sd
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 east
+</td>
+
+<td style="text-align:left;">
+
+Rolled, no control
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+5091.5
+</td>
+
+<td style="text-align:right;">
+
+5095.2
+</td>
+
+<td style="text-align:right;">
+
+101.0
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 east
+</td>
+
+<td style="text-align:left;">
+
+Rolled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+5001.0
+</td>
+
+<td style="text-align:right;">
+
+5004.8
+</td>
+
+<td style="text-align:right;">
+
+341.4
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 east
+</td>
+
+<td style="text-align:left;">
+
+Rolled + high-residue cult.
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+5170.6
+</td>
+
+<td style="text-align:right;">
+
+5230.9
+</td>
+
+<td style="text-align:right;">
+
+329.6
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 east
+</td>
+
+<td style="text-align:left;">
+
+Tilled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+4808.8
+</td>
+
+<td style="text-align:right;">
+
+4891.7
+</td>
+
+<td style="text-align:right;">
+
+606.1
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 east
+</td>
+
+<td style="text-align:left;">
+
+Tilled + cultivation
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+4763.6
+</td>
+
+<td style="text-align:right;">
+
+5050.0
+</td>
+
+<td style="text-align:right;">
+
+678.9
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 west
+</td>
+
+<td style="text-align:left;">
+
+Rolled, no control
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+4582.7
+</td>
+
+<td style="text-align:right;">
+
+4612.8
+</td>
+
+<td style="text-align:right;">
+
+381.6
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 west
+</td>
+
+<td style="text-align:left;">
+
+Rolled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+4667.5
+</td>
+
+<td style="text-align:right;">
+
+4692.0
+</td>
+
+<td style="text-align:right;">
+
+218.7
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 west
+</td>
+
+<td style="text-align:left;">
+
+Rolled + high-residue cult.
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+4710.8
+</td>
+
+<td style="text-align:right;">
+
+4876.6
+</td>
+
+<td style="text-align:right;">
+
+486.8
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 west
+</td>
+
+<td style="text-align:left;">
+
+Tilled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+4718.4
+</td>
+
+<td style="text-align:right;">
+
+4733.4
+</td>
+
+<td style="text-align:right;">
+
+243.1
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 west
+</td>
+
+<td style="text-align:left;">
+
+Tilled + cultivation
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+5287.4
+</td>
+
+<td style="text-align:right;">
+
+5102.8
+</td>
+
+<td style="text-align:right;">
+
+447.9
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2023.field v
+</td>
+
+<td style="text-align:left;">
+
+Rolled, no control
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+3737.1
+</td>
+
+<td style="text-align:right;">
+
+3821.1
+</td>
+
+<td style="text-align:right;">
+
+546.9
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2023.field v
+</td>
+
+<td style="text-align:left;">
+
+Rolled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+4114.7
+</td>
+
+<td style="text-align:right;">
+
+3948.2
+</td>
+
+<td style="text-align:right;">
+
+768.5
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2023.field v
+</td>
+
+<td style="text-align:left;">
+
+Rolled + high-residue cult.
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+3823.5
+</td>
+
+<td style="text-align:right;">
+
+3692.0
+</td>
+
+<td style="text-align:right;">
+
+350.2
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2023.field v
+</td>
+
+<td style="text-align:left;">
+
+Tilled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+3421.2
+</td>
+
+<td style="text-align:right;">
+
+3441.0
+</td>
+
+<td style="text-align:right;">
+
+251.7
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2023.field v
+</td>
+
+<td style="text-align:left;">
+
+Tilled + cultivation
+</td>
+
+<td style="text-align:right;">
+
+4
+</td>
+
+<td style="text-align:right;">
+
+3990.0
+</td>
+
+<td style="text-align:right;">
+
+3967.1
+</td>
+
+<td style="text-align:right;">
+
+397.4
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
 
 ``` r
-simulateResiduals(yield.lmer,plot = TRUE) # Residuals and normality look good
-```
-
-![](bean_yield_mowtivation_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
-
-    ## Object of Class DHARMa with simulated residuals based on 250 simulations with refit = FALSE . See ?DHARMa::simulateResiduals for help. 
-    ##  
-    ## Scaled residual values: 0.264 0.736 0.028 0.112 0.3 0.324 0.828 0.196 0.812 0.736 0.64 0.208 0.448 0.976 0.86 0.872 0.24 0.52 0.196 0.376 ...
-
-``` r
-check_model(yield.lmer)
-```
-
-![](bean_yield_mowtivation_files/figure-gfm/unnamed-chunk-4-3.png)<!-- -->
-
-<br>
-
-## Anova
-
-``` r
- joint_tests(emmeans(yield.lmer, ~ weed_control * location))
-```
-
-    ##  model term            df1 df2 F.ratio p.value
-    ##  weed_control            4  36   1.205  0.3256
-    ##  location                2   9  34.191  0.0001
-    ##  weed_control:location   8  36   1.273  0.2882
-
-<br>
-
-## Tukey means comparisons
-
-### Weed-control (not significant)
-
-``` r
-tukey_weed_control <- emmeans(yield.lmer, list(pairwise ~ weed_control), adjust = "tukey")
-```
-
-    ## NOTE: Results may be misleading due to involvement in interactions
-
-``` r
-tukey_weed_control
-```
-
-    ## $`emmeans of weed_control`
-    ##  weed_control emmean  SE   df lower.CL upper.CL
-    ##  RIC            4568 129 44.8     4309     4828
-    ##  RIM            4594 129 44.8     4335     4854
-    ##  RNO            4470 129 44.8     4211     4730
-    ##  TIC            4680 129 44.8     4421     4940
-    ##  TIM            4316 129 44.8     4057     4576
-    ## 
-    ## Results are averaged over the levels of: location 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## Confidence level used: 0.95 
-    ## 
-    ## $`pairwise differences of weed_control`
-    ##  1         estimate  SE df t.ratio p.value
-    ##  RIC - RIM    -26.1 179 36  -0.145  0.9999
-    ##  RIC - RNO     97.9 179 36   0.546  0.9817
-    ##  RIC - TIC   -112.0 179 36  -0.625  0.9701
-    ##  RIC - TIM    252.2 179 36   1.407  0.6273
-    ##  RIM - RNO    124.0 179 36   0.692  0.9570
-    ##  RIM - TIC    -85.9 179 36  -0.479  0.9888
-    ##  RIM - TIM    278.3 179 36   1.552  0.5365
-    ##  RNO - TIC   -209.9 179 36  -1.171  0.7675
-    ##  RNO - TIM    154.3 179 36   0.861  0.9092
-    ##  TIC - TIM    364.2 179 36   2.032  0.2719
-    ## 
-    ## Results are averaged over the levels of: location 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## P value adjustment: tukey method for comparing a family of 5 estimates
-
-``` r
-cld_weed_control_tukey <- cld(emmeans(yield.lmer, ~ weed_control), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
-```
-
-    ## NOTE: Results may be misleading due to involvement in interactions
-
-    ## Note: adjust = "tukey" was changed to "sidak"
-    ## because "tukey" is only appropriate for one set of pairwise comparisons
-
-``` r
-cld_weed_control_tukey
-```
-
-    ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  TIC            4680 129 44.8     4335     5026  a    
-    ##  RIM            4594 129 44.8     4249     4940  a    
-    ##  RIC            4568 129 44.8     4223     4914  a    
-    ##  RNO            4470 129 44.8     4125     4816  a    
-    ##  TIM            4316 129 44.8     3971     4662  a    
-    ## 
-    ## Results are averaged over the levels of: location 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## Confidence level used: 0.95 
-    ## Conf-level adjustment: sidak method for 5 estimates 
-    ## P value adjustment: tukey method for comparing a family of 5 estimates 
-    ## significance level used: alpha = 0.05 
-    ## NOTE: If two or more means share the same grouping symbol,
-    ##       then we cannot show them to be different.
-    ##       But we also did not show them to be the same.
-
-<br>
-
-### Location (significant)
-
-``` r
-tukey_location <- emmeans(yield.lmer, list(pairwise ~ location), adjust = "tukey")
-```
-
-    ## NOTE: Results may be misleading due to involvement in interactions
-
-``` r
-tukey_location
-```
-
-    ## $`emmeans of location`
-    ##  location      emmean  SE df lower.CL upper.CL
-    ##  field O2 east   4967 106  9     4727     5207
-    ##  field O2 west   4793 106  9     4554     5033
-    ##  field v         3817 106  9     3578     4057
-    ## 
-    ## Results are averaged over the levels of: weed_control 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## Confidence level used: 0.95 
-    ## 
-    ## $`pairwise differences of location`
-    ##  1                             estimate  SE df t.ratio p.value
-    ##  field O2 east - field O2 west      174 150  9   1.159  0.5047
-    ##  field O2 east - field v           1150 150  9   7.670  0.0001
-    ##  field O2 west - field v            976 150  9   6.511  0.0003
-    ## 
-    ## Results are averaged over the levels of: weed_control 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## P value adjustment: tukey method for comparing a family of 3 estimates
-
-``` r
-cld_location_tukey <- cld(emmeans(yield.lmer, ~ location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
-```
-
-    ## NOTE: Results may be misleading due to involvement in interactions
-
-    ## Note: adjust = "tukey" was changed to "sidak"
-    ## because "tukey" is only appropriate for one set of pairwise comparisons
-
-``` r
-cld_location_tukey
-```
-
-    ##  location      emmean  SE df lower.CL upper.CL .group
-    ##  field O2 east   4967 106  9     4657     5277  a    
-    ##  field O2 west   4793 106  9     4484     5103  a    
-    ##  field v         3817 106  9     3507     4127   b   
-    ## 
-    ## Results are averaged over the levels of: weed_control 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## Confidence level used: 0.95 
-    ## Conf-level adjustment: sidak method for 3 estimates 
-    ## P value adjustment: tukey method for comparing a family of 3 estimates 
-    ## significance level used: alpha = 0.05 
-    ## NOTE: If two or more means share the same grouping symbol,
-    ##       then we cannot show them to be different.
-    ##       But we also did not show them to be the same.
-
-<br>
-
-\###weed_control:location (not significant)
-
-``` r
-tukey_weed_control_location <- emmeans(yield.lmer, list(pairwise ~ weed_control|location), adjust = "tukey")
-tukey_weed_control_location
-```
-
-    ## $`emmeans of weed_control | location`
-    ## location = field O2 east:
-    ##  weed_control emmean  SE   df lower.CL upper.CL
-    ##  RIC            5171 223 44.8     4721     5620
-    ##  RIM            5001 223 44.8     4552     5450
-    ##  RNO            5091 223 44.8     4642     5541
-    ##  TIC            4764 223 44.8     4314     5213
-    ##  TIM            4809 223 44.8     4359     5258
-    ## 
-    ## location = field O2 west:
-    ##  weed_control emmean  SE   df lower.CL upper.CL
-    ##  RIC            4711 223 44.8     4261     5160
-    ##  RIM            4667 223 44.8     4218     5117
-    ##  RNO            4583 223 44.8     4133     5032
-    ##  TIC            5287 223 44.8     4838     5737
-    ##  TIM            4718 223 44.8     4269     5168
-    ## 
-    ## location = field v:
-    ##  weed_control emmean  SE   df lower.CL upper.CL
-    ##  RIC            3824 223 44.8     3374     4273
-    ##  RIM            4115 223 44.8     3665     4564
-    ##  RNO            3737 223 44.8     3288     4187
-    ##  TIC            3990 223 44.8     3541     4439
-    ##  TIM            3421 223 44.8     2972     3871
-    ## 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## Confidence level used: 0.95 
-    ## 
-    ## $`pairwise differences of weed_control | location`
-    ## location = field O2 east:
-    ##  2         estimate  SE df t.ratio p.value
-    ##  RIC - RIM   169.59 310 36   0.546  0.9817
-    ##  RIC - RNO    79.14 310 36   0.255  0.9990
-    ##  RIC - TIC   407.01 310 36   1.311  0.6862
-    ##  RIC - TIM   361.79 310 36   1.165  0.7706
-    ##  RIM - RNO   -90.45 310 36  -0.291  0.9984
-    ##  RIM - TIC   237.43 310 36   0.765  0.9390
-    ##  RIM - TIM   192.20 310 36   0.619  0.9711
-    ##  RNO - TIC   327.87 310 36   1.056  0.8273
-    ##  RNO - TIM   282.65 310 36   0.910  0.8910
-    ##  TIC - TIM   -45.22 310 36  -0.146  0.9999
-    ## 
-    ## location = field O2 west:
-    ##  2         estimate  SE df t.ratio p.value
-    ##  RIC - RIM    43.34 310 36   0.140  0.9999
-    ##  RIC - RNO   128.13 310 36   0.413  0.9936
-    ##  RIC - TIC  -576.60 310 36  -1.857  0.3581
-    ##  RIC - TIM    -7.54 310 36  -0.024  1.0000
-    ##  RIM - RNO    84.79 310 36   0.273  0.9987
-    ##  RIM - TIC  -619.94 310 36  -1.997  0.2880
-    ##  RIM - TIM   -50.88 310 36  -0.164  0.9998
-    ##  RNO - TIC  -704.74 310 36  -2.270  0.1782
-    ##  RNO - TIM  -135.67 310 36  -0.437  0.9921
-    ##  TIC - TIM   569.07 310 36   1.833  0.3712
-    ## 
-    ## location = field v:
-    ##  2         estimate  SE df t.ratio p.value
-    ##  RIC - RIM  -291.17 310 36  -0.938  0.8802
-    ##  RIC - RNO    86.40 310 36   0.278  0.9986
-    ##  RIC - TIC  -166.46 310 36  -0.536  0.9829
-    ##  RIC - TIM   402.29 310 36   1.296  0.6954
-    ##  RIM - RNO   377.56 310 36   1.216  0.7421
-    ##  RIM - TIC   124.70 310 36   0.402  0.9943
-    ##  RIM - TIM   693.45 310 36   2.234  0.1907
-    ##  RNO - TIC  -252.86 310 36  -0.814  0.9245
-    ##  RNO - TIM   315.89 310 36   1.017  0.8456
-    ##  TIC - TIM   568.75 310 36   1.832  0.3717
-    ## 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## P value adjustment: tukey method for comparing a family of 5 estimates
-
-``` r
-cld_weed_control_location_tukey <- cld(emmeans(yield.lmer, ~ weed_control|location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
-```
-
-    ## Note: adjust = "tukey" was changed to "sidak"
-    ## because "tukey" is only appropriate for one set of pairwise comparisons
-
-``` r
-cld_weed_control_location_tukey
-```
-
-    ## location = field O2 east:
-    ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  RIC            5171 223 44.8     4572     5769  a    
-    ##  RNO            5091 223 44.8     4493     5690  a    
-    ##  RIM            5001 223 44.8     4403     5599  a    
-    ##  TIM            4809 223 44.8     4210     5407  a    
-    ##  TIC            4764 223 44.8     4165     5362  a    
-    ## 
-    ## location = field O2 west:
-    ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  TIC            5287 223 44.8     4689     5886  a    
-    ##  TIM            4718 223 44.8     4120     5317  a    
-    ##  RIC            4711 223 44.8     4112     5309  a    
-    ##  RIM            4667 223 44.8     4069     5266  a    
-    ##  RNO            4583 223 44.8     3984     5181  a    
-    ## 
-    ## location = field v:
-    ##  weed_control emmean  SE   df lower.CL upper.CL .group
-    ##  RIM            4115 223 44.8     3516     4713  a    
-    ##  TIC            3990 223 44.8     3391     4588  a    
-    ##  RIC            3824 223 44.8     3225     4422  a    
-    ##  RNO            3737 223 44.8     3139     4336  a    
-    ##  TIM            3421 223 44.8     2823     4020  a    
-    ## 
-    ## Degrees-of-freedom method: kenward-roger 
-    ## Confidence level used: 0.95 
-    ## Conf-level adjustment: sidak method for 5 estimates 
-    ## P value adjustment: tukey method for comparing a family of 5 estimates 
-    ## significance level used: alpha = 0.05 
-    ## NOTE: If two or more means share the same grouping symbol,
-    ##       then we cannot show them to be different.
-    ##       But we also did not show them to be the same.
-
-# Figures
-
-\###Bu/a \#### weed_control:location (not significant)
-
-``` r
-bean_yield_clean |> 
-  left_join(cld_weed_control_location_tukey) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = bean_yield_adj_bu_acre, fill = weed_control)) + 
-facet_wrap( ~location, labeller = labeller(
-    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+# 2) Faceted boxplot: all site-years
+bean_yield_clean |>
+  ggplot(aes(x = weed_trt, y = bean_yield_kg_ha, fill = weed_trt)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    width  = 0.55,
+    color  = "black"
+  ) +
+  geom_jitter(
+    width  = 0.12,
+    height = 0,
+    alpha  = 0.4,
+    size   = 1.8,
+    color  = "grey30"
+  ) +
+  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
   labs(
-    x = "",
-    y = expression(paste("Soybean yield (", bu, "/", a, " at 13% moisture)")),
-    #title = str_c("The influence of interrow weed control on soybean yield"),
-    subtitle = expression(italic("Not significant"))) +
-  
-  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
-                              "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nhigh-residue\ncultivation",
-                              "Tilled,\ninterrow\nmowing",
-                          "Tilled,\nstandard\ncultivation")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
+    x     = NULL,
+    y     = "Bean yield (kg/ha)",
+    title = "Bean yield by treatment across site-years"
+  ) +
+  theme_classic(base_size = 14) +
   theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 20),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 20),   # Increase font size of axis labels
-    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
+    axis.text.x = element_text(size = 10),
+    strip.text  = element_text(face = "bold")
   )
 ```
 
-![](bean_yield_mowtivation_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](figs/analysis/bean_yield-unnamed-chunk-3-1.png)<!-- -->
 
 ``` r
-ggsave("bean_yield_weed_control_location_bua.png", width = 24, height = 8, dpi = 300)
-```
-
-\###Kg/hectare \#### weed_control:location (not significant)
-
-``` r
-bean_yield_clean |> 
-  left_join(cld_weed_control_location_tukey) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y =  bean_yield_adj_kg_ha, fill = weed_control)) +
-  facet_wrap( ~location, labeller = labeller(
-    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+# 3) Boxplot: 2023 – Field V only
+bean_yield_field_v_2023 |>
+  ggplot(aes(x = weed_trt, y = bean_yield_kg_ha, fill = weed_trt)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    width  = 0.55,
+    color  = "black"
+  ) +
+  geom_jitter(
+    width  = 0.12,
+    height = 0,
+    alpha  = 0.4,
+    size   = 1.8,
+    color  = "grey30"
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
   labs(
-    x = "",
-    y = expression(paste("Soybean yield (", kg~ha^{-1}, " at 13% moisture)")),
-
-    #title = str_c("The influence of interrow weed control on soybean yield"),
-    subtitle = expression(italic("Not significant"))) +
-  
-  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
-                              "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nhigh-residue\ncultivation",
-                              "Tilled,\ninterrow\nmowing",
-                          "Tilled,\nstandard\ncultivation")) +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.3))) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
+    x     = NULL,
+    y     = "Bean yield (kg/ha)",
+    title = "Bean yield by treatment, 2023 – Field V"
+  ) +
+  theme_classic(base_size = 14) +
   theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 20),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 20),   # Increase font size of axis labels
-    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
+    axis.text.x = element_text(size = 10)
   )
 ```
 
-![](bean_yield_mowtivation_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+![](figs/analysis/bean_yield-unnamed-chunk-3-2.png)<!-- -->
+
+### Selection:
+
+#### Pooled, Raw by site-year
 
 ``` r
-ggsave("bean_yield_weed_control_location_kgha.png", width = 24, height = 8, dpi = 300)
+### Model testing / selection for bean yield (kg/ha)
+
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# Interaction model: weed_trt * site_year --------------------------------
+yield_int <- lmer(
+  bean_yield_kg_ha ~ weed_trt * site_year + (1 | site_year:block),
+  data = bean_yield_clean
+)
+
+# Additive model: weed_trt + site_year -----------------------------------
+yield_add <- lmer(
+  bean_yield_kg_ha ~ weed_trt + site_year + (1 | site_year:block),
+  data = bean_yield_clean
+)
+
+# Compare models (AIC + LRT) ---------------------------------------------
+aic_yield <- tibble(
+  model = c(
+    "Additive: weed_trt + site_year",
+    "Interaction: weed_trt * site_year"
+  ),
+  AIC = c(AIC(yield_add), AIC(yield_int))
+)
+
+kable(
+  aic_yield,
+  digits  = 1,
+  caption = "Bean yield (kg/ha): model comparison (additive vs interaction)"
+)
+```
+
+| model                              |   AIC |
+|:-----------------------------------|------:|
+| Additive: weed_trt + site_year     | 839.6 |
+| Interaction: weed_trt \* site_year | 752.1 |
+
+Bean yield (kg/ha): model comparison (additive vs interaction)
+
+``` r
+anova(yield_add, yield_int)  # LRT: is the interaction worth keeping?
+```
+
+    ## Data: bean_yield_clean
+    ## Models:
+    ## yield_add: bean_yield_kg_ha ~ weed_trt + site_year + (1 | site_year:block)
+    ## yield_int: bean_yield_kg_ha ~ weed_trt * site_year + (1 | site_year:block)
+    ##           npar    AIC    BIC logLik -2*log(L)  Chisq Df Pr(>Chisq)
+    ## yield_add    9 915.00 933.85 -448.5    897.00                     
+    ## yield_int   17 919.01 954.61 -442.5    885.01 11.997  8     0.1514
+
+``` r
+# Choose simpler additive model unless interaction is clearly needed -----
+# (this is the model used in all downstream emmeans/plots)
+yield.lmer <- yield_add
+
+# Diagnostics on chosen model --------------------------------------------
+set.seed(123)
+res_yield <- DHARMa::simulateResiduals(yield.lmer)
+plot(res_yield)
+```
+
+![](figs/analysis/bean_yield-unnamed-chunk-4-1.png)<!-- -->
+
+``` r
+DHARMa::testDispersion(yield.lmer)
+```
+
+![](figs/analysis/bean_yield-unnamed-chunk-4-2.png)<!-- -->
+
+    ## 
+    ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
+    ##  simulated
+    ## 
+    ## data:  simulationOutput
+    ## dispersion = 0.89112, p-value = 0.528
+    ## alternative hypothesis: two.sided
+
+``` r
+car::Anova(yield.lmer, type = 3)
+```
+
+    ## Analysis of Deviance Table (Type III Wald chisquare tests)
+    ## 
+    ## Response: bean_yield_kg_ha
+    ##                 Chisq Df Pr(>Chisq)    
+    ## (Intercept) 5469.5514  1  < 2.2e-16 ***
+    ## weed_trt       4.5918  4     0.3318    
+    ## site_year     68.3827  2  1.415e-15 ***
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+``` r
+### Model testing / selection for bean yield (kg/ha)
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# interaction model: weed_trt * site_year --------------------------------
+yield_int <- lmer(
+  bean_yield_adj_kg_ha ~ weed_trt * site_year + (1 | site_year:block),
+  data = bean_yield_clean
+)
+
+# additive model: weed_trt + site_year -----------------------------------
+yield_add <- lmer(
+  bean_yield_adj_kg_ha ~ weed_trt + site_year + (1 | site_year:block),
+  data = bean_yield_clean
+)
+
+# compare models (AIC + LRT) ---------------------------------------------
+aic_yield <- tibble::tibble(
+  model = c("Additive: weed_trt + site_year",
+            "Interaction: weed_trt * site_year"),
+  AIC   = c(AIC(yield_add), AIC(yield_int))
+)
+
+knitr::kable(
+  aic_yield,
+  digits  = 1,
+  caption = "Bean yield (kg/ha): model comparison (additive vs interaction)"
+)
+```
+
+| model                              |   AIC |
+|:-----------------------------------|------:|
+| Additive: weed_trt + site_year     | 839.6 |
+| Interaction: weed_trt \* site_year | 752.1 |
+
+Bean yield (kg/ha): model comparison (additive vs interaction)
+
+``` r
+anova(yield_add, yield_int)  # LRT: is the interaction worth keeping?
+```
+
+    ## Data: bean_yield_clean
+    ## Models:
+    ## yield_add: bean_yield_adj_kg_ha ~ weed_trt + site_year + (1 | site_year:block)
+    ## yield_int: bean_yield_adj_kg_ha ~ weed_trt * site_year + (1 | site_year:block)
+    ##           npar    AIC    BIC logLik -2*log(L)  Chisq Df Pr(>Chisq)
+    ## yield_add    9 915.00 933.85 -448.5    897.00                     
+    ## yield_int   17 919.01 954.61 -442.5    885.01 11.997  8     0.1514
+
+``` r
+# choose the simpler additive model unless the interaction is clearly needed
+yield.lmer <- yield_add
+
+# diagnostics on chosen model --------------------------------------------
+res_yield <- DHARMa::simulateResiduals(yield.lmer)
+plot(res_yield)
+```
+
+![](figs/analysis/bean_yield-unnamed-chunk-5-1.png)<!-- -->
+
+``` r
+DHARMa::testDispersion(yield.lmer)
+```
+
+![](figs/analysis/bean_yield-unnamed-chunk-5-2.png)<!-- -->
+
+    ## 
+    ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
+    ##  simulated
+    ## 
+    ## data:  simulationOutput
+    ## dispersion = 0.89112, p-value = 0.528
+    ## alternative hypothesis: two.sided
+
+``` r
+car::Anova(yield.lmer, type = 3)
+```
+
+    ## Analysis of Deviance Table (Type III Wald chisquare tests)
+    ## 
+    ## Response: bean_yield_adj_kg_ha
+    ##                 Chisq Df Pr(>Chisq)    
+    ## (Intercept) 5469.5514  1  < 2.2e-16 ***
+    ## weed_trt       4.5918  4     0.3318    
+    ## site_year     68.3827  2  1.415e-15 ***
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+### Post-hoc summary table
+
+``` r
+### Bean yield (kg/ha) with Fisher's LSD CLDs
+
+# Estimated marginal means for weed_trt
+emm_yield <- emmeans(yield.lmer, ~ weed_trt)
+
+# Tidy emmeans (adds ci_low / ci_high and enforces treatment order)
+emm_yield_df <- tidy_emm(emm_yield, ref_levels = mow_levels) |>
+  as_tibble()
+
+# Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
+cld_yield <- cld(
+  emm_yield,
+  adjust  = "none",
+  Letters = letters,
+  sort    = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# Join emmeans + CLDs and format for reporting
+emm_yield_df |>
+  left_join(cld_yield, by = "weed_trt") |>
+  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
+  mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))) |>
+  kable(
+    caption   = "Estimated bean yield (kg/ha) with 95% CI and Fisher's LSD group letters",
+    col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+
+<caption>
+
+Estimated bean yield (kg/ha) with 95% CI and Fisher’s LSD group letters
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+Treatment
+</th>
+
+<th style="text-align:right;">
+
+Mean
+</th>
+
+<th style="text-align:right;">
+
+SE
+</th>
+
+<th style="text-align:right;">
+
+Lower CI
+</th>
+
+<th style="text-align:right;">
+
+Upper CI
+</th>
+
+<th style="text-align:left;">
+
+Group
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+Rolled, no control
+</td>
+
+<td style="text-align:right;">
+
+4470.4
+</td>
+
+<td style="text-align:right;">
+
+131.3
+</td>
+
+<td style="text-align:right;">
+
+4207.0
+</td>
+
+<td style="text-align:right;">
+
+4733.8
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Rolled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4594.4
+</td>
+
+<td style="text-align:right;">
+
+131.3
+</td>
+
+<td style="text-align:right;">
+
+4331.0
+</td>
+
+<td style="text-align:right;">
+
+4857.8
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Rolled + high-residue cult.
+</td>
+
+<td style="text-align:right;">
+
+4568.3
+</td>
+
+<td style="text-align:right;">
+
+131.3
+</td>
+
+<td style="text-align:right;">
+
+4304.9
+</td>
+
+<td style="text-align:right;">
+
+4831.7
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Tilled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4316.1
+</td>
+
+<td style="text-align:right;">
+
+131.3
+</td>
+
+<td style="text-align:right;">
+
+4052.7
+</td>
+
+<td style="text-align:right;">
+
+4579.5
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Tilled + cultivation
+</td>
+
+<td style="text-align:right;">
+
+4680.3
+</td>
+
+<td style="text-align:right;">
+
+131.3
+</td>
+
+<td style="text-align:right;">
+
+4416.9
+</td>
+
+<td style="text-align:right;">
+
+4943.7
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+### ANOVA-style summary tables for bean yield
+
+``` r
+## 1) P-value summary (Location, Treatment, Interaction) -----------------
+
+# Type-III tests for additive model (weed_trt + site_year)
+anova_yield <- Anova(yield.lmer, type = 3)
+
+anova_yield_df <- anova_yield |>
+  as.data.frame() |>
+  tibble::rownames_to_column("Effect")
+
+# LRT for interaction (additive vs interaction models)
+anova_interaction_yield <- anova(yield_add, yield_int)
+
+pvals_yield <- tibble(
+  Effect = c("Location (site_year)", "Treatment (weed_trt)", "Location × Treatment"),
+  p_raw  = c(
+    anova_yield_df$`Pr(>Chisq)`[anova_yield_df$Effect == "site_year"],
+    anova_yield_df$`Pr(>Chisq)`[anova_yield_df$Effect == "weed_trt"],
+    anova_interaction_yield$`Pr(>Chisq)`[2]
+  )
+) |>
+  mutate(
+    `P-value` = case_when(
+      p_raw < 0.001 ~ "<0.001",
+      p_raw < 0.01  ~ "<0.01",
+      TRUE          ~ sprintf("%.3f", p_raw)
+    )
+  ) |>
+  select(Effect, `P-value`)
+
+pvals_yield |>
+  kable(
+    caption   = "Bean yield (kg/ha): P-values for location, treatment, and interaction",
+    col.names = c("Effect", "P-value")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+
+<caption>
+
+Bean yield (kg/ha): P-values for location, treatment, and interaction
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+Effect
+</th>
+
+<th style="text-align:left;">
+
+P-value
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+Location (site_year)
+</td>
+
+<td style="text-align:left;">
+
+\<0.001
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Treatment (weed_trt)
+</td>
+
+<td style="text-align:left;">
+
+0.332
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Location × Treatment
+</td>
+
+<td style="text-align:left;">
+
+0.151
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+``` r
+## 2) Location block: site-year means (model + raw) ----------------------
+
+# Model-based emmeans by site_year
+emm_loc_yield <- emmeans(yield.lmer, ~ site_year)
+
+emm_loc_yield_df <- tidy_emm(emm_loc_yield) |>
+  as_tibble() |>
+  mutate(
+    site_year  = as.factor(site_year),
+    model_mean = emmean
+  ) |>
+  select(site_year, model_mean)
+
+# CLDs for site_year (a = highest)
+cld_loc_yield <- cld(
+  emm_loc_yield,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    site_year = as.factor(site_year),
+    loc_CLD   = str_trim(.group)
+  ) |>
+  select(site_year, loc_CLD)
+
+# Raw means by site_year
+raw_loc_yield <- bean_yield_clean |>
+  group_by(site_year) |>
+  summarise(
+    raw_mean = mean(bean_yield_kg_ha, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(site_year = as.factor(site_year))
+
+loc_summary_yield <- emm_loc_yield_df |>
+  left_join(cld_loc_yield, by = "site_year") |>
+  left_join(raw_loc_yield, by = "site_year") |>
+  mutate(
+    model_mean = round(model_mean, 1),
+    raw_mean   = round(raw_mean, 1),
+    raw_CLD    = loc_CLD  # use same letters for model + raw
+  ) |>
+  arrange(site_year)
+
+loc_summary_yield |>
+  kable(
+    caption   = "Bean yield (kg/ha): location (site-year) means with CLDs",
+    col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+
+<caption>
+
+Bean yield (kg/ha): location (site-year) means with CLDs
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+Site-year
+</th>
+
+<th style="text-align:right;">
+
+Model mean
+</th>
+
+<th style="text-align:left;">
+
+Model CLD
+</th>
+
+<th style="text-align:right;">
+
+Raw mean
+</th>
+
+<th style="text-align:left;">
+
+Raw CLD
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 east
+</td>
+
+<td style="text-align:right;">
+
+4967.1
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4967.1
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 west
+</td>
+
+<td style="text-align:right;">
+
+4793.4
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4793.4
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2023.field v
+</td>
+
+<td style="text-align:right;">
+
+3817.3
+</td>
+
+<td style="text-align:left;">
+
+b
+</td>
+
+<td style="text-align:right;">
+
+3817.3
+</td>
+
+<td style="text-align:left;">
+
+b
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+``` r
+## 3) Treatment block: means (model + raw) -------------------------------
+
+# emmeans for treatment
+emm_yield <- emmeans(yield.lmer, ~ weed_trt)
+
+emm_trt_yield_df <- tidy_emm(emm_yield, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    weed_trt   = factor(weed_trt, levels = mow_levels),
+    model_mean = emmean
+  ) |>
+  select(weed_trt, model_mean)
+
+# CLDs for treatment (a = highest)
+cld_yield <- cld(
+  emm_yield,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    trt_CLD  = str_trim(.group)
+  ) |>
+  select(weed_trt, trt_CLD)
+
+# Raw means by treatment
+raw_trt_yield <- bean_yield_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    raw_mean = mean(bean_yield_kg_ha, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(weed_trt = factor(weed_trt, levels = mow_levels))
+
+trt_summary_yield <- emm_trt_yield_df |>
+  left_join(cld_yield, by = "weed_trt") |>
+  left_join(raw_trt_yield, by = "weed_trt") |>
+  mutate(
+    model_mean = round(model_mean, 1),
+    raw_mean   = round(raw_mean, 1),
+    raw_CLD    = trt_CLD
+  ) |>
+  arrange(weed_trt)
+
+trt_summary_yield |>
+  kable(
+    caption   = "Bean yield (kg/ha): treatment means with CLDs",
+    col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+
+<caption>
+
+Bean yield (kg/ha): treatment means with CLDs
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+Treatment
+</th>
+
+<th style="text-align:right;">
+
+Model mean
+</th>
+
+<th style="text-align:left;">
+
+Model CLD
+</th>
+
+<th style="text-align:right;">
+
+Raw mean
+</th>
+
+<th style="text-align:left;">
+
+Raw CLD
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+Rolled, no control
+</td>
+
+<td style="text-align:right;">
+
+4470.4
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4470.4
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Rolled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4594.4
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4594.4
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Rolled + high-residue cult.
+</td>
+
+<td style="text-align:right;">
+
+4568.3
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4568.3
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Tilled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4316.1
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4316.1
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Tilled + cultivation
+</td>
+
+<td style="text-align:right;">
+
+4680.3
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4680.3
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+``` r
+## 4) Interaction block: site-year × treatment means ---------------------
+
+# Model emmeans by treatment within site_year
+emm_sy_yield <- emmeans(yield.lmer, ~ weed_trt | site_year)
+
+emm_sy_yield_df <- tidy_emm(emm_sy_yield, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    weed_trt   = factor(weed_trt, levels = mow_levels),
+    site_year  = as.factor(site_year),
+    model_mean = emmean
+  ) |>
+  select(site_year, weed_trt, model_mean)
+
+# CLDs within each site_year (a = highest within that site_year)
+cld_sy_yield <- cld(
+  emm_sy_yield,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt  = factor(weed_trt, levels = mow_levels),
+    site_year = as.factor(site_year),
+    int_CLD   = str_trim(.group)
+  ) |>
+  select(site_year, weed_trt, int_CLD)
+
+# Raw means by site_year × treatment
+raw_sy_yield <- bean_yield_clean |>
+  group_by(site_year, weed_trt) |>
+  summarise(
+    raw_mean = mean(bean_yield_kg_ha, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(
+    site_year = as.factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels)
+  )
+
+int_summary_yield <- emm_sy_yield_df |>
+  left_join(cld_sy_yield, by = c("site_year", "weed_trt")) |>
+  left_join(raw_sy_yield, by = c("site_year", "weed_trt")) |>
+  mutate(
+    model_mean = round(model_mean, 1),
+    raw_mean   = round(raw_mean, 1),
+    raw_CLD    = int_CLD
+  ) |>
+  arrange(site_year, weed_trt)
+
+int_summary_yield |>
+  kable(
+    caption   = "Bean yield (kg/ha): site-year × treatment means with CLDs",
+    col.names = c(
+      "Site-year", "Treatment",
+      "Model mean", "Model CLD",
+      "Raw mean",   "Raw CLD"
+    )
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+
+<caption>
+
+Bean yield (kg/ha): site-year × treatment means with CLDs
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+Site-year
+</th>
+
+<th style="text-align:left;">
+
+Treatment
+</th>
+
+<th style="text-align:right;">
+
+Model mean
+</th>
+
+<th style="text-align:left;">
+
+Model CLD
+</th>
+
+<th style="text-align:right;">
+
+Raw mean
+</th>
+
+<th style="text-align:left;">
+
+Raw CLD
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 east
+</td>
+
+<td style="text-align:left;">
+
+Rolled, no control
+</td>
+
+<td style="text-align:right;">
+
+4911.6
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+5091.5
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 east
+</td>
+
+<td style="text-align:left;">
+
+Rolled + mowing
+</td>
+
+<td style="text-align:right;">
+
+5035.6
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+5001.0
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 east
+</td>
+
+<td style="text-align:left;">
+
+Rolled + high-residue cult.
+</td>
+
+<td style="text-align:right;">
+
+5009.5
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+5170.6
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 east
+</td>
+
+<td style="text-align:left;">
+
+Tilled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4757.3
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4808.8
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 east
+</td>
+
+<td style="text-align:left;">
+
+Tilled + cultivation
+</td>
+
+<td style="text-align:right;">
+
+5121.5
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4763.6
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 west
+</td>
+
+<td style="text-align:left;">
+
+Rolled, no control
+</td>
+
+<td style="text-align:right;">
+
+4737.9
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4582.7
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 west
+</td>
+
+<td style="text-align:left;">
+
+Rolled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4861.8
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4667.5
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 west
+</td>
+
+<td style="text-align:left;">
+
+Rolled + high-residue cult.
+</td>
+
+<td style="text-align:right;">
+
+4835.7
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4710.8
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 west
+</td>
+
+<td style="text-align:left;">
+
+Tilled + mowing
+</td>
+
+<td style="text-align:right;">
+
+4583.6
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4718.4
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2024.field O2 west
+</td>
+
+<td style="text-align:left;">
+
+Tilled + cultivation
+</td>
+
+<td style="text-align:right;">
+
+4947.8
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+5287.4
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2023.field v
+</td>
+
+<td style="text-align:left;">
+
+Rolled, no control
+</td>
+
+<td style="text-align:right;">
+
+3761.8
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+3737.1
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2023.field v
+</td>
+
+<td style="text-align:left;">
+
+Rolled + mowing
+</td>
+
+<td style="text-align:right;">
+
+3885.8
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+4114.7
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2023.field v
+</td>
+
+<td style="text-align:left;">
+
+Rolled + high-residue cult.
+</td>
+
+<td style="text-align:right;">
+
+3859.7
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+3823.5
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2023.field v
+</td>
+
+<td style="text-align:left;">
+
+Tilled + mowing
+</td>
+
+<td style="text-align:right;">
+
+3607.5
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+3421.2
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+2023.field v
+</td>
+
+<td style="text-align:left;">
+
+Tilled + cultivation
+</td>
+
+<td style="text-align:right;">
+
+3971.7
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+<td style="text-align:right;">
+
+3990.0
+</td>
+
+<td style="text-align:left;">
+
+a
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+\####2023 Raw
+
+``` r
+### Selection: 2023 – Field V only
+
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# Field V 2023 subset
+bean_yield_field_v_2023 <- bean_yield_clean |>
+  dplyr::filter(year == 2023, location == "field v") |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels)
+  )
+
+# 1) treatment model: yield ~ weed_trt + (1|block)
+yield_fv.lmer <- lmer(
+  bean_yield_adj_kg_ha ~ weed_trt + (1 | block),
+  data = bean_yield_field_v_2023
+)
+
+# 2) optional null model: no treatment effect
+yield_fv.null <- lmer(
+  bean_yield_adj_kg_ha ~ 1 + (1 | block),
+  data = bean_yield_field_v_2023
+)
+
+# compare models (does weed_trt help?)
+AIC(yield_fv.null, yield_fv.lmer)
+```
+
+    ##               df      AIC
+    ## yield_fv.null  3 299.3210
+    ## yield_fv.lmer  7 252.8761
+
+``` r
+anova(yield_fv.null, yield_fv.lmer)
+```
+
+    ## Data: bean_yield_field_v_2023
+    ## Models:
+    ## yield_fv.null: bean_yield_adj_kg_ha ~ 1 + (1 | block)
+    ## yield_fv.lmer: bean_yield_adj_kg_ha ~ weed_trt + (1 | block)
+    ##               npar    AIC    BIC  logLik -2*log(L)  Chisq Df Pr(>Chisq)
+    ## yield_fv.null    3 310.64 313.63 -152.32    304.64                     
+    ## yield_fv.lmer    7 313.21 320.18 -149.61    299.21 5.4239  4     0.2465
+
+``` r
+# diagnostics on the treatment model
+res_yield_fv <- DHARMa::simulateResiduals(yield_fv.lmer)
+plot(res_yield_fv)
+```
+
+![](figs/analysis/bean_yield-unnamed-chunk-8-1.png)<!-- -->
+
+``` r
+DHARMa::testDispersion(yield_fv.lmer)
+```
+
+![](figs/analysis/bean_yield-unnamed-chunk-8-2.png)<!-- -->
+
+    ## 
+    ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
+    ##  simulated
+    ## 
+    ## data:  simulationOutput
+    ## dispersion = 0.80609, p-value = 0.592
+    ## alternative hypothesis: two.sided
+
+``` r
+car::Anova(yield_fv.lmer, type = 3)
+```
+
+    ## Analysis of Deviance Table (Type III Wald chisquare tests)
+    ## 
+    ## Response: bean_yield_adj_kg_ha
+    ##               Chisq Df Pr(>Chisq)    
+    ## (Intercept) 968.349  1     <2e-16 ***
+    ## weed_trt      4.831  4     0.3051    
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+### Figures
+
+#### Pooled
+
+\`\`## Pooled model
+
+``` r
+# Figure: Bean yield by weed management treatment (pooled across site-years)
+
+# Estimated marginal means for treatments
+emm_yield <- emmeans(yield.lmer, ~ weed_trt)
+
+# Tidy emmeans for plotting
+emm_yield_df <- tidy_emm(emm_yield, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    response = emmean,
+    ymin     = pmax(response - SE, 0),
+    ymax     = response + SE
+  )
+
+# CLDs for treatments (Fisher's LSD, "a" = highest)
+cld_yield <- cld(
+  emm_yield,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# Merge means and CLDs
+plot_df_yield <- emm_yield_df |>
+  left_join(cld_yield, by = "weed_trt")
+
+# Plot
+ggplot(plot_df_yield, aes(x = weed_trt, y = response, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x        = NULL,
+    y        = "Bean yield (kg/ha)",
+    title    = "Bean yield by weed management treatment",
+    caption  = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold")
+  )
+```
+
+![](figs/analysis/bean_yield-unnamed-chunk-9-1.png)<!-- -->
+
+``` r
+# Save figure
+ggsave(
+  filename = here("figs", "analysis", "fig_bean_yield_mowing_pooled.png"),
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
 ```
