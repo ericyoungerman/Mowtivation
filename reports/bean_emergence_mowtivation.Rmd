@@ -100,8 +100,6 @@ out
 
 # Data imort and prep
 ```{r}
-
-
 # 1) Read + clean master
 bean_emergence_clean <- read_excel(
   here("data", "raw", "All Treatments", "combined_raw.xlsx")

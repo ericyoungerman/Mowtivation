@@ -1,5 +1,5 @@
 ---
-title: "Soybean eield"
+title: "Soybean yield"
 
 output:
   github_document:
@@ -9,7 +9,6 @@ always_allow_html: true
 
 ---
 #Setup
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo    = TRUE,
