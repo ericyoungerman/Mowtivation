@@ -1,0 +1,683 @@
+---
+title: "Soybean biomass"
+
+output:
+  github_document:
+    toc: true
+always_allow_html: true
+
+
+---
+
+# Setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.path = "figs/analysis/bean_biomass-"
+)
+```
+
+
+# Packages
+```{r}
+
+# Packages
+library(tidyverse) # includes dplyr, ggplot2, readr, tibble, etc.
+library(janitor)
+library(readxl)
+library(glmmTMB)
+library(DHARMa)
+library(emmeans)
+library(multcomp)
+library(car)
+library(kableExtra)
+library(here)
+library(conflicted)
+library(lme4)
+
+# Handle conflicts
+conflicts_prefer(dplyr::select)
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(dplyr::recode)
+
+# Treatment level order (use everywhere)
+mow_levels <- c(
+"Rolled, no control",
+"Rolled + mowing",
+"Rolled + high-residue cult.",
+"Tilled + mowing",
+"Tilled + cultivation"
+)
+
+# One consistent color palette for all figures
+
+fill_cols <- c(
+"Rolled, no control" = "#0072B2", # blue
+"Rolled + mowing" = "#009E73", # green
+"Rolled + high-residue cult." = "#F0E442", # yellow
+"Tilled + mowing" = "#D55E00", # reddish
+"Tilled + cultivation" = "#CC79A7" # magenta
+)
+
+#x-axis label helpers
+
+label_break_spaces <- function(x) {
+  stringr::str_replace_all(x, " ", "\n")
+}
+
+label_break_plus <- function(x) {
+  stringr::str_replace_all(x, " \\+ ", "\n+ ")
+}
+
+
+#Helper: tidy emmeans output regardless of CI column names
+#(works directly on an emmeans object)
+
+tidy_emm <- function(emm, ref_levels = NULL) {
+emm_df <- as.data.frame(emm)
+
+lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+
+if (is.na(lcl_col) || is.na(ucl_col)) {
+stop("Could not find CI columns in emmeans output.")
+}
+
+out <- emm_df |>
+mutate(
+ci_low = .data[[lcl_col]],
+ci_high = .data[[ucl_col]]
+)
+
+if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
+out <- out |>
+mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+}
+
+out
+}
+```
+# Data import & prep
+
+``` {r}
+bean_biomass_clean <- read_excel(
+  here("data", "raw", "All Treatments", "combined_raw.xlsx")
+) |>
+  clean_names() |>
+  rename(weed_trt = treatment) |>
+  mutate(
+    year      = factor(year),
+    location  = factor(location),
+    site_year = factor(interaction(year, location, drop = TRUE)),
+    block     = factor(block),
+    weed_trt  = recode(
+      weed_trt,
+      "RNO" = "Rolled, no control",
+      "RIM" = "Rolled + mowing",
+      "RIC" = "Rolled + high-residue cult.",
+      "TIM" = "Tilled + mowing",
+      "TIC" = "Tilled + cultivation"
+    ),
+    weed_trt = factor(weed_trt, levels = mow_levels)
+  ) |>
+  # keep only rows with non-missing biomass
+  filter(!is.na(bean_biomass)) |>
+  # per-area metrics, assuming bean_biomass = g per 0.5 m² quadrat
+  mutate(
+    bean_biomass_g_m2   = bean_biomass * 2,          # g/m²
+    bean_biomass_kg_ha  = bean_biomass * 20,         # kg/ha
+    bean_biomass_lbs_acre = bean_biomass_kg_ha * 0.892179
+  )
+
+# 2023 Field V subset (for the boxplot later)
+bean_biomass_field_v_2023 <- bean_biomass_clean |>
+  filter(year == 2023, location == "field v")
+
+# Quick check
+kable(
+  head(bean_biomass_clean),
+  caption = "All site-years, cleaned (bean biomass)"
+)
+
+
+```
+
+
+# Model testing
+## Exploratory Analysis: Soybean biomass
+```{r}
+
+
+# 1) Summary table: bean biomass by site-year × treatment
+bean_biomass_clean |>
+  group_by(site_year, weed_trt) |>
+  summarise(
+    n      = n(),
+    mean   = mean(bean_biomass_kg_ha, na.rm = TRUE),
+    median = median(bean_biomass_kg_ha, na.rm = TRUE),
+    sd     = sd(bean_biomass_kg_ha, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(site_year, weed_trt) |>
+  kable(
+    digits  = 1,
+    caption = "Bean biomass (kg/ha) by site-year × treatment"
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+# 2) Faceted boxplot: all site-years
+bean_biomass_clean |>
+  ggplot(aes(x = weed_trt, y = bean_biomass_kg_ha, fill = weed_trt)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    width  = 0.55,
+    color  = "black"
+  ) +
+  geom_jitter(
+    width  = 0.12,
+    height = 0,
+    alpha  = 0.4,
+    size   = 1.8,
+    color  = "grey30"
+  ) +
+  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  labs(
+    x     = NULL,
+    y     = "Bean biomass (kg/ha)",
+    title = "Bean biomass by treatment across site-years"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(size = 10),
+    strip.text  = element_text(face = "bold")
+  )
+
+# 3) Boxplot: 2023 – Field V only
+bean_biomass_field_v_2023 |>
+  ggplot(aes(x = weed_trt, y = bean_biomass_kg_ha, fill = weed_trt)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    width  = 0.55,
+    color  = "black"
+  ) +
+  geom_jitter(
+    width  = 0.12,
+    height = 0,
+    alpha  = 0.4,
+    size   = 1.8,
+    color  = "grey30"
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  labs(
+    x     = NULL,
+    y     = "Bean biomass (kg/ha)",
+    title = "Bean biomass by treatment, 2023 – Field V"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+
+```
+
+### Selection: 
+#### Pooled, Raw by site-year
+```{r}
+
+
+### Model testing / selection for bean biomass (kg/ha)
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# Interaction model: weed_trt * site_year --------------------------------
+bio_int <- lmer(
+  bean_biomass_kg_ha ~ weed_trt * site_year + (1 | site_year:block),
+  data = bean_biomass_clean
+)
+
+# Additive model: weed_trt + site_year -----------------------------------
+bio_add <- lmer(
+  bean_biomass_kg_ha ~ weed_trt + site_year + (1 | site_year:block),
+  data = bean_biomass_clean
+)
+
+# Compare models (AIC + LRT) ---------------------------------------------
+aic_biomass <- tibble(
+  model = c(
+    "Additive: weed_trt + site_year",
+    "Interaction: weed_trt * site_year"
+  ),
+  AIC = c(AIC(bio_add), AIC(bio_int))
+)
+
+kable(
+  aic_biomass,
+  digits  = 1,
+  caption = "Bean biomass (kg/ha): model comparison (additive vs interaction)"
+)
+
+anova(bio_add, bio_int)  # LRT: is the interaction worth keeping?
+
+# Choose simpler additive model unless interaction is clearly needed -----
+# (this is the model used in all downstream emmeans/plots)
+bio.lmer <- bio_add
+
+# Diagnostics on chosen model --------------------------------------------
+set.seed(123)
+res_bio <- DHARMa::simulateResiduals(bio.lmer)
+plot(res_bio)
+DHARMa::testDispersion(bio.lmer)
+
+car::Anova(bio.lmer, type = 3)
+
+```
+### Post-hoc summary table
+```{r}
+
+### Bean biomass (kg/ha) with Fisher's LSD CLDs
+
+# Estimated marginal means for weed_trt
+emm_bio <- emmeans(bio.lmer, ~ weed_trt)
+
+# Tidy emmeans (adds ci_low / ci_high and enforces treatment order)
+emm_bio_df <- tidy_emm(emm_bio, ref_levels = mow_levels) |>
+  as_tibble()
+
+# Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
+cld_bio <- cld(
+  emm_bio,
+  adjust  = "none",
+  Letters = letters,
+  sort    = TRUE,   # default, but explicit
+  reversed = TRUE   # now 'a' goes to the highest group(s)
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# Join emmeans + CLDs and format for reporting
+emm_bio_df |>
+  left_join(cld_bio, by = "weed_trt") |>
+  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
+  mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))) |>
+  kable(
+    caption   = "Estimated bean biomass (kg/ha) with 95% CI and Fisher's LSD group letters",
+    col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+```
+
+### ANOVA-style summary tables for bean biomass
+```{r}
+
+
+## 1) P-value summary (Location, Treatment, Interaction) -----------------
+
+# Type-III tests for additive model (weed_trt + site_year)
+anova_bio <- Anova(bio.lmer, type = 3)
+
+anova_bio_df <- anova_bio |>
+  as.data.frame() |>
+  tibble::rownames_to_column("Effect")
+
+# LRT for interaction (additive vs interaction models)
+anova_interaction_bio <- anova(bio_add, bio_int)
+
+pvals_bio <- tibble(
+  Effect = c("Location (site_year)", "Treatment (weed_trt)", "Location × Treatment"),
+  p_raw  = c(
+    anova_bio_df$`Pr(>Chisq)`[anova_bio_df$Effect == "site_year"],
+    anova_bio_df$`Pr(>Chisq)`[anova_bio_df$Effect == "weed_trt"],
+    anova_interaction_bio$`Pr(>Chisq)`[2]
+  )
+) |>
+  mutate(
+    `P-value` = case_when(
+      p_raw < 0.001 ~ "<0.001",
+      p_raw < 0.01  ~ "<0.01",
+      TRUE          ~ sprintf("%.3f", p_raw)
+    )
+  ) |>
+  select(Effect, `P-value`)
+
+pvals_bio |>
+  kable(
+    caption   = "Bean biomass (kg/ha): P-values for location, treatment, and interaction",
+    col.names = c("Effect", "P-value")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+## 2) Location block: site-year means (model + raw) ----------------------
+
+# Model-based emmeans by site_year
+emm_loc_bio <- emmeans(bio.lmer, ~ site_year)
+
+emm_loc_bio_df <- tidy_emm(emm_loc_bio) |>
+  as_tibble() |>
+  mutate(
+    site_year  = as.factor(site_year),
+    model_mean = emmean
+  ) |>
+  select(site_year, model_mean)
+
+# CLDs for site_year (a = highest)
+cld_loc_bio <- cld(
+  emm_loc_bio,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    site_year = as.factor(site_year),
+    loc_CLD   = str_trim(.group)
+  ) |>
+  select(site_year, loc_CLD)
+
+# Raw means by site_year
+raw_loc_bio <- bean_biomass_clean |>
+  group_by(site_year) |>
+  summarise(
+    raw_mean = mean(bean_biomass_kg_ha, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(site_year = as.factor(site_year))
+
+loc_summary_bio <- emm_loc_bio_df |>
+  left_join(cld_loc_bio, by = "site_year") |>
+  left_join(raw_loc_bio, by = "site_year") |>
+  mutate(
+    model_mean = round(model_mean, 1),
+    raw_mean   = round(raw_mean, 1),
+    raw_CLD    = loc_CLD  # use same letters for model + raw
+  ) |>
+  arrange(site_year)
+
+loc_summary_bio |>
+  kable(
+    caption   = "Bean biomass (kg/ha): location (site-year) means with CLDs",
+    col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+## 3) Treatment block: means (model + raw) -------------------------------
+
+# emmeans for treatment
+emm_bio <- emmeans(bio.lmer, ~ weed_trt)
+
+emm_trt_bio_df <- tidy_emm(emm_bio, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    weed_trt   = factor(weed_trt, levels = mow_levels),
+    model_mean = emmean
+  ) |>
+  select(weed_trt, model_mean)
+
+# CLDs for treatment (a = highest)
+cld_bio <- cld(
+  emm_bio,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    trt_CLD  = str_trim(.group)
+  ) |>
+  select(weed_trt, trt_CLD)
+
+# Raw means by treatment
+raw_trt_bio <- bean_biomass_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    raw_mean = mean(bean_biomass_kg_ha, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(weed_trt = factor(weed_trt, levels = mow_levels))
+
+trt_summary_bio <- emm_trt_bio_df |>
+  left_join(cld_bio, by = "weed_trt") |>
+  left_join(raw_trt_bio, by = "weed_trt") |>
+  mutate(
+    model_mean = round(model_mean, 1),
+    raw_mean   = round(raw_mean, 1),
+    raw_CLD    = trt_CLD
+  ) |>
+  arrange(weed_trt)
+
+trt_summary_bio |>
+  kable(
+    caption   = "Bean biomass (kg/ha): treatment means with CLDs",
+    col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+## 4) Interaction block: site-year × treatment means ---------------------
+
+# Model emmeans by treatment within site_year
+emm_sy_bio <- emmeans(bio.lmer, ~ weed_trt | site_year)
+
+emm_sy_bio_df <- tidy_emm(emm_sy_bio, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    weed_trt   = factor(weed_trt, levels = mow_levels),
+    site_year  = as.factor(site_year),
+    model_mean = emmean
+  ) |>
+  select(site_year, weed_trt, model_mean)
+
+# CLDs within each site_year (a = highest within that site_year)
+cld_sy_bio <- cld(
+  emm_sy_bio,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt  = factor(weed_trt, levels = mow_levels),
+    site_year = as.factor(site_year),
+    int_CLD   = str_trim(.group)
+  ) |>
+  select(site_year, weed_trt, int_CLD)
+
+# Raw means by site_year × treatment
+raw_sy_bio <- bean_biomass_clean |>
+  group_by(site_year, weed_trt) |>
+  summarise(
+    raw_mean = mean(bean_biomass_kg_ha, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(
+    site_year = as.factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels)
+  )
+
+int_summary_bio <- emm_sy_bio_df |>
+  left_join(cld_sy_bio, by = c("site_year", "weed_trt")) |>
+  left_join(raw_sy_bio, by = c("site_year", "weed_trt")) |>
+  mutate(
+    model_mean = round(model_mean, 1),
+    raw_mean   = round(raw_mean, 1),
+    raw_CLD    = int_CLD
+  ) |>
+  arrange(site_year, weed_trt)
+
+int_summary_bio |>
+  kable(
+    caption   = "Bean biomass (kg/ha): site-year × treatment means with CLDs",
+    col.names = c(
+      "Site-year", "Treatment",
+      "Model mean", "Model CLD",
+      "Raw mean",   "Raw CLD"
+    )
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+```
+# Figures
+## Pooled model
+```{r}
+
+# Figure: Bean biomass by weed management treatment (pooled across site-years)
+
+# Estimated marginal means for treatments
+emm_bio <- emmeans(bio.lmer, ~ weed_trt)
+
+# Tidy emmeans for plotting
+emm_bio_df <- tidy_emm(emm_bio, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    response = emmean,
+    ymin     = pmax(response - SE, 0),
+    ymax     = response + SE
+  )
+
+# CLDs for treatments (Fisher's LSD, "a" = highest)
+cld_bio <- cld(
+  emm_bio,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# Merge means and CLDs
+plot_df_bio <- emm_bio_df |>
+  left_join(cld_bio, by = "weed_trt")
+
+# Plot
+ggplot(plot_df_bio, aes(x = weed_trt, y = response, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x        = NULL,
+    y        = "Bean biomass (kg/ha)",
+    title    = "Bean biomass by weed management treatment",
+    caption  = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold")
+  )
+
+# Save figure
+ggsave(
+  filename = here("figs", "analysis", "fig_bean_biomass_mowing_pooled.png"),
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
+
+
+```
+## Pooled Raw
+```{r}
+
+# Figure: Bean biomass by weed management treatment (raw means ± SE, model CLDs)
+
+# 1) Raw means and SE by treatment --------------------------------------
+raw_bio_summary <- bean_biomass_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    n    = n(),
+    mean = mean(bean_biomass_kg_ha, na.rm = TRUE),
+    sd   = sd(bean_biomass_kg_ha, na.rm = TRUE),
+    se   = sd / sqrt(n),
+    .groups = "drop"
+  ) |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    ymin     = pmax(mean - se, 0),
+    ymax     = mean + se
+  )
+
+# 2) Model-based CLDs for treatment main effect -------------------------
+emm_bio <- emmeans(bio.lmer, ~ weed_trt)
+
+cld_bio <- cld(
+  emm_bio,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE   # "a" = highest mean
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# 3) Join raw means and model CLDs --------------------------------------
+plot_df_bio_raw <- raw_bio_summary |>
+  left_join(cld_bio, by = "weed_trt")
+
+# 4) Plot ---------------------------------------------------------------
+ggplot(plot_df_bio_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x        = NULL,
+    y        = "Bean biomass (kg/ha)",
+    title    = "Bean biomass by weed management treatment",
+    caption  = "Raw means ± SE; letters = model-based Fisher-style CLD for treatment main effect."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold")
+  )
+
+# Save figure
+ggsave(
+  filename = here("figs", "analysis", "fig_bean_biomass_mowing_pooled_raw.png"),
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
+
+```
