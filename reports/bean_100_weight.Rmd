@@ -1,197 +1,664 @@
 ---
-title: "Soybean 100 Seed weight"
-output: github_document
+title: "Soybean 100 seed weight"
+
+output:
+  github_document:
+    toc: true
+always_allow_html: true
+
+
 ---
-
+# Setup
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.path = "figs/analysis/bean_100_weight-"
+)
 ```
 
-# Load libraries
+# Packages
+```{r}
 
-
-```{r message=FALSE, warning=FALSE}
-#Set work directory
-setwd("/Users/ey239/Github/Mowtivation/rmarkdowns")
-
-#Load packages 
-library(tidyverse) ##install.packages("tidyverse")
-library(knitr)
-library(patchwork) ##install.packages("patchwork")
-library(skimr)     ##install.packages("skimr")
+# Packages
+library(tidyverse) # includes dplyr, ggplot2, readr, tibble, etc.
+library(janitor)
 library(readxl)
-library(janitor) ##install.packages("janitor")
-library(kableExtra) ##install.packages("kableExtra")
-library(webshot) ##install.packages("webshot")
-webshot::install_phantomjs()
-library(viridis) ##install.packages("viridis")
-library(lme4) ##install.packages("lme4")
-library(lmerTest) ##install.packages("lmerTest")
-library(emmeans) ##install.packages("emmeans")
-library(rstatix) ##install.packages("rstatix")
-#library(Matrix) ##install.packages("Matrix")
-library(multcomp) ##install.packages("multcomp")
-library(multcompView) ##install.packages("multcompView")
-library(ggResidpanel) ##install.packages("ggResidpanel")
-#library(car)
-#library(TMB)  ##install.packages("TMB")
-#library(glmmTMB)  ##install.packages("glmmTMB")
-library(DHARMa)  ##install.packages("DHARMa")
-library(performance) ##install.packages("performance")
-#Load Functions
-MeanPlusSe<-function(x) mean(x)+plotrix::std.error(x)
+library(glmmTMB)
+library(DHARMa)
+library(emmeans)
+library(multcomp)
+library(car)
+library(kableExtra)
+library(here)
+library(conflicted)
+library(lme4)
 
-find_logw0=function(x){c=trunc(log(min(x[x>0],na.rm=T)))
-d=exp(c)
-return(d)}
+# Handle conflicts
+conflicts_prefer(dplyr::select)
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(dplyr::recode)
+
+# Treatment level order (use everywhere)
+mow_levels <- c(
+"Rolled, no control",
+"Rolled + mowing",
+"Rolled + high-residue cult.",
+"Tilled + mowing",
+"Tilled + cultivation"
+)
+
+# One consistent color palette for all figures
+
+fill_cols <- c(
+"Rolled, no control" = "#0072B2", # blue
+"Rolled + mowing" = "#009E73", # green
+"Rolled + high-residue cult." = "#F0E442", # yellow
+"Tilled + mowing" = "#D55E00", # reddish
+"Tilled + cultivation" = "#CC79A7" # magenta
+)
+
+#x-axis label helpers
+
+label_break_spaces <- function(x) {
+  stringr::str_replace_all(x, " ", "\n")
+}
+
+label_break_plus <- function(x) {
+  stringr::str_replace_all(x, " \\+ ", "\n+ ")
+}
+
+
+#Helper: tidy emmeans output regardless of CI column names
+#(works directly on an emmeans object)
+
+tidy_emm <- function(emm, ref_levels = NULL) {
+emm_df <- as.data.frame(emm)
+
+lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+
+if (is.na(lcl_col) || is.na(ucl_col)) {
+stop("Could not find CI columns in emmeans output.")
+}
+
+out <- emm_df |>
+mutate(
+ci_low = .data[[lcl_col]],
+ci_high = .data[[ucl_col]]
+)
+
+if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
+out <- out |>
+mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+}
+
+out
+}
 ```
 
-<br>
+# Data import & prep
 
-# Load and clean data
-
- 
-## Load data
-``` {r}
-combined_raw <- read_excel("~/Github/Mowtivation/raw-data/All Treatments/combined_raw.xlsx")
-kable(head(combined_raw))
-
-```
-<br>
-
-## Clean data
 ```{r}
 
+hundred_sw_clean <- read_excel(
+  here("data", "raw", "All Treatments", "combined_raw.xlsx")
+) |>
+  clean_names() |>
+  rename(weed_trt = treatment) |>
+  mutate(
+    year      = factor(year),
+    location  = factor(location),
+    site_year = factor(interaction(year, location, drop = TRUE)),
+    block     = factor(block),
+    weed_trt  = recode(
+      weed_trt,
+      "RNO" = "Rolled, no control",
+      "RIM" = "Rolled + mowing",
+      "RIC" = "Rolled + high-residue cult.",
+      "TIM" = "Tilled + mowing",
+      "TIC" = "Tilled + cultivation"
+    ),
+    weed_trt = factor(weed_trt, levels = mow_levels)
+  ) |>
+  # keep only rows with non-missing 100-seed weight
+  filter(!is.na(seed_weight))
+  # no unit conversions here; use hundred_seed_weight as recorded
 
-#Standardaze column names, convert to factors, check for outliers of variable**
-clean_combined <- clean_names(combined_raw) |>  
-  rename ('weed_control'= treatment) |> 
-  mutate(across(c(weed_control, block, plot, location, year), as.factor)) #|> 
-  #mutate(is_outlier = totwbm < (quantile(totwbm, 0.25) - 1.5 * IQR(totwbm)) |
-                       #wbm > (quantile(totwbm, 0.75) + 1.5 * IQR(totwbm)))
+# 2023 Field V subset (for the boxplot later)
+hundred_sw_field_v_2023 <- hundred_sw_clean |>
+  filter(year == 2023, location == "field v")
 
-#select and convert data for wbm analysis
-  seed_weight_clean <- clean_combined |>  
-    filter(!is.na(seed_weight)) |>
-  mutate(seed_weight = as.numeric(seed_weight)) #|>  # Convert beanyd to numeric
-    # Exclude rows with NA in beanyd
-  #mutate(
-   # bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 14)),
-    #bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 14)),
-    #bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 * ((100 - 0.00001) / (100 - 14))
-  
-kable(head(seed_weight_clean)) 
+# Quick check
+kable(
+  head(hundred_sw_clean),
+  caption = "All site-years, cleaned (100-seed weight)"
+)
+
 ```
-# Model testing
-## Lmer
-Block is random
-Tyler is under the impression that block should always be random and that post-hoc comparisons should use TUKEY rather the Fischer. Fisher is bogus apparently. 
-
 ```{r}
-weight.lmer <- lmer( seed_weight  ~ weed_control*location + (1|location:block), data =  seed_weight_clean)
 
-resid_panel(weight.lmer)
-simulateResiduals(weight.lmer,plot = TRUE) # Residuals and normality look good
-check_model(weight.lmer)
-```
+# 1) Summary table: 100-seed weight by site-year × treatment
+hundred_sw_clean |>
+  group_by(site_year, weed_trt) |>
+  summarise(
+    n      = n(),
+    mean   = mean(seed_weight, na.rm = TRUE),
+    median = median(seed_weight, na.rm = TRUE),
+    sd     = sd(seed_weight, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(site_year, weed_trt) |>
+  kable(
+    digits  = 1,
+    caption = "100-seed weight by site-year × treatment"
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
-## Joint test (anova)
-##Joint test (anova)
-```{r}
-
-joint_tests(emmeans(weight.lmer, ~ weed_control * location))
-```
-
-
-```{r}
-options(contrasts = c("contr.sum", "contr.poly"))
-weight.anova <- anova(weight.lmer, ddf = "Satterthwaite")
-print(weight.anova)
-```
-
-br>
-
-## Tukey means comparisons
-### Weed-control (significant)
-
-```{r}
-tukey_weed_control <- emmeans(weight.lmer, pairwise ~ weed_control, adjust = "tukey")
-tukey_weed_control
-
-cld_weed_control_tukey <- cld(emmeans(weight.lmer, ~ weed_control), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
-
-cld_weed_control_tukey
-```
-<br>
-
-### Location (Significant)
-```{r}
-tukey_location <- emmeans(weight.lmer, list(pairwise ~ location), adjust = "tukey")
-tukey_location
-
-cld_location_tukey <- cld(emmeans(weight.lmer, ~ location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
-
-cld_location_tukey
-```
-
-###weed_control:location (not significant)
-
-```{r}
-tukey_weed_control_location <- emmeans(weight.lmer, list(pairwise ~ weed_control|location), adjust = "tukey")
-tukey_weed_control_location
-
-cld_weed_control_location_tukey <- cld(emmeans(weight.lmer, ~ weed_control|location), adjust = "tukey", Letters = letters, sort = TRUE, reversed = TRUE)
-
-cld_weed_control_location_tukey
-```
-
-
-
-
-
-
-<br>
-# Figures
-
-
-
-#### weed_control:location (not significant)
-
-```{r message=FALSE, warning=FALSE}
-seed_weight_clean |> 
-  left_join(cld_weed_control_location_tukey ) |> 
-  ggplot(aes(x = factor(weed_control, levels = c("RNO", "RIM", "RIC", "TIM", "TIC")), y = seed_weight, fill = weed_control)) +
-  facet_wrap( ~location, labeller = labeller(
-    location = c("field O2 east" = "Field O2 East", "field O2 west" = "Field O2 West","field v" = "Field V" )))+
-  stat_summary(geom = "bar", fun = "mean", width = 0.7) +
-  stat_summary(geom = "errorbar", fun.data = "mean_se", width = 0.2) +
-  #stat_summary(geom="text", fun = "MeanPlusSe", aes(label= trimws(.group)),size=6.5,vjust=-0.5) +
+# 2) Faceted boxplot: all site-years
+hundred_sw_clean |>
+  ggplot(aes(x = weed_trt, y = seed_weight, fill = weed_trt)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    width  = 0.55,
+    color  = "black"
+  ) +
+  geom_jitter(
+    width  = 0.12,
+    height = 0,
+    alpha  = 0.4,
+    size   = 1.8,
+    color  = "grey30"
+  ) +
+  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
   labs(
-    x = "",
-     y = expression("Seed weight" ~ (g/100 ~ seeds)),
-
-    #title = str_c("The influence of interrow weed control on soybean yield"),
-    subtitle = expression(italic("Not significant"))) +
-  
-  scale_x_discrete(labels = c("Rolled,\nno additional\nweed control",
-                              "Rolled,\ninterrow\nmowing",
-                              "Rolled,\nhigh-residue\ncultivation",
-                              "Tilled,\ninterrow\nmowing",
-                          "Tilled,\nstandard\ncultivation")) +
-  scale_y_continuous(
-  labels = scales::label_comma(),
-  expand = expansion(mult = c(0.05, 0.3))
-) +
-  scale_fill_viridis(discrete = TRUE, option = "D", direction = -1, end = 0.9, begin = 0.1) +
-   theme_bw() +
+    x     = NULL,
+    y     = "100-seed weight",
+    title = "100-seed weight by treatment across site-years"
+  ) +
+  theme_classic(base_size = 14) +
   theme(
-    legend.position = "none",
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold", size = 20),
-    axis.title = element_text(size = 20),  # Increase font size of axis titles
-    axis.text = element_text(size = 20),   # Increase font size of axis labels
-    plot.title = element_text(size = 24, face = "bold"),  # Increase font size of title
-    plot.subtitle = element_text(size = 24, face = "italic")  # Increase font size of subtitle
+    axis.text.x = element_text(size = 10),
+    strip.text  = element_text(face = "bold")
   )
-ggsave("seed_weight_weed_control_location_kgha.png", width = 24, height = 8, dpi = 300)
+
+# 3) Boxplot: 2023 – Field V only
+hundred_sw_field_v_2023 |>
+  ggplot(aes(x = weed_trt, y = seed_weight, fill = weed_trt)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    width  = 0.55,
+    color  = "black"
+  ) +
+  geom_jitter(
+    width  = 0.12,
+    height = 0,
+    alpha  = 0.4,
+    size   = 1.8,
+    color  = "grey30"
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  labs(
+    x     = NULL,
+    y     = "100-seed weight",
+    title = "100-seed weight by treatment, 2023 – Field V"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+
 ```
+### Selection: 
+#### Pooled, Raw by site-year
+
+```{r}
+### Model testing / selection for seed weight (g)
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# Interaction model: weed_trt * site_year --------------------------------
+sw_int <- lmer(
+  seed_weight ~ weed_trt * site_year + (1 | site_year:block),
+  data = hundred_sw_clean
+)
+
+# Additive model: weed_trt + site_year -----------------------------------
+sw_add <- lmer(
+  seed_weight ~ weed_trt + site_year + (1 | site_year:block),
+  data = hundred_sw_clean
+)
+
+# Compare models (AIC + LRT) ---------------------------------------------
+aic_sw <- tibble(
+  model = c(
+    "Additive: weed_trt + site_year",
+    "Interaction: weed_trt * site_year"
+  ),
+  AIC = c(AIC(sw_add), AIC(sw_int))
+)
+
+kable(
+  aic_sw,
+  digits  = 1,
+  caption = "Seed weight (g): model comparison (additive vs interaction)"
+)
+
+anova(sw_add, sw_int)  # LRT: is the interaction worth keeping?
+
+# Choose simpler additive model unless interaction is clearly needed -----
+# (this is the model used in all downstream emmeans/plots)
+sw.lmer <- sw_add
+
+# Diagnostics on chosen model --------------------------------------------
+set.seed(123)
+res_sw <- DHARMa::simulateResiduals(sw.lmer)
+plot(res_sw)
+DHARMa::testDispersion(sw.lmer)
+
+car::Anova(sw.lmer, type = 3)
+
+```
+### Post-hoc summary table
+```{r}
+### Seed weight (g) with Fisher's LSD CLDs
+
+# Estimated marginal means for weed_trt
+emm_sw <- emmeans(sw.lmer, ~ weed_trt)
+
+# Tidy emmeans (adds ci_low / ci_high and enforces treatment order)
+emm_sw_df <- tidy_emm(emm_sw, ref_levels = mow_levels) |>
+  as_tibble()
+
+# Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
+cld_sw <- cld(
+  emm_sw,
+  adjust  = "none",
+  Letters = letters,
+  sort    = TRUE,    # default, but explicit
+  reversed = TRUE    # now 'a' goes to the highest group(s)
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# Join emmeans + CLDs and format for reporting
+emm_sw_df |>
+  left_join(cld_sw, by = "weed_trt") |>
+  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
+  mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))) |>
+  kable(
+    caption   = "Estimated seed weight (g) with 95% CI and Fisher's LSD group letters",
+    col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+```
+### ANOVA-style summary tables for bean biomass
+```{r}
+## 1) P-value summary (Location, Treatment, Interaction) -----------------
+
+# Type-III tests for additive model (weed_trt + site_year)
+anova_sw <- Anova(sw.lmer, type = 3)
+
+anova_sw_df <- anova_sw |>
+  as.data.frame() |>
+  tibble::rownames_to_column("Effect")
+
+# LRT for interaction (additive vs interaction models)
+anova_interaction_sw <- anova(sw_add, sw_int)
+
+pvals_sw <- tibble(
+  Effect = c("Location (site_year)", "Treatment (weed_trt)", "Location × Treatment"),
+  p_raw  = c(
+    anova_sw_df$`Pr(>Chisq)`[anova_sw_df$Effect == "site_year"],
+    anova_sw_df$`Pr(>Chisq)`[anova_sw_df$Effect == "weed_trt"],
+    anova_interaction_sw$`Pr(>Chisq)`[2]
+  )
+) |>
+  mutate(
+    `P-value` = case_when(
+      p_raw < 0.001 ~ "<0.001",
+      p_raw < 0.01  ~ "<0.01",
+      TRUE          ~ sprintf("%.3f", p_raw)
+    )
+  ) |>
+  select(Effect, `P-value`)
+
+pvals_sw |>
+  kable(
+    caption   = "Seed weight (g): P-values for location, treatment, and interaction",
+    col.names = c("Effect", "P-value")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+## 2) Location block: site-year means (model + raw) ----------------------
+
+# Model-based emmeans by site_year
+emm_loc_sw <- emmeans(sw.lmer, ~ site_year)
+
+emm_loc_sw_df <- tidy_emm(emm_loc_sw) |>
+  as_tibble() |>
+  mutate(
+    site_year  = as.factor(site_year),
+    model_mean = emmean
+  ) |>
+  select(site_year, model_mean)
+
+# CLDs for site_year (a = highest)
+cld_loc_sw <- cld(
+  emm_loc_sw,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    site_year = as.factor(site_year),
+    loc_CLD   = str_trim(.group)
+  ) |>
+  select(site_year, loc_CLD)
+
+# Raw means by site_year
+raw_loc_sw <- hundred_sw_clean |>
+  group_by(site_year) |>
+  summarise(
+    raw_mean = mean(seed_weight, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(site_year = as.factor(site_year))
+
+loc_summary_sw <- emm_loc_sw_df |>
+  left_join(cld_loc_sw, by = "site_year") |>
+  left_join(raw_loc_sw, by = "site_year") |>
+  mutate(
+    model_mean = round(model_mean, 2),
+    raw_mean   = round(raw_mean, 2),
+    raw_CLD    = loc_CLD  # use same letters for model + raw
+  ) |>
+  arrange(site_year)
+
+loc_summary_sw |>
+  kable(
+    caption   = "Seed weight (g): location (site-year) means with CLDs",
+    col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+## 3) Treatment block: means (model + raw) -------------------------------
+
+# emmeans for treatment
+emm_sw <- emmeans(sw.lmer, ~ weed_trt)
+
+emm_trt_sw_df <- tidy_emm(emm_sw, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    weed_trt   = factor(weed_trt, levels = mow_levels),
+    model_mean = emmean
+  ) |>
+  select(weed_trt, model_mean)
+
+# CLDs for treatment (a = highest)
+cld_sw <- cld(
+  emm_sw,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    trt_CLD  = str_trim(.group)
+  ) |>
+  select(weed_trt, trt_CLD)
+
+# Raw means by treatment
+raw_trt_sw <- hundred_sw_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    raw_mean = mean(seed_weight, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(weed_trt = factor(weed_trt, levels = mow_levels))
+
+trt_summary_sw <- emm_trt_sw_df |>
+  left_join(cld_sw, by = "weed_trt") |>
+  left_join(raw_trt_sw, by = "weed_trt") |>
+  mutate(
+    model_mean = round(model_mean, 2),
+    raw_mean   = round(raw_mean, 2),
+    raw_CLD    = trt_CLD
+  ) |>
+  arrange(weed_trt)
+
+trt_summary_sw |>
+  kable(
+    caption   = "Seed weight (g): treatment means with CLDs",
+    col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+## 4) Interaction block: site-year × treatment means ---------------------
+
+# Model emmeans by treatment within site_year
+emm_sy_sw <- emmeans(sw.lmer, ~ weed_trt | site_year)
+
+emm_sy_sw_df <- tidy_emm(emm_sy_sw, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    weed_trt   = factor(weed_trt, levels = mow_levels),
+    site_year  = as.factor(site_year),
+    model_mean = emmean
+  ) |>
+  select(site_year, weed_trt, model_mean)
+
+# CLDs within each site_year (a = highest within that site_year)
+cld_sy_sw <- cld(
+  emm_sy_sw,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt  = factor(weed_trt, levels = mow_levels),
+    site_year = as.factor(site_year),
+    int_CLD   = str_trim(.group)
+  ) |>
+  select(site_year, weed_trt, int_CLD)
+
+# Raw means by site_year × treatment
+raw_sy_sw <- hundred_sw_clean |>
+  group_by(site_year, weed_trt) |>
+  summarise(
+    raw_mean = mean(seed_weight, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(
+    site_year = as.factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels)
+  )
+
+int_summary_sw <- emm_sy_sw_df |>
+  left_join(cld_sy_sw, by = c("site_year", "weed_trt")) |>
+  left_join(raw_sy_sw, by = c("site_year", "weed_trt")) |>
+  mutate(
+    model_mean = round(model_mean, 2),
+    raw_mean   = round(raw_mean, 2),
+    raw_CLD    = int_CLD
+  ) |>
+  arrange(site_year, weed_trt)
+
+int_summary_sw |>
+  kable(
+    caption   = "Seed weight (g): site-year × treatment means with CLDs",
+    col.names = c(
+      "Site-year", "Treatment",
+      "Model mean", "Model CLD",
+      "Raw mean",   "Raw CLD"
+    )
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+```
+# Figures
+## Pooled model
+```{r}
+# Figure: Seed weight by weed management treatment (pooled across site-years)
+
+# Estimated marginal means for treatments
+emm_sw <- emmeans(sw.lmer, ~ weed_trt)
+
+# Tidy emmeans for plotting
+emm_sw_df <- tidy_emm(emm_sw, ref_levels = mow_levels) |>
+  as_tibble() |>
+  mutate(
+    response = emmean,
+    ymin     = pmax(response - SE, 0),
+    ymax     = response + SE
+  )
+
+# CLDs for treatments (Fisher's LSD, "a" = highest)
+cld_sw <- cld(
+  emm_sw,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# Merge means and CLDs
+plot_df_sw <- emm_sw_df |>
+  left_join(cld_sw, by = "weed_trt")
+
+# Plot
+ggplot(plot_df_sw, aes(x = weed_trt, y = response, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x        = NULL,
+    y        = "Seed weight (g)",
+    title    = "Seed weight by weed management treatment",
+    caption  = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold")
+  )
+
+# Save figure
+ggsave(
+  filename = here("figs", "analysis", "fig_seed_weight_mowing_pooled.png"),
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
+
+```
+## Pooled Raw
+```{r}
+# Figure: Seed weight by weed management treatment (raw means ± SE, model CLDs)
+
+# 1) Raw means and SE by treatment --------------------------------------
+raw_sw_summary <- hundred_sw_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    n    = n(),
+    mean = mean(seed_weight, na.rm = TRUE),
+    sd   = sd(seed_weight, na.rm = TRUE),
+    se   = sd / sqrt(n),
+    .groups = "drop"
+  ) |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    ymin     = pmax(mean - se, 0),
+    ymax     = mean + se
+  )
+
+# 2) Model-based CLDs for treatment main effect -------------------------
+emm_sw <- emmeans(sw.lmer, ~ weed_trt)
+
+cld_sw <- cld(
+  emm_sw,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE   # "a" = highest mean
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# 3) Join raw means and model CLDs --------------------------------------
+plot_df_sw_raw <- raw_sw_summary |>
+  left_join(cld_sw, by = "weed_trt")
+
+# 4) Plot ---------------------------------------------------------------
+ggplot(plot_df_sw_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x        = NULL,
+    y        = "Seed weight (g)",
+    title    = "Seed weight by weed management treatment",
+    caption  = "Raw means ± SE; letters = model-based Fisher-style CLD for treatment main effect."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold")
+  )
+
+# Save figure
+ggsave(
+  filename = here("figs", "analysis", "fig_seed_weight_mowing_pooled_raw.png"),
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
+
+```
+
