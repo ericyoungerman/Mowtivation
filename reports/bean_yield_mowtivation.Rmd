@@ -157,8 +157,8 @@ kable(
 <br>
 
 # Model testing
-### Exploratory: 
-####Raw by site-year
+## Exploratory: 
+###Raw by site-year
 
 ```{r}
 
@@ -238,8 +238,8 @@ bean_yield_field_v_2023 |>
 ```
 
 
-### Selection: 
-#### Pooled, Raw by site-year
+## Selection: 
+### Pooled, Raw by site-year
 
 ```{r}
 ### Model testing / selection for bean yield (kg/ha)
@@ -277,7 +277,7 @@ kable(
 anova(yield_add, yield_int)  # LRT: is the interaction worth keeping?
 
 # Choose simpler additive model unless interaction is clearly needed -----
-# (this is the model used in all downstream emmeans/plots)
+
 yield.lmer <- yield_add
 
 # Diagnostics on chosen model --------------------------------------------
@@ -289,51 +289,111 @@ DHARMa::testDispersion(yield.lmer)
 car::Anova(yield.lmer, type = 3)
 
 ```
-
+## Equivalence testing
 ```{r}
-### Model testing / selection for bean yield (kg/ha)
+## Equivalence testing: are no-till yields "close enough" to tilled? ----
 
-options(contrasts = c("contr.sum", "contr.poly"))
 
-# interaction model: weed_trt * site_year --------------------------------
-yield_int <- lmer(
-  bean_yield_adj_kg_ha ~ weed_trt * site_year + (1 | site_year:block),
-  data = bean_yield_clean
+# 1) EMMs for soybean yield ---------------------------------------------
+
+emm_yield <- emmeans(yield.lmer, ~ weed_trt)
+
+# Name of the tilled "control" treatment (adjust if needed)
+tilled_trt <- "Tilled + cultivation"
+
+# Check the reference actually exists
+tilled_trt
+
+# 2) Define equivalence margin (as % of tilled yield) -------------------
+
+# Get model-based tilled yield (kg/ha)
+tilled_mean <- summary(emm_yield) |>
+  as_tibble() |>
+  filter(weed_trt == tilled_trt) |>
+  pull(emmean)
+
+# Choose your equivalence margin as a % of tilled yield
+margin_pct <- 0.10        # e.g., 0.10 = ±10% of tilled yield
+
+delta_kg <- margin_pct * tilled_mean
+
+# For interpretation: convert margin to bu/ac (approx)
+kg_per_bu_ac <- 67.25     # ≈ kg/ha per 1 bu/ac for soybean
+delta_bu_ac <- delta_kg / kg_per_bu_ac
+
+cat("Equivalence margin:",
+    sprintf("±%.0f kg/ha (≈ ±%.1f bu/ac, %.0f%% of tilled yield)\n",
+            delta_kg, delta_bu_ac, margin_pct * 100))
+
+# 3) Contrasts: each treatment vs tilled --------------------------------
+
+yield_vs_tilled <- contrast(
+  emm_yield,
+  method = "trt.vs.ctrl",
+  ref    = which(mow_levels == tilled_trt)
 )
 
-# additive model: weed_trt + site_year -----------------------------------
-yield_add <- lmer(
-  bean_yield_adj_kg_ha ~ weed_trt + site_year + (1 | site_year:block),
-  data = bean_yield_clean
-)
+# 4) TOST-style equivalence tests via emmeans ---------------------------
 
-# compare models (AIC + LRT) ---------------------------------------------
-aic_yield <- tibble::tibble(
-  model = c("Additive: weed_trt + site_year",
-            "Interaction: weed_trt * site_year"),
-  AIC   = c(AIC(yield_add), AIC(yield_int))
-)
+equiv_yield <- summary(
+  yield_vs_tilled,
+  infer  = c(TRUE, TRUE),     # show CI + tests
+  level  = 0.90,              # 1 - 2*0.05 for α = 0.05 equivalence
+  side   = "equivalence",     # two one-sided tests (TOST)
+  delta  = delta_kg,
+  adjust = "none"             # usually no multiplicity adj for equiv vs control
+) |>
+  as_tibble() |>
+  mutate(
+    # convert differences to bu/ac for interpretability
+    diff_bu_ac   = estimate   / kg_per_bu_ac,
+    lower_bu_ac  = lower.CL   / kg_per_bu_ac,
+    upper_bu_ac  = upper.CL   / kg_per_bu_ac,
+    p_equiv      = p.value    # rename for clarity
+  )
 
-knitr::kable(
-  aic_yield,
-  digits  = 1,
-  caption = "Bean yield (kg/ha): model comparison (additive vs interaction)"
-)
+# 5) Nicely formatted table ---------------------------------------------
 
-anova(yield_add, yield_int)  # LRT: is the interaction worth keeping?
-
-# choose the simpler additive model unless the interaction is clearly needed
-yield.lmer <- yield_add
-
-# diagnostics on chosen model --------------------------------------------
-res_yield <- DHARMa::simulateResiduals(yield.lmer)
-plot(res_yield)
-DHARMa::testDispersion(yield.lmer)
-
-car::Anova(yield.lmer, type = 3)
+equiv_yield |>
+  transmute(
+    Contrast        = contrast,
+    diff_kg_ha      = estimate,
+    lower_kg_ha     = lower.CL,
+    upper_kg_ha     = upper.CL,
+    diff_bu_ac,
+    lower_bu_ac,
+    upper_bu_ac,
+    p_equiv
+  ) |>
+  mutate(
+    across(
+      c(diff_kg_ha, lower_kg_ha, upper_kg_ha,
+        diff_bu_ac, lower_bu_ac, upper_bu_ac),
+      ~ round(.x, 1)
+    ),
+    p_equiv = signif(p_equiv, 3)
+  ) |>
+  kable(
+    caption = paste0(
+      "Equivalence tests for soybean yield vs ",
+      tilled_trt,
+      " (margin = ±",
+      round(delta_kg, 0), " kg/ha ≈ ±",
+      round(delta_bu_ac, 1), " bu/ac)."
+    ),
+    col.names = c(
+      "Contrast",
+      "Diff (kg/ha)", "Lower 90% CI", "Upper 90% CI",
+      "Diff (bu/ac)", "Lower 90% CI", "Upper 90% CI",
+      "p (equiv.)"
+    )
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 ```
-### Post-hoc summary table
+
+
+## Post-hoc summary table
 ```{r}
 
 ### Bean yield (kg/ha) with Fisher's LSD CLDs
@@ -372,7 +432,7 @@ emm_yield_df |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 ```
-### ANOVA-style summary tables for bean yield
+## ANOVA-style summary tables for bean yield
 ```{r}
 
 ## 1) P-value summary (Location, Treatment, Interaction) -----------------
@@ -587,7 +647,7 @@ int_summary_yield |>
 
 ```
 
-####2023 Raw
+##2023 Raw
 ```{r}
 ### Selection: 2023 – Field V only
 

@@ -148,8 +148,6 @@ kable(
 # Model testing
 ## Exploratory Analysis: Soybean biomass
 ```{r}
-
-
 # 1) Summary table: bean biomass by site-year × treatment
 bean_biomass_clean |>
   group_by(site_year, weed_trt) |>
@@ -318,8 +316,6 @@ emm_bio_df |>
 
 ### ANOVA-style summary tables for bean biomass
 ```{r}
-
-
 ## 1) P-value summary (Location, Treatment, Interaction) -----------------
 
 # Type-III tests for additive model (weed_trt + site_year)

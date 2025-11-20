@@ -1,14 +1,18 @@
-Soybean eield
+Soybean yield
 ================
 
 - [Data import & prep](#data-import--prep)
 - [Model testing](#model-testing)
   - [Exploratory:](#exploratory)
   - [Selection:](#selection)
+    - [Pooled, Raw by site-year](#pooled-raw-by-site-year)
+  - [Equivalence testing](#equivalence-testing)
   - [Post-hoc summary table](#post-hoc-summary-table)
   - [ANOVA-style summary tables for bean
     yield](#anova-style-summary-tables-for-bean-yield)
-  - [Figures](#figures)
+- [Figures](#figures)
+  - [Pooled model](#pooled-model)
+  - [Pooled raw](#pooled-raw)
 
 \#Setup
 
@@ -160,9 +164,9 @@ All site-years, cleaned (bean yield)
 
 # Model testing
 
-### Exploratory:
+## Exploratory:
 
-\####Raw by site-year
+\###Raw by site-year
 
 ``` r
 # 1) Summary table: bean yield by site-year × treatment
@@ -808,9 +812,9 @@ bean_yield_field_v_2023 |>
 
 ![](figs/analysis/bean_yield-unnamed-chunk-3-2.png)<!-- -->
 
-### Selection:
+## Selection:
 
-#### Pooled, Raw by site-year
+### Pooled, Raw by site-year
 
 ``` r
 ### Model testing / selection for bean yield (kg/ha)
@@ -867,7 +871,7 @@ anova(yield_add, yield_int)  # LRT: is the interaction worth keeping?
 
 ``` r
 # Choose simpler additive model unless interaction is clearly needed -----
-# (this is the model used in all downstream emmeans/plots)
+
 yield.lmer <- yield_add
 
 # Diagnostics on chosen model --------------------------------------------
@@ -906,96 +910,356 @@ car::Anova(yield.lmer, type = 3)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
+## Equivalence testing
+
 ``` r
-### Model testing / selection for bean yield (kg/ha)
+## Equivalence testing: are no-till yields "close enough" to tilled? ----
 
-options(contrasts = c("contr.sum", "contr.poly"))
 
-# interaction model: weed_trt * site_year --------------------------------
-yield_int <- lmer(
-  bean_yield_adj_kg_ha ~ weed_trt * site_year + (1 | site_year:block),
-  data = bean_yield_clean
+# 1) EMMs for soybean yield ---------------------------------------------
+
+emm_yield <- emmeans(yield.lmer, ~ weed_trt)
+
+# Name of the tilled "control" treatment (adjust if needed)
+tilled_trt <- "Tilled + cultivation"
+
+# Check the reference actually exists
+tilled_trt
+```
+
+    ## [1] "Tilled + cultivation"
+
+``` r
+# 2) Define equivalence margin (as % of tilled yield) -------------------
+
+# Get model-based tilled yield (kg/ha)
+tilled_mean <- summary(emm_yield) |>
+  as_tibble() |>
+  filter(weed_trt == tilled_trt) |>
+  pull(emmean)
+
+# Choose your equivalence margin as a % of tilled yield
+margin_pct <- 0.10        # e.g., 0.10 = ±10% of tilled yield
+
+delta_kg <- margin_pct * tilled_mean
+
+# For interpretation: convert margin to bu/ac (approx)
+kg_per_bu_ac <- 67.25     # ≈ kg/ha per 1 bu/ac for soybean
+delta_bu_ac <- delta_kg / kg_per_bu_ac
+
+cat("Equivalence margin:",
+    sprintf("±%.0f kg/ha (≈ ±%.1f bu/ac, %.0f%% of tilled yield)\n",
+            delta_kg, delta_bu_ac, margin_pct * 100))
+```
+
+    ## Equivalence margin: ±468 kg/ha (≈ ±7.0 bu/ac, 10% of tilled yield)
+
+``` r
+# 3) Contrasts: each treatment vs tilled --------------------------------
+
+yield_vs_tilled <- contrast(
+  emm_yield,
+  method = "trt.vs.ctrl",
+  ref    = which(mow_levels == tilled_trt)
 )
 
-# additive model: weed_trt + site_year -----------------------------------
-yield_add <- lmer(
-  bean_yield_adj_kg_ha ~ weed_trt + site_year + (1 | site_year:block),
-  data = bean_yield_clean
-)
+# 4) TOST-style equivalence tests via emmeans ---------------------------
 
-# compare models (AIC + LRT) ---------------------------------------------
-aic_yield <- tibble::tibble(
-  model = c("Additive: weed_trt + site_year",
-            "Interaction: weed_trt * site_year"),
-  AIC   = c(AIC(yield_add), AIC(yield_int))
-)
+equiv_yield <- summary(
+  yield_vs_tilled,
+  infer  = c(TRUE, TRUE),     # show CI + tests
+  level  = 0.90,              # 1 - 2*0.05 for α = 0.05 equivalence
+  side   = "equivalence",     # two one-sided tests (TOST)
+  delta  = delta_kg,
+  adjust = "none"             # usually no multiplicity adj for equiv vs control
+) |>
+  as_tibble() |>
+  mutate(
+    # convert differences to bu/ac for interpretability
+    diff_bu_ac   = estimate   / kg_per_bu_ac,
+    lower_bu_ac  = lower.CL   / kg_per_bu_ac,
+    upper_bu_ac  = upper.CL   / kg_per_bu_ac,
+    p_equiv      = p.value    # rename for clarity
+  )
 
-knitr::kable(
-  aic_yield,
-  digits  = 1,
-  caption = "Bean yield (kg/ha): model comparison (additive vs interaction)"
-)
+# 5) Nicely formatted table ---------------------------------------------
+
+equiv_yield |>
+  transmute(
+    Contrast        = contrast,
+    diff_kg_ha      = estimate,
+    lower_kg_ha     = lower.CL,
+    upper_kg_ha     = upper.CL,
+    diff_bu_ac,
+    lower_bu_ac,
+    upper_bu_ac,
+    p_equiv
+  ) |>
+  mutate(
+    across(
+      c(diff_kg_ha, lower_kg_ha, upper_kg_ha,
+        diff_bu_ac, lower_bu_ac, upper_bu_ac),
+      ~ round(.x, 1)
+    ),
+    p_equiv = signif(p_equiv, 3)
+  ) |>
+  kable(
+    caption = paste0(
+      "Equivalence tests for soybean yield vs ",
+      tilled_trt,
+      " (margin = ±",
+      round(delta_kg, 0), " kg/ha ≈ ±",
+      round(delta_bu_ac, 1), " bu/ac)."
+    ),
+    col.names = c(
+      "Contrast",
+      "Diff (kg/ha)", "Lower 90% CI", "Upper 90% CI",
+      "Diff (bu/ac)", "Lower 90% CI", "Upper 90% CI",
+      "p (equiv.)"
+    )
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
 
-| model                              |   AIC |
-|:-----------------------------------|------:|
-| Additive: weed_trt + site_year     | 839.6 |
-| Interaction: weed_trt \* site_year | 752.1 |
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 
-Bean yield (kg/ha): model comparison (additive vs interaction)
+<caption>
 
-``` r
-anova(yield_add, yield_int)  # LRT: is the interaction worth keeping?
-```
+Equivalence tests for soybean yield vs Tilled + cultivation (margin =
+±468 kg/ha ≈ ±7 bu/ac).
+</caption>
 
-    ## Data: bean_yield_clean
-    ## Models:
-    ## yield_add: bean_yield_adj_kg_ha ~ weed_trt + site_year + (1 | site_year:block)
-    ## yield_int: bean_yield_adj_kg_ha ~ weed_trt * site_year + (1 | site_year:block)
-    ##           npar    AIC    BIC logLik -2*log(L)  Chisq Df Pr(>Chisq)
-    ## yield_add    9 915.00 933.85 -448.5    897.00                     
-    ## yield_int   17 919.01 954.61 -442.5    885.01 11.997  8     0.1514
+<thead>
 
-``` r
-# choose the simpler additive model unless the interaction is clearly needed
-yield.lmer <- yield_add
+<tr>
 
-# diagnostics on chosen model --------------------------------------------
-res_yield <- DHARMa::simulateResiduals(yield.lmer)
-plot(res_yield)
-```
+<th style="text-align:left;">
 
-![](figs/analysis/bean_yield-unnamed-chunk-5-1.png)<!-- -->
+Contrast
+</th>
 
-``` r
-DHARMa::testDispersion(yield.lmer)
-```
+<th style="text-align:right;">
 
-![](figs/analysis/bean_yield-unnamed-chunk-5-2.png)<!-- -->
+Diff (kg/ha)
+</th>
 
-    ## 
-    ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
-    ##  simulated
-    ## 
-    ## data:  simulationOutput
-    ## dispersion = 0.89112, p-value = 0.528
-    ## alternative hypothesis: two.sided
+<th style="text-align:right;">
 
-``` r
-car::Anova(yield.lmer, type = 3)
-```
+Lower 90% CI
+</th>
 
-    ## Analysis of Deviance Table (Type III Wald chisquare tests)
-    ## 
-    ## Response: bean_yield_adj_kg_ha
-    ##                 Chisq Df Pr(>Chisq)    
-    ## (Intercept) 5469.5514  1  < 2.2e-16 ***
-    ## weed_trt       4.5918  4     0.3318    
-    ## site_year     68.3827  2  1.415e-15 ***
-    ## ---
-    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+<th style="text-align:right;">
 
-### Post-hoc summary table
+Upper 90% CI
+</th>
+
+<th style="text-align:right;">
+
+Diff (bu/ac)
+</th>
+
+<th style="text-align:right;">
+
+Lower 90% CI
+</th>
+
+<th style="text-align:right;">
+
+Upper 90% CI
+</th>
+
+<th style="text-align:right;">
+
+p (equiv.)
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+Rolled, no control - (Tilled + cultivation)
+</td>
+
+<td style="text-align:right;">
+
+-209.9
+</td>
+
+<td style="text-align:right;">
+
+-518.5
+</td>
+
+<td style="text-align:right;">
+
+98.6
+</td>
+
+<td style="text-align:right;">
+
+-3.1
+</td>
+
+<td style="text-align:right;">
+
+-7.7
+</td>
+
+<td style="text-align:right;">
+
+1.5
+</td>
+
+<td style="text-align:right;">
+
+0.0834
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+(Rolled + mowing) - (Tilled + cultivation)
+</td>
+
+<td style="text-align:right;">
+
+-85.9
+</td>
+
+<td style="text-align:right;">
+
+-394.5
+</td>
+
+<td style="text-align:right;">
+
+222.6
+</td>
+
+<td style="text-align:right;">
+
+-1.3
+</td>
+
+<td style="text-align:right;">
+
+-5.9
+</td>
+
+<td style="text-align:right;">
+
+3.3
+</td>
+
+<td style="text-align:right;">
+
+0.0217
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+(Rolled + high-residue cult.) - (Tilled + cultivation)
+</td>
+
+<td style="text-align:right;">
+
+-112.0
+</td>
+
+<td style="text-align:right;">
+
+-420.6
+</td>
+
+<td style="text-align:right;">
+
+196.5
+</td>
+
+<td style="text-align:right;">
+
+-1.7
+</td>
+
+<td style="text-align:right;">
+
+-6.3
+</td>
+
+<td style="text-align:right;">
+
+2.9
+</td>
+
+<td style="text-align:right;">
+
+0.0295
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+(Tilled + mowing) - (Tilled + cultivation)
+</td>
+
+<td style="text-align:right;">
+
+-364.2
+</td>
+
+<td style="text-align:right;">
+
+-672.7
+</td>
+
+<td style="text-align:right;">
+
+-55.7
+</td>
+
+<td style="text-align:right;">
+
+-5.4
+</td>
+
+<td style="text-align:right;">
+
+-10.0
+</td>
+
+<td style="text-align:right;">
+
+-0.8
+</td>
+
+<td style="text-align:right;">
+
+0.2870
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+## Post-hoc summary table
 
 ``` r
 ### Bean yield (kg/ha) with Fisher's LSD CLDs
@@ -1255,7 +1519,7 @@ a
 
 </table>
 
-### ANOVA-style summary tables for bean yield
+## ANOVA-style summary tables for bean yield
 
 ``` r
 ## 1) P-value summary (Location, Treatment, Interaction) -----------------
@@ -2430,7 +2694,7 @@ a
 
 </table>
 
-\####2023 Raw
+\##2023 Raw
 
 ``` r
 ### Selection: 2023 – Field V only
@@ -2512,11 +2776,9 @@ car::Anova(yield_fv.lmer, type = 3)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-### Figures
+# Figures
 
-#### Pooled
-
-\`\`## Pooled model
+### Pooled model
 
 ``` r
 # Figure: Bean yield by weed management treatment (pooled across site-years)
@@ -2567,8 +2829,8 @@ ggplot(plot_df_yield, aes(x = weed_trt, y = response, fill = weed_trt)) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
     x        = NULL,
-    y        = "Bean yield (kg/ha)",
-    title    = "Bean yield by weed management treatment",
+    y        = "Soybean yield (kg/ha)",
+    title    = "Soybean yield by weed management treatment",
     caption  = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
   ) +
   theme_classic(base_size = 18) +
@@ -2585,6 +2847,87 @@ ggplot(plot_df_yield, aes(x = weed_trt, y = response, fill = weed_trt)) +
 # Save figure
 ggsave(
   filename = here("figs", "analysis", "fig_bean_yield_mowing_pooled.png"),
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
+```
+
+### Pooled raw
+
+``` r
+# Figure: Bean yield by weed management treatment (raw means ± SE, model CLDs)
+
+# 1) Raw means and SE by treatment --------------------------------------
+raw_yield_summary <- bean_yield_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    n    = n(),
+    mean = mean(bean_yield_kg_ha, na.rm = TRUE),
+    sd   = sd(bean_yield_kg_ha, na.rm = TRUE),
+    se   = sd / sqrt(n),
+    .groups = "drop"
+  ) |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    ymin     = pmax(mean - se, 0),
+    ymax     = mean + se
+  )
+
+# 2) Model-based CLDs for treatment main effect -------------------------
+emm_yield <- emmeans(yield.lmer, ~ weed_trt)
+
+cld_yield <- cld(
+  emm_yield,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE   # "a" = highest mean
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# 3) Join raw means and model CLDs --------------------------------------
+plot_df_yield_raw <- raw_yield_summary |>
+  left_join(cld_yield, by = "weed_trt")
+
+# 4) Plot ---------------------------------------------------------------
+ggplot(plot_df_yield_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_plus) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x        = NULL,
+    y        = "Soybean yield (kg/ha)",
+    title    = "Soybean yield by weed management treatment",
+    caption  = "Raw means ± SE; letters = model-based Fisher-style CLD for treatment main effect."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold")
+  )
+```
+
+![](figs/analysis/bean_yield-unnamed-chunk-10-1.png)<!-- -->
+
+``` r
+# Save figure
+ggsave(
+  filename = here("figs", "analysis", "fig_bean_yield_mowing_pooled_raw.png"),
   width    = 7.5,
   height   = 5.5,
   dpi      = 300
