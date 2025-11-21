@@ -20,7 +20,7 @@ Soybean yield
 
 ``` r
 # Packages
-library(tidyverse) # includes dplyr, ggplot2, readr, tibble, etc.
+library(tidyverse)    # includes dplyr, ggplot2, readr, tibble, etc.
 library(janitor)
 library(readxl)
 library(glmmTMB)
@@ -32,6 +32,8 @@ library(kableExtra)
 library(here)
 library(conflicted)
 library(lme4)
+library(WrensBookshelf)
+
 
 # Handle conflicts
 conflicts_prefer(dplyr::select)
@@ -40,59 +42,67 @@ conflicts_prefer(dplyr::recode)
 
 # Treatment level order (use everywhere)
 mow_levels <- c(
-"Rolled, no control",
-"Rolled + mowing",
-"Rolled + high-residue cult.",
-"Tilled + mowing",
-"Tilled + cultivation"
+  "Rolled, no control",
+  "Rolled, mowing",
+  "Rolled, high-residue cultivation",
+  "Tilled, mowing",
+  "Tilled, cultivation"
 )
 
-# One consistent color palette for all figures
+# One consistent CVD-safe color palette for all figures (WrensBookshelf)
+fill_cols <- WB_brewer(
+  name = "WhatWellBuild",
+  n    = length(mow_levels),
+  type = "discrete"
+) |>
+  setNames(mow_levels)
 
-fill_cols <- c(
-"Rolled, no control" = "#0072B2", # blue
-"Rolled + mowing" = "#009E73", # green
-"Rolled + high-residue cult." = "#F0E442", # yellow
-"Tilled + mowing" = "#D55E00", # reddish
-"Tilled + cultivation" = "#CC79A7" # magenta
-)
+# x-axis label helpers ---------------------------------------------------
 
-#x-axis label helpers
-
+# Break on spaces (if you ever want every word on its own line)
 label_break_spaces <- function(x) {
   stringr::str_replace_all(x, " ", "\n")
 }
 
-label_break_plus <- function(x) {
-  stringr::str_replace_all(x, " \\+ ", "\n+ ")
+# Break after the comma: "Rolled,\nno control", etc.
+label_break_comma <- function(x) {
+  stringr::str_replace_all(x, ", ", ",\n")
 }
 
+# Break after comma AND split "high-residue cultivation"
+# -> "Rolled,\nhigh-residue\ncultivation"
+label_break_comma_cult <- function(x) {
+  x |>
+    stringr::str_replace("high-residue cultivation",
+                         "high-residue\ncultivation") |>
+    stringr::str_replace_all(", ", ",\n")
+}
 
-#Helper: tidy emmeans output regardless of CI column names
-#(works directly on an emmeans object)
+# Helper: tidy emmeans output regardless of CI column names --------------
+# (works directly on an emmeans object)
 
 tidy_emm <- function(emm, ref_levels = NULL) {
-emm_df <- as.data.frame(emm)
+  emm_df <- as.data.frame(emm)
 
-lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
-ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+  lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+  ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
 
-if (is.na(lcl_col) || is.na(ucl_col)) {
-stop("Could not find CI columns in emmeans output.")
-}
+  if (is.na(lcl_col) || is.na(ucl_col)) {
+    stop("Could not find CI columns in emmeans output.")
+  }
 
-out <- emm_df |>
-mutate(
-ci_low = .data[[lcl_col]],
-ci_high = .data[[ucl_col]]
-)
+  out <- emm_df |>
+    dplyr::mutate(
+      ci_low  = .data[[lcl_col]],
+      ci_high = .data[[ucl_col]]
+    )
 
-if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
-out <- out |>
-mutate(weed_trt = factor(weed_trt, levels = ref_levels))
-}
+  if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
+    out <- out |>
+      dplyr::mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+  }
 
-out
+  out
 }
 ```
 
@@ -112,10 +122,10 @@ bean_yield_clean <- read_excel(
     weed_trt  = recode(
       weed_trt,
       "RNO" = "Rolled, no control",
-      "RIM" = "Rolled + mowing",
-      "RIC" = "Rolled + high-residue cult.",
-      "TIM" = "Tilled + mowing",
-      "TIC" = "Tilled + cultivation"
+      "RIM" = "Rolled, mowing",
+      "RIC" = "Rolled, high-residue cultivation",
+      "TIM" = "Tilled, mowing",
+      "TIC" = "Tilled, cultivation"
     ),
     weed_trt = factor(weed_trt, levels = mow_levels)
   ) |>
@@ -151,12 +161,12 @@ kable(
 
 | id | location | year | weed_trt | block | plot | bean_emergence | bean_biomass | inrow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight | site_year | bean_yield_adj_bu_acre | bean_yield_adj_lbs_acre | bean_yield_adj_kg_ha | bean_yield_kg_ha | bean_yield_bu_acre |
 |:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---|---:|---:|---:|---:|---:|
-| CU_B1_P101 | field v | 2023 | Tilled + mowing | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 2023.field v | 46.75977 | 2805.586 | 3144.641 | 3144.641 | 46.75977 |
-| CU_B1_P102 | field v | 2023 | Tilled + cultivation | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 2023.field v | 63.38419 | 3803.051 | 4262.650 | 4262.650 | 63.38419 |
-| CU_B1_P103 | field v | 2023 | Rolled + mowing | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 2023.field v | 50.42694 | 3025.616 | 3391.262 | 3391.262 | 50.42694 |
+| CU_B1_P101 | field v | 2023 | Tilled, mowing | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 2023.field v | 46.75977 | 2805.586 | 3144.641 | 3144.641 | 46.75977 |
+| CU_B1_P102 | field v | 2023 | Tilled, cultivation | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 2023.field v | 63.38419 | 3803.051 | 4262.650 | 4262.650 | 63.38419 |
+| CU_B1_P103 | field v | 2023 | Rolled, mowing | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 2023.field v | 50.42694 | 3025.616 | 3391.262 | 3391.262 | 50.42694 |
 | CU_B1_P104 | field v | 2023 | Rolled, no control | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35.0 | 412.59 | 16.1450 | 2023.field v | 46.24197 | 2774.518 | 3109.819 | 3109.819 | 46.24197 |
-| CU_B1_P105 | field v | 2023 | Rolled + high-residue cult. | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 2023.field v | 53.10110 | 3186.066 | 3571.102 | 3571.102 | 53.10110 |
-| CU_B1_P201 | field v | 2023 | Rolled + high-residue cult. | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 2023.field v | 54.24989 | 3254.994 | 3648.359 | 3648.359 | 54.24989 |
+| CU_B1_P105 | field v | 2023 | Rolled, high-residue cultivation | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 2023.field v | 53.10110 | 3186.066 | 3571.102 | 3571.102 | 53.10110 |
+| CU_B1_P201 | field v | 2023 | Rolled, high-residue cultivation | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 2023.field v | 54.24989 | 3254.994 | 3648.359 | 3648.359 | 54.24989 |
 
 All site-years, cleaned (bean yield)
 
@@ -182,7 +192,7 @@ bean_yield_clean |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "Bean yield (kg/ha) by site-year × treatment"
+    caption = "Bean yield (kg ha⁻¹) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -191,7 +201,7 @@ bean_yield_clean |>
 
 <caption>
 
-Bean yield (kg/ha) by site-year × treatment
+Bean yield (kg ha⁻¹) by site-year × treatment
 </caption>
 
 <thead>
@@ -277,7 +287,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -311,7 +321,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -345,7 +355,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -379,7 +389,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -447,7 +457,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -481,7 +491,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -515,7 +525,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -549,7 +559,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -617,7 +627,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -651,7 +661,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -685,7 +695,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -719,7 +729,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -764,12 +774,12 @@ bean_yield_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  facet_wrap(~ site_year, nrow = 1) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+ scale_x_discrete(labels = label_break_comma_cult) +
   labs(
     x     = NULL,
-    y     = "Bean yield (kg/ha)",
+    y = expression(Bean~yield~"(kg"~ha^{-1}*")"),
     title = "Bean yield by treatment across site-years"
   ) +
   theme_classic(base_size = 14) +
@@ -798,10 +808,10 @@ bean_yield_field_v_2023 |>
     color  = "grey30"
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   labs(
     x     = NULL,
-    y     = "Bean yield (kg/ha)",
+    y = expression(Bean~yield~"(kg"~ha^{-1}*")"),
     title = "Bean yield by treatment, 2023 – Field V"
   ) +
   theme_classic(base_size = 14) +
@@ -817,8 +827,7 @@ bean_yield_field_v_2023 |>
 ### Pooled, Raw by site-year
 
 ``` r
-### Model testing / selection for bean yield (kg/ha)
-
+### Model testing / selection for bean yield (kg ha⁻¹)
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
@@ -835,6 +844,7 @@ yield_add <- lmer(
 )
 
 # Compare models (AIC + LRT) ---------------------------------------------
+# AIC table
 aic_yield <- tibble(
   model = c(
     "Additive: weed_trt + site_year",
@@ -843,22 +853,126 @@ aic_yield <- tibble(
   AIC = c(AIC(yield_add), AIC(yield_int))
 )
 
+# Likelihood-ratio test (is the interaction worth keeping?)
+lrt_yield <- anova(yield_add, yield_int)
+
+p_int <- lrt_yield$`Pr(>Chisq)`[2]
+
+# Apply your rule: choose simpler additive model unless interaction is clearly needed
+chosen_model_name <- if (p_int < 0.05) {
+  "Interaction: weed_trt * site_year"
+} else {
+  "Additive: weed_trt + site_year"
+}
+
+yield.lmer <- if (p_int < 0.05) yield_int else yield_add
+
+# Add ΔAIC and "Selected" flag to the table ------------------------------
+aic_yield_out <- aic_yield |>
+  mutate(
+    deltaAIC = AIC - min(AIC),
+    Selected = if_else(model == chosen_model_name, "Yes", "")
+  )
+
 kable(
-  aic_yield,
-  digits  = 1,
-  caption = "Bean yield (kg/ha): model comparison (additive vs interaction)"
-)
+  aic_yield_out,
+  digits  = 2,
+  caption = "Bean yield (kg ha⁻¹): model comparison (additive vs interaction)"
+) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
 
-| model                              |   AIC |
-|:-----------------------------------|------:|
-| Additive: weed_trt + site_year     | 839.6 |
-| Interaction: weed_trt \* site_year | 752.1 |
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 
-Bean yield (kg/ha): model comparison (additive vs interaction)
+<caption>
+
+Bean yield (kg ha⁻¹): model comparison (additive vs interaction)
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+model
+</th>
+
+<th style="text-align:right;">
+
+AIC
+</th>
+
+<th style="text-align:right;">
+
+deltaAIC
+</th>
+
+<th style="text-align:left;">
+
+Selected
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+Additive: weed_trt + site_year
+</td>
+
+<td style="text-align:right;">
+
+839.62
+</td>
+
+<td style="text-align:right;">
+
+87.48
+</td>
+
+<td style="text-align:left;">
+
+Yes
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Interaction: weed_trt \* site_year
+</td>
+
+<td style="text-align:right;">
+
+752.14
+</td>
+
+<td style="text-align:right;">
+
+0.00
+</td>
+
+<td style="text-align:left;">
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
 
 ``` r
-anova(yield_add, yield_int)  # LRT: is the interaction worth keeping?
+# Also show the LRT table (optional but handy)
+lrt_yield
 ```
 
     ## Data: bean_yield_clean
@@ -870,10 +984,17 @@ anova(yield_add, yield_int)  # LRT: is the interaction worth keeping?
     ## yield_int   17 919.01 954.61 -442.5    885.01 11.997  8     0.1514
 
 ``` r
-# Choose simpler additive model unless interaction is clearly needed -----
+# Quick text reminder of which model is used downstream ------------------
+cat("\nSelected model for bean yield (used in all downstream emmeans/plots):\n  ",
+    chosen_model_name,
+    sprintf("  [LRT p = %.3f]\n", p_int))
+```
 
-yield.lmer <- yield_add
+    ## 
+    ## Selected model for bean yield (used in all downstream emmeans/plots):
+    ##    Additive: weed_trt + site_year   [LRT p = 0.151]
 
+``` r
 # Diagnostics on chosen model --------------------------------------------
 set.seed(123)
 res_yield <- DHARMa::simulateResiduals(yield.lmer)
@@ -915,81 +1036,80 @@ car::Anova(yield.lmer, type = 3)
 ``` r
 ## Equivalence testing: are no-till yields "close enough" to tilled? ----
 
-
 # 1) EMMs for soybean yield ---------------------------------------------
-
 emm_yield <- emmeans(yield.lmer, ~ weed_trt)
 
-# Name of the tilled "control" treatment (adjust if needed)
-tilled_trt <- "Tilled + cultivation"
+# Name of the tilled "control" treatment (must match mow_levels exactly)
+tilled_trt <- "Tilled, cultivation"
+
+# Extract treatment levels from emmGrid
+trt_levels <- levels(emm_yield)$weed_trt
 
 # Check the reference actually exists
-tilled_trt
-```
+if (!tilled_trt %in% trt_levels) {
+  stop(
+    "tilled_trt ('", tilled_trt, "') is not a level of weed_trt.\n",
+    "Current levels are: ",
+    paste(trt_levels, collapse = ", ")
+  )
+}
 
-    ## [1] "Tilled + cultivation"
-
-``` r
 # 2) Define equivalence margin (as % of tilled yield) -------------------
 
-# Get model-based tilled yield (kg/ha)
+# Get model-based tilled yield (kg ha⁻¹)
 tilled_mean <- summary(emm_yield) |>
   as_tibble() |>
   filter(weed_trt == tilled_trt) |>
   pull(emmean)
 
-# Choose your equivalence margin as a % of tilled yield
 margin_pct <- 0.10        # e.g., 0.10 = ±10% of tilled yield
+delta_kg   <- margin_pct * tilled_mean
 
-delta_kg <- margin_pct * tilled_mean
+# For interpretation: convert margin to bu ac⁻¹ (approx)
+kg_per_bu_ac <- 67.25     # ≈ kg ha⁻¹ per 1 bu ac⁻¹ for soybean
+delta_bu_ac  <- delta_kg / kg_per_bu_ac
 
-# For interpretation: convert margin to bu/ac (approx)
-kg_per_bu_ac <- 67.25     # ≈ kg/ha per 1 bu/ac for soybean
-delta_bu_ac <- delta_kg / kg_per_bu_ac
-
-cat("Equivalence margin:",
-    sprintf("±%.0f kg/ha (≈ ±%.1f bu/ac, %.0f%% of tilled yield)\n",
-            delta_kg, delta_bu_ac, margin_pct * 100))
+cat(
+  "Equivalence margin:",
+  sprintf("±%.0f kg ha⁻¹ (≈ ±%.1f bu ac⁻¹, %.0f%% of tilled yield)\n",
+          delta_kg, delta_bu_ac, margin_pct * 100)
+)
 ```
 
-    ## Equivalence margin: ±468 kg/ha (≈ ±7.0 bu/ac, 10% of tilled yield)
+    ## Equivalence margin: ±468 kg ha⁻¹ (≈ ±7.0 bu ac⁻¹, 10% of tilled yield)
 
 ``` r
 # 3) Contrasts: each treatment vs tilled --------------------------------
-
 yield_vs_tilled <- contrast(
   emm_yield,
   method = "trt.vs.ctrl",
-  ref    = which(mow_levels == tilled_trt)
+  ref    = which(trt_levels == tilled_trt)
 )
 
 # 4) TOST-style equivalence tests via emmeans ---------------------------
-
 equiv_yield <- summary(
   yield_vs_tilled,
   infer  = c(TRUE, TRUE),     # show CI + tests
   level  = 0.90,              # 1 - 2*0.05 for α = 0.05 equivalence
   side   = "equivalence",     # two one-sided tests (TOST)
   delta  = delta_kg,
-  adjust = "none"             # usually no multiplicity adj for equiv vs control
+  adjust = "none"
 ) |>
   as_tibble() |>
   mutate(
-    # convert differences to bu/ac for interpretability
-    diff_bu_ac   = estimate   / kg_per_bu_ac,
-    lower_bu_ac  = lower.CL   / kg_per_bu_ac,
-    upper_bu_ac  = upper.CL   / kg_per_bu_ac,
-    p_equiv      = p.value    # rename for clarity
+    diff_bu_ac  = estimate / kg_per_bu_ac,
+    lower_bu_ac = lower.CL / kg_per_bu_ac,
+    upper_bu_ac = upper.CL / kg_per_bu_ac,
+    p_equiv     = p.value
   )
 
-# 5) Nicely formatted table ---------------------------------------------
-
-equiv_yield |>
+# 5) Nicely formatted table for the Rmd ---------------------------------
+equiv_yield_table <- equiv_yield |>
   transmute(
-    Contrast        = contrast,
-    diff_kg_ha      = estimate,
-    lower_kg_ha     = lower.CL,
-    upper_kg_ha     = upper.CL,
+    Contrast    = contrast,
+    diff_kg_ha  = estimate,
+    lower_kg_ha = lower.CL,
+    upper_kg_ha = upper.CL,
     diff_bu_ac,
     lower_bu_ac,
     upper_bu_ac,
@@ -1008,25 +1128,27 @@ equiv_yield |>
       "Equivalence tests for soybean yield vs ",
       tilled_trt,
       " (margin = ±",
-      round(delta_kg, 0), " kg/ha ≈ ±",
-      round(delta_bu_ac, 1), " bu/ac)."
+      round(delta_kg, 0), " kg ha⁻¹ ≈ ±",
+      round(delta_bu_ac, 1), " bu ac⁻¹)."
     ),
     col.names = c(
       "Contrast",
-      "Diff (kg/ha)", "Lower 90% CI", "Upper 90% CI",
-      "Diff (bu/ac)", "Lower 90% CI", "Upper 90% CI",
+      "Difference (kg ha⁻¹)", "Lower 90% CI", "Upper 90% CI",
+      "Differrence (bu ac⁻¹ )", "Lower 90% CI", "Upper 90% CI",
       "p (equiv.)"
     )
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+equiv_yield_table
 ```
 
 <table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 
 <caption>
 
-Equivalence tests for soybean yield vs Tilled + cultivation (margin =
-±468 kg/ha ≈ ±7 bu/ac).
+Equivalence tests for soybean yield vs Tilled, cultivation (margin =
+±468 kg ha⁻¹ ≈ ±7 bu ac⁻¹).
 </caption>
 
 <thead>
@@ -1040,7 +1162,7 @@ Contrast
 
 <th style="text-align:right;">
 
-Diff (kg/ha)
+Difference (kg ha⁻¹)
 </th>
 
 <th style="text-align:right;">
@@ -1055,7 +1177,7 @@ Upper 90% CI
 
 <th style="text-align:right;">
 
-Diff (bu/ac)
+Differrence (bu ac⁻¹ )
 </th>
 
 <th style="text-align:right;">
@@ -1083,7 +1205,7 @@ p (equiv.)
 
 <td style="text-align:left;">
 
-Rolled, no control - (Tilled + cultivation)
+Rolled, no control - Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1127,7 +1249,7 @@ Rolled, no control - (Tilled + cultivation)
 
 <td style="text-align:left;">
 
-(Rolled + mowing) - (Tilled + cultivation)
+Rolled, mowing - Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1171,7 +1293,7 @@ Rolled, no control - (Tilled + cultivation)
 
 <td style="text-align:left;">
 
-(Rolled + high-residue cult.) - (Tilled + cultivation)
+(Rolled, high-residue cultivation) - Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1215,7 +1337,7 @@ Rolled, no control - (Tilled + cultivation)
 
 <td style="text-align:left;">
 
-(Tilled + mowing) - (Tilled + cultivation)
+Tilled, mowing - Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1262,7 +1384,7 @@ Rolled, no control - (Tilled + cultivation)
 ## Post-hoc summary table
 
 ``` r
-### Bean yield (kg/ha) with Fisher's LSD CLDs
+### Bean yield (kg ha⁻¹) with Fisher's LSD CLDs
 
 # Estimated marginal means for weed_trt
 emm_yield <- emmeans(yield.lmer, ~ weed_trt)
@@ -1292,7 +1414,7 @@ emm_yield_df |>
   select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
   mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))) |>
   kable(
-    caption   = "Estimated bean yield (kg/ha) with 95% CI and Fisher's LSD group letters",
+    caption   = "Estimated bean yield (kg ha⁻¹) with 95% CI and Fisher's LSD group letters",
     col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1302,7 +1424,8 @@ emm_yield_df |>
 
 <caption>
 
-Estimated bean yield (kg/ha) with 95% CI and Fisher’s LSD group letters
+Estimated bean yield (kg ha⁻¹) with 95% CI and Fisher’s LSD group
+letters
 </caption>
 
 <thead>
@@ -1383,7 +1506,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1417,7 +1540,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1451,7 +1574,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1485,7 +1608,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1553,7 +1676,7 @@ pvals_yield <- tibble(
 
 pvals_yield |>
   kable(
-    caption   = "Bean yield (kg/ha): P-values for location, treatment, and interaction",
+    caption   = "Bean yield (kg ha⁻¹): P-values for location, treatment, and interaction",
     col.names = c("Effect", "P-value")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1563,7 +1686,7 @@ pvals_yield |>
 
 <caption>
 
-Bean yield (kg/ha): P-values for location, treatment, and interaction
+Bean yield (kg ha⁻¹): P-values for location, treatment, and interaction
 </caption>
 
 <thead>
@@ -1682,7 +1805,7 @@ loc_summary_yield <- emm_loc_yield_df |>
 
 loc_summary_yield |>
   kable(
-    caption   = "Bean yield (kg/ha): location (site-year) means with CLDs",
+    caption   = "Bean yield (kg ha⁻¹): location (site-year) means with CLDs",
     col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1692,7 +1815,7 @@ loc_summary_yield |>
 
 <caption>
 
-Bean yield (kg/ha): location (site-year) means with CLDs
+Bean yield (kg ha⁻¹): location (site-year) means with CLDs
 </caption>
 
 <thead>
@@ -1871,7 +1994,7 @@ trt_summary_yield <- emm_trt_yield_df |>
 
 trt_summary_yield |>
   kable(
-    caption   = "Bean yield (kg/ha): treatment means with CLDs",
+    caption   = "Bean yield (kg ha⁻¹): treatment means with CLDs",
     col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1881,7 +2004,7 @@ trt_summary_yield |>
 
 <caption>
 
-Bean yield (kg/ha): treatment means with CLDs
+Bean yield (kg ha⁻¹): treatment means with CLDs
 </caption>
 
 <thead>
@@ -1952,7 +2075,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1981,7 +2104,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2010,7 +2133,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2039,7 +2162,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2123,7 +2246,7 @@ int_summary_yield <- emm_sy_yield_df |>
 
 int_summary_yield |>
   kable(
-    caption   = "Bean yield (kg/ha): site-year × treatment means with CLDs",
+    caption   = "Bean yield (kg ha⁻¹): site-year × treatment means with CLDs",
     col.names = c(
       "Site-year", "Treatment",
       "Model mean", "Model CLD",
@@ -2137,7 +2260,7 @@ int_summary_yield |>
 
 <caption>
 
-Bean yield (kg/ha): site-year × treatment means with CLDs
+Bean yield (kg ha⁻¹): site-year × treatment means with CLDs
 </caption>
 
 <thead>
@@ -2223,7 +2346,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2257,7 +2380,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2291,7 +2414,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2325,7 +2448,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2393,7 +2516,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2427,7 +2550,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2461,7 +2584,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2495,7 +2618,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2563,7 +2686,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2597,7 +2720,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2631,7 +2754,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2665,7 +2788,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2787,7 +2910,7 @@ car::Anova(yield_fv.lmer, type = 3)
 emm_yield <- emmeans(yield.lmer, ~ weed_trt)
 
 # Tidy emmeans for plotting
-emm_yield_df <- tidy_emm(emm_yield, ref_levels = mow_levels) |>
+plot_df_yield <- tidy_emm(emm_yield, ref_levels = mow_levels) |>
   as_tibble() |>
   mutate(
     response = emmean,
@@ -2795,49 +2918,27 @@ emm_yield_df <- tidy_emm(emm_yield, ref_levels = mow_levels) |>
     ymax     = response + SE
   )
 
-# CLDs for treatments (Fisher's LSD, "a" = highest)
-cld_yield <- cld(
-  emm_yield,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
 
-# Merge means and CLDs
-plot_df_yield <- emm_yield_df |>
-  left_join(cld_yield, by = "weed_trt")
 
 # Plot
 ggplot(plot_df_yield, aes(x = weed_trt, y = response, fill = weed_trt)) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Soybean yield (kg/ha)",
-    title    = "Soybean yield by weed management treatment",
-    caption  = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y = expression(Bean~yield~"(kg"~ha^{-1}*")"),,
+    title   = "Soybean yield by weed management",
+    caption = "Model-based soybean yield means (kg"~ha^{-1}*") ± SE across weed management treatments."
   ) +
   theme_classic(base_size = 18) +
   theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    axis.text.x    = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y   = element_text(margin = margin(r = 8)),
+    plot.title     = element_text(face = "bold"),
+    plot.caption   = element_text(size = 10, hjust = 0)  # a bit smaller, left-aligned
   )
 ```
 
@@ -2856,7 +2957,7 @@ ggsave(
 ### Pooled raw
 
 ``` r
-# Figure: Bean yield by weed management treatment (raw means ± SE, model CLDs)
+# Figure: Bean yield by weed management treatment (raw means ± SE)
 
 # 1) Raw means and SE by treatment --------------------------------------
 raw_yield_summary <- bean_yield_clean |>
@@ -2874,51 +2975,25 @@ raw_yield_summary <- bean_yield_clean |>
     ymax     = mean + se
   )
 
-# 2) Model-based CLDs for treatment main effect -------------------------
-emm_yield <- emmeans(yield.lmer, ~ weed_trt)
-
-cld_yield <- cld(
-  emm_yield,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE   # "a" = highest mean
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# 3) Join raw means and model CLDs --------------------------------------
-plot_df_yield_raw <- raw_yield_summary |>
-  left_join(cld_yield, by = "weed_trt")
-
-# 4) Plot ---------------------------------------------------------------
-ggplot(plot_df_yield_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+# 2) Plot ---------------------------------------------------------------
+ggplot(raw_yield_summary, aes(x = weed_trt, y = mean, fill = weed_trt)) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Soybean yield (kg/ha)",
-    title    = "Soybean yield by weed management treatment",
-    caption  = "Raw means ± SE; letters = model-based Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y       = "Soybean yield (kg"~ha^{-1}*")",
+    title   = "Soybean yield by weed management",
+    caption = "Raw soybean yield means (kg"~ha^{-1}*") ± SE across weed management treatments."
   ) +
   theme_classic(base_size = 18) +
   theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    axis.text.x    = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y   = element_text(margin = margin(r = 8)),
+    plot.title     = element_text(face = "bold"),
+    plot.caption   = element_text(size = 10, hjust = 0)  # smaller, left-aligned
   )
 ```
 
