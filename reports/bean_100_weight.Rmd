@@ -20,9 +20,8 @@ knitr::opts_chunk$set(
 
 # Packages
 ```{r}
-
 # Packages
-library(tidyverse) # includes dplyr, ggplot2, readr, tibble, etc.
+library(tidyverse)    # includes dplyr, ggplot2, readr, tibble, etc.
 library(janitor)
 library(readxl)
 library(glmmTMB)
@@ -34,6 +33,8 @@ library(kableExtra)
 library(here)
 library(conflicted)
 library(lme4)
+library(WrensBookshelf)
+
 
 # Handle conflicts
 conflicts_prefer(dplyr::select)
@@ -42,59 +43,67 @@ conflicts_prefer(dplyr::recode)
 
 # Treatment level order (use everywhere)
 mow_levels <- c(
-"Rolled, no control",
-"Rolled + mowing",
-"Rolled + high-residue cult.",
-"Tilled + mowing",
-"Tilled + cultivation"
+  "Rolled, no control",
+  "Rolled, mowing",
+  "Rolled, high-residue cultivation",
+  "Tilled, mowing",
+  "Tilled, cultivation"
 )
 
-# One consistent color palette for all figures
+# One consistent CVD-safe color palette for all figures (WrensBookshelf)
+fill_cols <- WB_brewer(
+  name = "WhatWellBuild",
+  n    = length(mow_levels),
+  type = "discrete"
+) |>
+  setNames(mow_levels)
 
-fill_cols <- c(
-"Rolled, no control" = "#0072B2", # blue
-"Rolled + mowing" = "#009E73", # green
-"Rolled + high-residue cult." = "#F0E442", # yellow
-"Tilled + mowing" = "#D55E00", # reddish
-"Tilled + cultivation" = "#CC79A7" # magenta
-)
+# x-axis label helpers ---------------------------------------------------
 
-#x-axis label helpers
-
+# Break on spaces (if you ever want every word on its own line)
 label_break_spaces <- function(x) {
   stringr::str_replace_all(x, " ", "\n")
 }
 
-label_break_plus <- function(x) {
-  stringr::str_replace_all(x, " \\+ ", "\n+ ")
+# Break after the comma: "Rolled,\nno control", etc.
+label_break_comma <- function(x) {
+  stringr::str_replace_all(x, ", ", ",\n")
 }
 
+# Break after comma AND split "high-residue cultivation"
+# -> "Rolled,\nhigh-residue\ncultivation"
+label_break_comma_cult <- function(x) {
+  x |>
+    stringr::str_replace("high-residue cultivation",
+                         "high-residue\ncultivation") |>
+    stringr::str_replace_all(", ", ",\n")
+}
 
-#Helper: tidy emmeans output regardless of CI column names
-#(works directly on an emmeans object)
+# Helper: tidy emmeans output regardless of CI column names --------------
+# (works directly on an emmeans object)
 
 tidy_emm <- function(emm, ref_levels = NULL) {
-emm_df <- as.data.frame(emm)
+  emm_df <- as.data.frame(emm)
 
-lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
-ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+  lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+  ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
 
-if (is.na(lcl_col) || is.na(ucl_col)) {
-stop("Could not find CI columns in emmeans output.")
-}
+  if (is.na(lcl_col) || is.na(ucl_col)) {
+    stop("Could not find CI columns in emmeans output.")
+  }
 
-out <- emm_df |>
-mutate(
-ci_low = .data[[lcl_col]],
-ci_high = .data[[ucl_col]]
-)
+  out <- emm_df |>
+    dplyr::mutate(
+      ci_low  = .data[[lcl_col]],
+      ci_high = .data[[ucl_col]]
+    )
 
-if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
-out <- out |>
-mutate(weed_trt = factor(weed_trt, levels = ref_levels))
-}
+  if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
+    out <- out |>
+      dplyr::mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+  }
 
-out
+  out
 }
 ```
 
@@ -115,10 +124,10 @@ hundred_sw_clean <- read_excel(
     weed_trt  = recode(
       weed_trt,
       "RNO" = "Rolled, no control",
-      "RIM" = "Rolled + mowing",
-      "RIC" = "Rolled + high-residue cult.",
-      "TIM" = "Tilled + mowing",
-      "TIC" = "Tilled + cultivation"
+      "RIM" = "Rolled, mowing",
+      "RIC" = "Rolled, high-residue cultivation",
+      "TIM" = "Tilled, mowing",
+      "TIC" = "Tilled, cultivation"
     ),
     weed_trt = factor(weed_trt, levels = mow_levels)
   ) |>
@@ -137,8 +146,9 @@ kable(
 )
 
 ```
+# Model testing
+## Exploratory Analysis: Soybean 100-seed weight
 ```{r}
-
 # 1) Summary table: 100-seed weight by site-year × treatment
 hundred_sw_clean |>
   group_by(site_year, weed_trt) |>
@@ -152,7 +162,7 @@ hundred_sw_clean |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "100-seed weight by site-year × treatment"
+    caption = "100-seed weight (g) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
@@ -171,12 +181,13 @@ hundred_sw_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  facet_wrap(~ site_year, nrow = 1) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
   labs(
     x     = NULL,
-    y     = "100-seed weight",
+    y     = "100-seed weight (g)",
     title = "100-seed weight by treatment across site-years"
   ) +
   theme_classic(base_size = 14) +
@@ -201,10 +212,11 @@ hundred_sw_field_v_2023 |>
     color  = "grey30"
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
   labs(
     x     = NULL,
-    y     = "100-seed weight",
+    y     = "100-seed weight (g)",
     title = "100-seed weight by treatment, 2023 – Field V"
   ) +
   theme_classic(base_size = 14) +
@@ -213,11 +225,10 @@ hundred_sw_field_v_2023 |>
   )
 
 ```
-### Selection: 
-#### Pooled, Raw by site-year
+##Selection
 
 ```{r}
-### Model testing / selection for seed weight (g)
+### Model testing / selection for 100-seed weight (g)
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
@@ -234,6 +245,7 @@ sw_add <- lmer(
 )
 
 # Compare models (AIC + LRT) ---------------------------------------------
+# AIC table
 aic_sw <- tibble(
   model = c(
     "Additive: weed_trt + site_year",
@@ -242,17 +254,43 @@ aic_sw <- tibble(
   AIC = c(AIC(sw_add), AIC(sw_int))
 )
 
+# Likelihood-ratio test (is the interaction worth keeping?)
+lrt_sw <- anova(sw_add, sw_int)
+
+p_int_sw <- lrt_sw$`Pr(>Chisq)`[2]
+
+# Apply your rule: choose simpler additive model unless interaction is clearly needed
+chosen_model_name_sw <- if (p_int_sw < 0.05) {
+  "Interaction: weed_trt * site_year"
+} else {
+  "Additive: weed_trt + site_year"
+}
+
+sw.lmer <- if (p_int_sw < 0.05) sw_int else sw_add
+
+# Add ΔAIC and "Selected" flag to the table ------------------------------
+aic_sw_out <- aic_sw |>
+  mutate(
+    deltaAIC = AIC - min(AIC),
+    Selected = if_else(model == chosen_model_name_sw, "Yes", "")
+  )
+
 kable(
-  aic_sw,
-  digits  = 1,
-  caption = "Seed weight (g): model comparison (additive vs interaction)"
+  aic_sw_out,
+  digits  = 2,
+  caption = "100-seed weight (g): model comparison (additive vs interaction)"
+) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+# Also show the LRT table (optional but handy)
+lrt_sw
+
+# Quick text reminder of which model is used downstream ------------------
+cat(
+  "\nSelected model for 100-seed weight (used in all downstream emmeans/plots):\n  ",
+  chosen_model_name_sw,
+  sprintf("  [LRT p = %.3f]\n", p_int_sw)
 )
-
-anova(sw_add, sw_int)  # LRT: is the interaction worth keeping?
-
-# Choose simpler additive model unless interaction is clearly needed -----
-# (this is the model used in all downstream emmeans/plots)
-sw.lmer <- sw_add
 
 # Diagnostics on chosen model --------------------------------------------
 set.seed(123)
@@ -265,7 +303,7 @@ car::Anova(sw.lmer, type = 3)
 ```
 ### Post-hoc summary table
 ```{r}
-### Seed weight (g) with Fisher's LSD CLDs
+### 100-seed weight (g) with Fisher's LSD CLDs
 
 # Estimated marginal means for weed_trt
 emm_sw <- emmeans(sw.lmer, ~ weed_trt)
@@ -279,8 +317,8 @@ cld_sw <- cld(
   emm_sw,
   adjust  = "none",
   Letters = letters,
-  sort    = TRUE,    # default, but explicit
-  reversed = TRUE    # now 'a' goes to the highest group(s)
+  sort    = TRUE,   # explicit
+  reversed = TRUE   # "a" = highest mean
 ) |>
   as_tibble() |>
   mutate(
@@ -293,12 +331,13 @@ cld_sw <- cld(
 emm_sw_df |>
   left_join(cld_sw, by = "weed_trt") |>
   select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
-  mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))) |>
+  mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 2))) |>
   kable(
-    caption   = "Estimated seed weight (g) with 95% CI and Fisher's LSD group letters",
+    caption   = "Estimated 100-seed weight (g) with 95% CI and Fisher's LSD group letters",
     col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
 
 ```
 ### ANOVA-style summary tables for bean biomass
@@ -316,11 +355,15 @@ anova_sw_df <- anova_sw |>
 anova_interaction_sw <- anova(sw_add, sw_int)
 
 pvals_sw <- tibble(
-  Effect = c("Location (site_year)", "Treatment (weed_trt)", "Location × Treatment"),
+  Effect = c(
+    "Location (site_year)",
+    "Treatment (weed_trt)",
+    "Location × Treatment (LRT)"
+  ),
   p_raw  = c(
     anova_sw_df$`Pr(>Chisq)`[anova_sw_df$Effect == "site_year"],
     anova_sw_df$`Pr(>Chisq)`[anova_sw_df$Effect == "weed_trt"],
-    anova_interaction_sw$`Pr(>Chisq)`[2]
+    anova_interaction_sw$`Pr(>Chisq)`[2]   # LRT p-value
   )
 ) |>
   mutate(
@@ -334,7 +377,7 @@ pvals_sw <- tibble(
 
 pvals_sw |>
   kable(
-    caption   = "Seed weight (g): P-values for location, treatment, and interaction",
+    caption   = "Soybean 100-seed weight (g): P-values for location, treatment, and location × treatment (interaction p from LRT).",
     col.names = c("Effect", "P-value")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -389,7 +432,7 @@ loc_summary_sw <- emm_loc_sw_df |>
 
 loc_summary_sw |>
   kable(
-    caption   = "Seed weight (g): location (site-year) means with CLDs",
+    caption   = "Soybean 100-seed weight (g): location (site-year) means with CLDs",
     col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -444,7 +487,7 @@ trt_summary_sw <- emm_trt_sw_df |>
 
 trt_summary_sw |>
   kable(
-    caption   = "Seed weight (g): treatment means with CLDs",
+    caption   = "Soybean 100-seed weight (g): treatment means with CLDs",
     col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -504,7 +547,7 @@ int_summary_sw <- emm_sy_sw_df |>
 
 int_summary_sw |>
   kable(
-    caption   = "Seed weight (g): site-year × treatment means with CLDs",
+    caption   = "Soybean 100-seed weight (g): site-year × treatment means with CLDs",
     col.names = c(
       "Site-year", "Treatment",
       "Model mean", "Model CLD",
@@ -513,11 +556,12 @@ int_summary_sw |>
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
+
 ```
 # Figures
 ## Pooled model
 ```{r}
-# Figure: Seed weight by weed management treatment (pooled across site-years)
+# Figure: Soybean 100-seed weight by weed management treatment (pooled across site-years)
 
 # Estimated marginal means for treatments
 emm_sw <- emmeans(sw.lmer, ~ weed_trt)
@@ -550,7 +594,7 @@ cld_sw <- cld(
 plot_df_sw <- emm_sw_df |>
   left_join(cld_sw, by = "weed_trt")
 
-# Plot
+# Plot with CLD letters
 ggplot(plot_df_sw, aes(x = weed_trt, y = response, fill = weed_trt)) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
@@ -561,19 +605,20 @@ ggplot(plot_df_sw, aes(x = weed_trt, y = response, fill = weed_trt)) +
     size     = 6
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Seed weight (g)",
-    title    = "Seed weight by weed management treatment",
-    caption  = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y       = "Soybean 100-seed weight (g)",
+    title   = "100-seed weight by weed management",
+    caption = "Model-based means (g) ± SE; similar letters indicate no significant difference (Fisher’s LSD test, P > 0.05)."
   ) +
   theme_classic(base_size = 18) +
   theme(
     axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
     axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
   )
 
 # Save figure
@@ -584,10 +629,11 @@ ggsave(
   dpi      = 300
 )
 
+
 ```
 ## Pooled Raw
 ```{r}
-# Figure: Seed weight by weed management treatment (raw means ± SE, model CLDs)
+# Figure: Soybean 100-seed weight by weed management treatment (raw means ± SE, model CLDs)
 
 # 1) Raw means and SE by treatment --------------------------------------
 raw_sw_summary <- hundred_sw_clean |>
@@ -637,19 +683,20 @@ ggplot(plot_df_sw_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
     size     = 6
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Seed weight (g)",
-    title    = "Seed weight by weed management treatment",
-    caption  = "Raw means ± SE; letters = model-based Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y       = "Soybean 100-seed weight (g)",
+    title   = "100-seed weight by weed management",
+    caption = "Raw means (g) ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
   ) +
   theme_classic(base_size = 18) +
   theme(
     axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
     axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
   )
 
 # Save figure
@@ -659,6 +706,7 @@ ggsave(
   height   = 5.5,
   dpi      = 300
 )
+
 
 ```
 

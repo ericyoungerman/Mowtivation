@@ -4,9 +4,12 @@ Soybean 100 seed weight
 - [Setup](#setup)
 - [Packages](#packages)
 - [Data import & prep](#data-import--prep)
-  - [Post-hoc summary table](#post-hoc-summary-table)
-  - [ANOVA-style summary tables for bean
-    biomass](#anova-style-summary-tables-for-bean-biomass)
+- [Model testing](#model-testing)
+  - [Exploratory Analysis: Soybean 100-seed
+    weight](#exploratory-analysis-soybean-100-seed-weight)
+    - [Post-hoc summary table](#post-hoc-summary-table)
+    - [ANOVA-style summary tables for bean
+      biomass](#anova-style-summary-tables-for-bean-biomass)
 - [Figures](#figures)
   - [Pooled model](#pooled-model)
   - [Pooled Raw](#pooled-raw)
@@ -17,7 +20,7 @@ Soybean 100 seed weight
 
 ``` r
 # Packages
-library(tidyverse) # includes dplyr, ggplot2, readr, tibble, etc.
+library(tidyverse)    # includes dplyr, ggplot2, readr, tibble, etc.
 library(janitor)
 library(readxl)
 library(glmmTMB)
@@ -29,6 +32,8 @@ library(kableExtra)
 library(here)
 library(conflicted)
 library(lme4)
+library(WrensBookshelf)
+
 
 # Handle conflicts
 conflicts_prefer(dplyr::select)
@@ -37,59 +42,67 @@ conflicts_prefer(dplyr::recode)
 
 # Treatment level order (use everywhere)
 mow_levels <- c(
-"Rolled, no control",
-"Rolled + mowing",
-"Rolled + high-residue cult.",
-"Tilled + mowing",
-"Tilled + cultivation"
+  "Rolled, no control",
+  "Rolled, mowing",
+  "Rolled, high-residue cultivation",
+  "Tilled, mowing",
+  "Tilled, cultivation"
 )
 
-# One consistent color palette for all figures
+# One consistent CVD-safe color palette for all figures (WrensBookshelf)
+fill_cols <- WB_brewer(
+  name = "WhatWellBuild",
+  n    = length(mow_levels),
+  type = "discrete"
+) |>
+  setNames(mow_levels)
 
-fill_cols <- c(
-"Rolled, no control" = "#0072B2", # blue
-"Rolled + mowing" = "#009E73", # green
-"Rolled + high-residue cult." = "#F0E442", # yellow
-"Tilled + mowing" = "#D55E00", # reddish
-"Tilled + cultivation" = "#CC79A7" # magenta
-)
+# x-axis label helpers ---------------------------------------------------
 
-#x-axis label helpers
-
+# Break on spaces (if you ever want every word on its own line)
 label_break_spaces <- function(x) {
   stringr::str_replace_all(x, " ", "\n")
 }
 
-label_break_plus <- function(x) {
-  stringr::str_replace_all(x, " \\+ ", "\n+ ")
+# Break after the comma: "Rolled,\nno control", etc.
+label_break_comma <- function(x) {
+  stringr::str_replace_all(x, ", ", ",\n")
 }
 
+# Break after comma AND split "high-residue cultivation"
+# -> "Rolled,\nhigh-residue\ncultivation"
+label_break_comma_cult <- function(x) {
+  x |>
+    stringr::str_replace("high-residue cultivation",
+                         "high-residue\ncultivation") |>
+    stringr::str_replace_all(", ", ",\n")
+}
 
-#Helper: tidy emmeans output regardless of CI column names
-#(works directly on an emmeans object)
+# Helper: tidy emmeans output regardless of CI column names --------------
+# (works directly on an emmeans object)
 
 tidy_emm <- function(emm, ref_levels = NULL) {
-emm_df <- as.data.frame(emm)
+  emm_df <- as.data.frame(emm)
 
-lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
-ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+  lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+  ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
 
-if (is.na(lcl_col) || is.na(ucl_col)) {
-stop("Could not find CI columns in emmeans output.")
-}
+  if (is.na(lcl_col) || is.na(ucl_col)) {
+    stop("Could not find CI columns in emmeans output.")
+  }
 
-out <- emm_df |>
-mutate(
-ci_low = .data[[lcl_col]],
-ci_high = .data[[ucl_col]]
-)
+  out <- emm_df |>
+    dplyr::mutate(
+      ci_low  = .data[[lcl_col]],
+      ci_high = .data[[ucl_col]]
+    )
 
-if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
-out <- out |>
-mutate(weed_trt = factor(weed_trt, levels = ref_levels))
-}
+  if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
+    out <- out |>
+      dplyr::mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+  }
 
-out
+  out
 }
 ```
 
@@ -109,10 +122,10 @@ hundred_sw_clean <- read_excel(
     weed_trt  = recode(
       weed_trt,
       "RNO" = "Rolled, no control",
-      "RIM" = "Rolled + mowing",
-      "RIC" = "Rolled + high-residue cult.",
-      "TIM" = "Tilled + mowing",
-      "TIC" = "Tilled + cultivation"
+      "RIM" = "Rolled, mowing",
+      "RIC" = "Rolled, high-residue cultivation",
+      "TIM" = "Tilled, mowing",
+      "TIC" = "Tilled, cultivation"
     ),
     weed_trt = factor(weed_trt, levels = mow_levels)
   ) |>
@@ -133,14 +146,18 @@ kable(
 
 | id | location | year | weed_trt | block | plot | bean_emergence | bean_biomass | inrow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight | site_year |
 |:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---|
-| CU_B1_P101 | field v | 2023 | Tilled + mowing | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 2023.field v |
-| CU_B1_P102 | field v | 2023 | Tilled + cultivation | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 2023.field v |
-| CU_B1_P103 | field v | 2023 | Rolled + mowing | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 2023.field v |
+| CU_B1_P101 | field v | 2023 | Tilled, mowing | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 2023.field v |
+| CU_B1_P102 | field v | 2023 | Tilled, cultivation | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 2023.field v |
+| CU_B1_P103 | field v | 2023 | Rolled, mowing | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 2023.field v |
 | CU_B1_P104 | field v | 2023 | Rolled, no control | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35.0 | 412.59 | 16.1450 | 2023.field v |
-| CU_B1_P105 | field v | 2023 | Rolled + high-residue cult. | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 2023.field v |
-| CU_B1_P201 | field v | 2023 | Rolled + high-residue cult. | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 2023.field v |
+| CU_B1_P105 | field v | 2023 | Rolled, high-residue cultivation | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 2023.field v |
+| CU_B1_P201 | field v | 2023 | Rolled, high-residue cultivation | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 2023.field v |
 
 All site-years, cleaned (100-seed weight)
+
+# Model testing
+
+## Exploratory Analysis: Soybean 100-seed weight
 
 ``` r
 # 1) Summary table: 100-seed weight by site-year × treatment
@@ -156,7 +173,7 @@ hundred_sw_clean |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "100-seed weight by site-year × treatment"
+    caption = "100-seed weight (g) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -165,7 +182,7 @@ hundred_sw_clean |>
 
 <caption>
 
-100-seed weight by site-year × treatment
+100-seed weight (g) by site-year × treatment
 </caption>
 
 <thead>
@@ -251,7 +268,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -285,7 +302,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -319,7 +336,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -353,7 +370,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -421,7 +438,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -455,7 +472,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -489,7 +506,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -523,7 +540,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -591,7 +608,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -625,7 +642,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -659,7 +676,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -693,7 +710,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -738,12 +755,13 @@ hundred_sw_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  facet_wrap(~ site_year, nrow = 1) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
   labs(
     x     = NULL,
-    y     = "100-seed weight",
+    y     = "100-seed weight (g)",
     title = "100-seed weight by treatment across site-years"
   ) +
   theme_classic(base_size = 14) +
@@ -772,10 +790,11 @@ hundred_sw_field_v_2023 |>
     color  = "grey30"
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
   labs(
     x     = NULL,
-    y     = "100-seed weight",
+    y     = "100-seed weight (g)",
     title = "100-seed weight by treatment, 2023 – Field V"
   ) +
   theme_classic(base_size = 14) +
@@ -784,11 +803,11 @@ hundred_sw_field_v_2023 |>
   )
 ```
 
-![](figs/analysis/bean_100_weight-unnamed-chunk-3-2.png)<!-- --> \###
-Selection: \#### Pooled, Raw by site-year
+![](figs/analysis/bean_100_weight-unnamed-chunk-3-2.png)<!-- -->
+\##Selection
 
 ``` r
-### Model testing / selection for seed weight (g)
+### Model testing / selection for 100-seed weight (g)
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
@@ -805,6 +824,7 @@ sw_add <- lmer(
 )
 
 # Compare models (AIC + LRT) ---------------------------------------------
+# AIC table
 aic_sw <- tibble(
   model = c(
     "Additive: weed_trt + site_year",
@@ -813,22 +833,126 @@ aic_sw <- tibble(
   AIC = c(AIC(sw_add), AIC(sw_int))
 )
 
+# Likelihood-ratio test (is the interaction worth keeping?)
+lrt_sw <- anova(sw_add, sw_int)
+
+p_int_sw <- lrt_sw$`Pr(>Chisq)`[2]
+
+# Apply your rule: choose simpler additive model unless interaction is clearly needed
+chosen_model_name_sw <- if (p_int_sw < 0.05) {
+  "Interaction: weed_trt * site_year"
+} else {
+  "Additive: weed_trt + site_year"
+}
+
+sw.lmer <- if (p_int_sw < 0.05) sw_int else sw_add
+
+# Add ΔAIC and "Selected" flag to the table ------------------------------
+aic_sw_out <- aic_sw |>
+  mutate(
+    deltaAIC = AIC - min(AIC),
+    Selected = if_else(model == chosen_model_name_sw, "Yes", "")
+  )
+
 kable(
-  aic_sw,
-  digits  = 1,
-  caption = "Seed weight (g): model comparison (additive vs interaction)"
-)
+  aic_sw_out,
+  digits  = 2,
+  caption = "100-seed weight (g): model comparison (additive vs interaction)"
+) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
 
-| model                              |   AIC |
-|:-----------------------------------|------:|
-| Additive: weed_trt + site_year     | 111.0 |
-| Interaction: weed_trt \* site_year | 130.9 |
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 
-Seed weight (g): model comparison (additive vs interaction)
+<caption>
+
+100-seed weight (g): model comparison (additive vs interaction)
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+model
+</th>
+
+<th style="text-align:right;">
+
+AIC
+</th>
+
+<th style="text-align:right;">
+
+deltaAIC
+</th>
+
+<th style="text-align:left;">
+
+Selected
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+Additive: weed_trt + site_year
+</td>
+
+<td style="text-align:right;">
+
+110.95
+</td>
+
+<td style="text-align:right;">
+
+0.00
+</td>
+
+<td style="text-align:left;">
+
+Yes
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Interaction: weed_trt \* site_year
+</td>
+
+<td style="text-align:right;">
+
+130.92
+</td>
+
+<td style="text-align:right;">
+
+19.97
+</td>
+
+<td style="text-align:left;">
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
 
 ``` r
-anova(sw_add, sw_int)  # LRT: is the interaction worth keeping?
+# Also show the LRT table (optional but handy)
+lrt_sw
 ```
 
     ## Data: hundred_sw_clean
@@ -842,10 +966,19 @@ anova(sw_add, sw_int)  # LRT: is the interaction worth keeping?
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
 ``` r
-# Choose simpler additive model unless interaction is clearly needed -----
-# (this is the model used in all downstream emmeans/plots)
-sw.lmer <- sw_add
+# Quick text reminder of which model is used downstream ------------------
+cat(
+  "\nSelected model for 100-seed weight (used in all downstream emmeans/plots):\n  ",
+  chosen_model_name_sw,
+  sprintf("  [LRT p = %.3f]\n", p_int_sw)
+)
+```
 
+    ## 
+    ## Selected model for 100-seed weight (used in all downstream emmeans/plots):
+    ##    Additive: weed_trt + site_year   [LRT p = 0.053]
+
+``` r
 # Diagnostics on chosen model --------------------------------------------
 set.seed(123)
 res_sw <- DHARMa::simulateResiduals(sw.lmer)
@@ -885,7 +1018,7 @@ car::Anova(sw.lmer, type = 3)
 ### Post-hoc summary table
 
 ``` r
-### Seed weight (g) with Fisher's LSD CLDs
+### 100-seed weight (g) with Fisher's LSD CLDs
 
 # Estimated marginal means for weed_trt
 emm_sw <- emmeans(sw.lmer, ~ weed_trt)
@@ -899,8 +1032,8 @@ cld_sw <- cld(
   emm_sw,
   adjust  = "none",
   Letters = letters,
-  sort    = TRUE,    # default, but explicit
-  reversed = TRUE    # now 'a' goes to the highest group(s)
+  sort    = TRUE,   # explicit
+  reversed = TRUE   # "a" = highest mean
 ) |>
   as_tibble() |>
   mutate(
@@ -913,9 +1046,9 @@ cld_sw <- cld(
 emm_sw_df |>
   left_join(cld_sw, by = "weed_trt") |>
   select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
-  mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))) |>
+  mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 2))) |>
   kable(
-    caption   = "Estimated seed weight (g) with 95% CI and Fisher's LSD group letters",
+    caption   = "Estimated 100-seed weight (g) with 95% CI and Fisher's LSD group letters",
     col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -925,7 +1058,7 @@ emm_sw_df |>
 
 <caption>
 
-Estimated seed weight (g) with 95% CI and Fisher’s LSD group letters
+Estimated 100-seed weight (g) with 95% CI and Fisher’s LSD group letters
 </caption>
 
 <thead>
@@ -977,22 +1110,22 @@ Rolled, no control
 
 <td style="text-align:right;">
 
-17.4
+17.44
 </td>
 
 <td style="text-align:right;">
 
-0.1
+0.14
 </td>
 
 <td style="text-align:right;">
 
-17.2
+17.17
 </td>
 
 <td style="text-align:right;">
 
-17.7
+17.71
 </td>
 
 <td style="text-align:left;">
@@ -1006,27 +1139,27 @@ d
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
 
-17.7
+17.65
 </td>
 
 <td style="text-align:right;">
 
-0.1
+0.14
 </td>
 
 <td style="text-align:right;">
 
-17.4
+17.38
 </td>
 
 <td style="text-align:right;">
 
-17.9
+17.92
 </td>
 
 <td style="text-align:left;">
@@ -1040,27 +1173,27 @@ cd
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
 
-18.0
+17.95
 </td>
 
 <td style="text-align:right;">
 
-0.1
+0.14
 </td>
 
 <td style="text-align:right;">
 
-17.7
+17.68
 </td>
 
 <td style="text-align:right;">
 
-18.2
+18.22
 </td>
 
 <td style="text-align:left;">
@@ -1074,27 +1207,27 @@ bc
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
 
-18.0
+18.04
 </td>
 
 <td style="text-align:right;">
 
-0.1
+0.14
 </td>
 
 <td style="text-align:right;">
 
-17.8
+17.77
 </td>
 
 <td style="text-align:right;">
 
-18.3
+18.31
 </td>
 
 <td style="text-align:left;">
@@ -1108,27 +1241,27 @@ ab
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
 
-18.4
+18.35
 </td>
 
 <td style="text-align:right;">
 
-0.1
+0.14
 </td>
 
 <td style="text-align:right;">
 
-18.1
+18.08
 </td>
 
 <td style="text-align:right;">
 
-18.6
+18.63
 </td>
 
 <td style="text-align:left;">
@@ -1158,11 +1291,15 @@ anova_sw_df <- anova_sw |>
 anova_interaction_sw <- anova(sw_add, sw_int)
 
 pvals_sw <- tibble(
-  Effect = c("Location (site_year)", "Treatment (weed_trt)", "Location × Treatment"),
+  Effect = c(
+    "Location (site_year)",
+    "Treatment (weed_trt)",
+    "Location × Treatment (LRT)"
+  ),
   p_raw  = c(
     anova_sw_df$`Pr(>Chisq)`[anova_sw_df$Effect == "site_year"],
     anova_sw_df$`Pr(>Chisq)`[anova_sw_df$Effect == "weed_trt"],
-    anova_interaction_sw$`Pr(>Chisq)`[2]
+    anova_interaction_sw$`Pr(>Chisq)`[2]   # LRT p-value
   )
 ) |>
   mutate(
@@ -1176,7 +1313,7 @@ pvals_sw <- tibble(
 
 pvals_sw |>
   kable(
-    caption   = "Seed weight (g): P-values for location, treatment, and interaction",
+    caption   = "Soybean 100-seed weight (g): P-values for location, treatment, and location × treatment (interaction p from LRT).",
     col.names = c("Effect", "P-value")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1186,7 +1323,8 @@ pvals_sw |>
 
 <caption>
 
-Seed weight (g): P-values for location, treatment, and interaction
+Soybean 100-seed weight (g): P-values for location, treatment, and
+location × treatment (interaction p from LRT).
 </caption>
 
 <thead>
@@ -1241,7 +1379,7 @@ Treatment (weed_trt)
 
 <td style="text-align:left;">
 
-Location × Treatment
+Location × Treatment (LRT)
 </td>
 
 <td style="text-align:left;">
@@ -1305,7 +1443,7 @@ loc_summary_sw <- emm_loc_sw_df |>
 
 loc_summary_sw |>
   kable(
-    caption   = "Seed weight (g): location (site-year) means with CLDs",
+    caption   = "Soybean 100-seed weight (g): location (site-year) means with CLDs",
     col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1315,7 +1453,7 @@ loc_summary_sw |>
 
 <caption>
 
-Seed weight (g): location (site-year) means with CLDs
+Soybean 100-seed weight (g): location (site-year) means with CLDs
 </caption>
 
 <thead>
@@ -1494,7 +1632,7 @@ trt_summary_sw <- emm_trt_sw_df |>
 
 trt_summary_sw |>
   kable(
-    caption   = "Seed weight (g): treatment means with CLDs",
+    caption   = "Soybean 100-seed weight (g): treatment means with CLDs",
     col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1504,7 +1642,7 @@ trt_summary_sw |>
 
 <caption>
 
-Seed weight (g): treatment means with CLDs
+Soybean 100-seed weight (g): treatment means with CLDs
 </caption>
 
 <thead>
@@ -1575,7 +1713,7 @@ d
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1604,7 +1742,7 @@ cd
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1633,7 +1771,7 @@ bc
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1662,7 +1800,7 @@ ab
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1746,7 +1884,7 @@ int_summary_sw <- emm_sy_sw_df |>
 
 int_summary_sw |>
   kable(
-    caption   = "Seed weight (g): site-year × treatment means with CLDs",
+    caption   = "Soybean 100-seed weight (g): site-year × treatment means with CLDs",
     col.names = c(
       "Site-year", "Treatment",
       "Model mean", "Model CLD",
@@ -1760,7 +1898,7 @@ int_summary_sw |>
 
 <caption>
 
-Seed weight (g): site-year × treatment means with CLDs
+Soybean 100-seed weight (g): site-year × treatment means with CLDs
 </caption>
 
 <thead>
@@ -1846,7 +1984,7 @@ d
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1880,7 +2018,7 @@ cd
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1914,7 +2052,7 @@ bc
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1948,7 +2086,7 @@ ab
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2016,7 +2154,7 @@ d
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2050,7 +2188,7 @@ cd
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2084,7 +2222,7 @@ bc
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2118,7 +2256,7 @@ ab
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2186,7 +2324,7 @@ d
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2220,7 +2358,7 @@ cd
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2254,7 +2392,7 @@ bc
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2288,7 +2426,7 @@ ab
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2322,7 +2460,7 @@ a
 ## Pooled model
 
 ``` r
-# Figure: Seed weight by weed management treatment (pooled across site-years)
+# Figure: Soybean 100-seed weight by weed management treatment (pooled across site-years)
 
 # Estimated marginal means for treatments
 emm_sw <- emmeans(sw.lmer, ~ weed_trt)
@@ -2355,7 +2493,7 @@ cld_sw <- cld(
 plot_df_sw <- emm_sw_df |>
   left_join(cld_sw, by = "weed_trt")
 
-# Plot
+# Plot with CLD letters
 ggplot(plot_df_sw, aes(x = weed_trt, y = response, fill = weed_trt)) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
@@ -2366,19 +2504,20 @@ ggplot(plot_df_sw, aes(x = weed_trt, y = response, fill = weed_trt)) +
     size     = 6
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Seed weight (g)",
-    title    = "Seed weight by weed management treatment",
-    caption  = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y       = "Soybean 100-seed weight (g)",
+    title   = "100-seed weight by weed management",
+    caption = "Model-based means (g) ± SE; similar letters indicate no significant difference (Fisher’s LSD test, P > 0.05)."
   ) +
   theme_classic(base_size = 18) +
   theme(
     axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
     axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
   )
 ```
 
@@ -2397,7 +2536,7 @@ ggsave(
 ## Pooled Raw
 
 ``` r
-# Figure: Seed weight by weed management treatment (raw means ± SE, model CLDs)
+# Figure: Soybean 100-seed weight by weed management treatment (raw means ± SE, model CLDs)
 
 # 1) Raw means and SE by treatment --------------------------------------
 raw_sw_summary <- hundred_sw_clean |>
@@ -2447,19 +2586,20 @@ ggplot(plot_df_sw_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
     size     = 6
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Seed weight (g)",
-    title    = "Seed weight by weed management treatment",
-    caption  = "Raw means ± SE; letters = model-based Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y       = "Soybean 100-seed weight (g)",
+    title   = "100-seed weight by weed management",
+    caption = "Raw means (g) ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
   ) +
   theme_classic(base_size = 18) +
   theme(
     axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
     axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
   )
 ```
 
