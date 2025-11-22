@@ -22,9 +22,8 @@ knitr::opts_chunk$set(
 
 # Packages
 ```{r}
-
 # Packages
-library(tidyverse) # includes dplyr, ggplot2, readr, tibble, etc.
+library(tidyverse)    # includes dplyr, ggplot2, readr, tibble, etc.
 library(janitor)
 library(readxl)
 library(glmmTMB)
@@ -36,6 +35,8 @@ library(kableExtra)
 library(here)
 library(conflicted)
 library(lme4)
+library(WrensBookshelf)
+
 
 # Handle conflicts
 conflicts_prefer(dplyr::select)
@@ -44,61 +45,71 @@ conflicts_prefer(dplyr::recode)
 
 # Treatment level order (use everywhere)
 mow_levels <- c(
-"Rolled, no control",
-"Rolled + mowing",
-"Rolled + high-residue cult.",
-"Tilled + mowing",
-"Tilled + cultivation"
+  "Rolled, no control",
+  "Rolled, mowing",
+  "Rolled, high-residue cultivation",
+  "Tilled, mowing",
+  "Tilled, cultivation"
 )
 
-# One consistent color palette for all figures
+# One consistent CVD-safe color palette for all figures (WrensBookshelf)
+fill_cols <- WB_brewer(
+  name = "WhatWellBuild",
+  n    = length(mow_levels),
+  type = "discrete"
+) |>
+  setNames(mow_levels)
 
-fill_cols <- c(
-"Rolled, no control" = "#0072B2", # blue
-"Rolled + mowing" = "#009E73", # green
-"Rolled + high-residue cult." = "#F0E442", # yellow
-"Tilled + mowing" = "#D55E00", # reddish
-"Tilled + cultivation" = "#CC79A7" # magenta
-)
+# x-axis label helpers ---------------------------------------------------
 
-#x-axis label helpers
-
+# Break on spaces (if you ever want every word on its own line)
 label_break_spaces <- function(x) {
   stringr::str_replace_all(x, " ", "\n")
 }
 
-label_break_plus <- function(x) {
-  stringr::str_replace_all(x, " \\+ ", "\n+ ")
+# Break after the comma: "Rolled,\nno control", etc.
+label_break_comma <- function(x) {
+  stringr::str_replace_all(x, ", ", ",\n")
 }
 
+# Break after comma AND split "high-residue cultivation"
+# -> "Rolled,\nhigh-residue\ncultivation"
+label_break_comma_cult <- function(x) {
+  x |>
+    stringr::str_replace("high-residue cultivation",
+                         "high-residue\ncultivation") |>
+    stringr::str_replace_all(", ", ",\n")
+}
 
-#Helper: tidy emmeans output regardless of CI column names
-#(works directly on an emmeans object)
+# Helper: tidy emmeans output regardless of CI column names --------------
+# (works directly on an emmeans object)
 
 tidy_emm <- function(emm, ref_levels = NULL) {
-emm_df <- as.data.frame(emm)
+  emm_df <- as.data.frame(emm)
 
-lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
-ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+  lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+  ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
 
-if (is.na(lcl_col) || is.na(ucl_col)) {
-stop("Could not find CI columns in emmeans output.")
+  if (is.na(lcl_col) || is.na(ucl_col)) {
+    stop("Could not find CI columns in emmeans output.")
+  }
+
+  out <- emm_df |>
+    dplyr::mutate(
+      ci_low  = .data[[lcl_col]],
+      ci_high = .data[[ucl_col]]
+    )
+
+  if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
+    out <- out |>
+      dplyr::mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+  }
+
+  out
 }
 
-out <- emm_df |>
-mutate(
-ci_low = .data[[lcl_col]],
-ci_high = .data[[ucl_col]]
-)
-
-if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
-out <- out |>
-mutate(weed_trt = factor(weed_trt, levels = ref_levels))
-}
-
-out
-}
 ```
+
 # Data import & prep
 
 ``` {r}
@@ -115,10 +126,10 @@ bean_biomass_clean <- read_excel(
     weed_trt  = recode(
       weed_trt,
       "RNO" = "Rolled, no control",
-      "RIM" = "Rolled + mowing",
-      "RIC" = "Rolled + high-residue cult.",
-      "TIM" = "Tilled + mowing",
-      "TIC" = "Tilled + cultivation"
+      "RIM" = "Rolled, mowing",
+      "RIC" = "Rolled, high-residue cultivation",
+      "TIM" = "Tilled, mowing",
+      "TIC" = "Tilled, cultivation"
     ),
     weed_trt = factor(weed_trt, levels = mow_levels)
   ) |>
@@ -146,7 +157,8 @@ kable(
 
 
 # Model testing
-## Exploratory Analysis: Soybean biomass
+## Exploratory: 
+###Raw by site-year
 ```{r}
 # 1) Summary table: bean biomass by site-year × treatment
 bean_biomass_clean |>
@@ -161,7 +173,7 @@ bean_biomass_clean |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "Bean biomass (kg/ha) by site-year × treatment"
+    caption = "Bean biomass (kg ha⁻¹) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
@@ -180,12 +192,12 @@ bean_biomass_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  facet_wrap(~ site_year, nrow = 1) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+ scale_x_discrete(labels = label_break_comma_cult) +
   labs(
     x     = NULL,
-    y     = "Bean biomass (kg/ha)",
+  y = expression(Bean~yield~"(kg"~ha^{-1}*")"),
     title = "Bean biomass by treatment across site-years"
   ) +
   theme_classic(base_size = 14) +
@@ -210,10 +222,10 @@ bean_biomass_field_v_2023 |>
     color  = "grey30"
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+   scale_x_discrete(labels = label_break_comma_cult) +
   labs(
     x     = NULL,
-    y     = "Bean biomass (kg/ha)",
+    y = expression(Bean~yield~"(kg"~ha^{-1}*")"),
     title = "Bean biomass by treatment, 2023 – Field V"
   ) +
   theme_classic(base_size = 14) +
@@ -226,9 +238,7 @@ bean_biomass_field_v_2023 |>
 ### Selection: 
 #### Pooled, Raw by site-year
 ```{r}
-
-
-### Model testing / selection for bean biomass (kg/ha)
+### Model testing / selection for bean biomass (kg ha⁻¹)
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
@@ -245,6 +255,7 @@ bio_add <- lmer(
 )
 
 # Compare models (AIC + LRT) ---------------------------------------------
+# AIC table
 aic_biomass <- tibble(
   model = c(
     "Additive: weed_trt + site_year",
@@ -253,17 +264,41 @@ aic_biomass <- tibble(
   AIC = c(AIC(bio_add), AIC(bio_int))
 )
 
+# Likelihood-ratio test (is the interaction worth keeping?)
+lrt_bio <- anova(bio_add, bio_int)
+
+p_int_bio <- lrt_bio$`Pr(>Chisq)`[2]
+
+# Apply your rule: choose simpler additive model unless interaction is clearly needed
+chosen_model_name_bio <- if (p_int_bio < 0.05) {
+  "Interaction: weed_trt * site_year"
+} else {
+  "Additive: weed_trt + site_year"
+}
+
+bio.lmer <- if (p_int_bio < 0.05) bio_int else bio_add
+
+# Add ΔAIC and "Selected" flag to the table ------------------------------
+aic_biomass_out <- aic_biomass |>
+  mutate(
+    deltaAIC = AIC - min(AIC),
+    Selected = if_else(model == chosen_model_name_bio, "Yes", "")
+  )
+
 kable(
-  aic_biomass,
-  digits  = 1,
-  caption = "Bean biomass (kg/ha): model comparison (additive vs interaction)"
-)
+  aic_biomass_out,
+  digits  = 2,
+  caption = "Bean biomass (kg ha⁻¹): model comparison (additive vs interaction)"
+) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
-anova(bio_add, bio_int)  # LRT: is the interaction worth keeping?
+# Also show the LRT table (optional but handy)
+lrt_bio
 
-# Choose simpler additive model unless interaction is clearly needed -----
-# (this is the model used in all downstream emmeans/plots)
-bio.lmer <- bio_add
+# Quick text reminder of which model is used downstream ------------------
+cat("\nSelected model for bean biomass (used in all downstream emmeans/plots):\n  ",
+    chosen_model_name_bio,
+    sprintf("  [LRT p = %.3f]\n", p_int_bio))
 
 # Diagnostics on chosen model --------------------------------------------
 set.seed(123)
@@ -276,8 +311,7 @@ car::Anova(bio.lmer, type = 3)
 ```
 ### Post-hoc summary table
 ```{r}
-
-### Bean biomass (kg/ha) with Fisher's LSD CLDs
+### Bean biomass (kg ha⁻¹) with Fisher's LSD CLDs
 
 # Estimated marginal means for weed_trt
 emm_bio <- emmeans(bio.lmer, ~ weed_trt)
@@ -291,8 +325,8 @@ cld_bio <- cld(
   emm_bio,
   adjust  = "none",
   Letters = letters,
-  sort    = TRUE,   # default, but explicit
-  reversed = TRUE   # now 'a' goes to the highest group(s)
+  sort    = TRUE,
+  reversed = TRUE
 ) |>
   as_tibble() |>
   mutate(
@@ -307,10 +341,11 @@ emm_bio_df |>
   select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
   mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))) |>
   kable(
-    caption   = "Estimated bean biomass (kg/ha) with 95% CI and Fisher's LSD group letters",
+    caption   = "Estimated bean biomass (kg ha⁻¹) with 95% CI and Fisher's LSD group letters",
     col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
 
 ```
 
@@ -347,7 +382,7 @@ pvals_bio <- tibble(
 
 pvals_bio |>
   kable(
-    caption   = "Bean biomass (kg/ha): P-values for location, treatment, and interaction",
+    caption   = "Bean biomass (kg ha⁻¹): P-values for location, treatment, and interaction",
     col.names = c("Effect", "P-value")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -402,7 +437,7 @@ loc_summary_bio <- emm_loc_bio_df |>
 
 loc_summary_bio |>
   kable(
-    caption   = "Bean biomass (kg/ha): location (site-year) means with CLDs",
+    caption   = "Bean biomass (kg ha⁻¹): location (site-year) means with CLDs",
     col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -457,7 +492,7 @@ trt_summary_bio <- emm_trt_bio_df |>
 
 trt_summary_bio |>
   kable(
-    caption   = "Bean biomass (kg/ha): treatment means with CLDs",
+    caption   = "Bean biomass (kg ha⁻¹): treatment means with CLDs",
     col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -517,7 +552,7 @@ int_summary_bio <- emm_sy_bio_df |>
 
 int_summary_bio |>
   kable(
-    caption   = "Bean biomass (kg/ha): site-year × treatment means with CLDs",
+    caption   = "Bean biomass (kg ha⁻¹): site-year × treatment means with CLDs",
     col.names = c(
       "Site-year", "Treatment",
       "Model mean", "Model CLD",
@@ -530,7 +565,6 @@ int_summary_bio |>
 # Figures
 ## Pooled model
 ```{r}
-
 # Figure: Bean biomass by weed management treatment (pooled across site-years)
 
 # Estimated marginal means for treatments
@@ -575,19 +609,20 @@ ggplot(plot_df_bio, aes(x = weed_trt, y = response, fill = weed_trt)) +
     size     = 6
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Bean biomass (kg/ha)",
-    title    = "Bean biomass by weed management treatment",
-    caption  = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y       = expression(Bean~biomass~"(kg"~ha^{-1}*")"),
+    title   = "Bean biomass by weed management",
+    caption = "Model-based means (kg"~ha^{-1}*") \u00b1 SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
   ) +
   theme_classic(base_size = 18) +
   theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    axis.text.x    = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y   = element_text(margin = margin(r = 8)),
+    plot.title     = element_text(face = "bold"),
+    plot.caption   = element_text(size = 9, hjust = 0)
   )
 
 # Save figure
@@ -599,10 +634,10 @@ ggsave(
 )
 
 
+
 ```
 ## Pooled Raw
 ```{r}
-
 # Figure: Bean biomass by weed management treatment (raw means ± SE, model CLDs)
 
 # 1) Raw means and SE by treatment --------------------------------------
@@ -653,19 +688,21 @@ ggplot(plot_df_bio_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
     size     = 6
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Bean biomass (kg/ha)",
-    title    = "Bean biomass by weed management treatment",
-    caption  = "Raw means ± SE; letters = model-based Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y       = expression(Bean~biomass~"(kg"~ha^{-1}*")"),
+    title   = "Bean biomass by weed management",
+    caption = "Raw means (kg"~ha^{-1}*") \u00b1 SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
+  
   ) +
   theme_classic(base_size = 18) +
   theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    axis.text.x    = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y   = element_text(margin = margin(r = 8)),
+    plot.title     = element_text(face = "bold"),
+    plot.caption   = element_text(size = 9, hjust = 0)
   )
 
 # Save figure
@@ -675,5 +712,6 @@ ggsave(
   height   = 5.5,
   dpi      = 300
 )
+
 
 ```

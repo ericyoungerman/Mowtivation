@@ -5,8 +5,7 @@ Soybean biomass
 - [Packages](#packages)
 - [Data import & prep](#data-import--prep)
 - [Model testing](#model-testing)
-  - [Exploratory Analysis: Soybean
-    biomass](#exploratory-analysis-soybean-biomass)
+  - [Exploratory:](#exploratory)
     - [Selection:](#selection)
     - [Post-hoc summary table](#post-hoc-summary-table)
     - [ANOVA-style summary tables for bean
@@ -21,7 +20,7 @@ Soybean biomass
 
 ``` r
 # Packages
-library(tidyverse) # includes dplyr, ggplot2, readr, tibble, etc.
+library(tidyverse)    # includes dplyr, ggplot2, readr, tibble, etc.
 library(janitor)
 library(readxl)
 library(glmmTMB)
@@ -33,6 +32,8 @@ library(kableExtra)
 library(here)
 library(conflicted)
 library(lme4)
+library(WrensBookshelf)
+
 
 # Handle conflicts
 conflicts_prefer(dplyr::select)
@@ -41,59 +42,67 @@ conflicts_prefer(dplyr::recode)
 
 # Treatment level order (use everywhere)
 mow_levels <- c(
-"Rolled, no control",
-"Rolled + mowing",
-"Rolled + high-residue cult.",
-"Tilled + mowing",
-"Tilled + cultivation"
+  "Rolled, no control",
+  "Rolled, mowing",
+  "Rolled, high-residue cultivation",
+  "Tilled, mowing",
+  "Tilled, cultivation"
 )
 
-# One consistent color palette for all figures
+# One consistent CVD-safe color palette for all figures (WrensBookshelf)
+fill_cols <- WB_brewer(
+  name = "WhatWellBuild",
+  n    = length(mow_levels),
+  type = "discrete"
+) |>
+  setNames(mow_levels)
 
-fill_cols <- c(
-"Rolled, no control" = "#0072B2", # blue
-"Rolled + mowing" = "#009E73", # green
-"Rolled + high-residue cult." = "#F0E442", # yellow
-"Tilled + mowing" = "#D55E00", # reddish
-"Tilled + cultivation" = "#CC79A7" # magenta
-)
+# x-axis label helpers ---------------------------------------------------
 
-#x-axis label helpers
-
+# Break on spaces (if you ever want every word on its own line)
 label_break_spaces <- function(x) {
   stringr::str_replace_all(x, " ", "\n")
 }
 
-label_break_plus <- function(x) {
-  stringr::str_replace_all(x, " \\+ ", "\n+ ")
+# Break after the comma: "Rolled,\nno control", etc.
+label_break_comma <- function(x) {
+  stringr::str_replace_all(x, ", ", ",\n")
 }
 
+# Break after comma AND split "high-residue cultivation"
+# -> "Rolled,\nhigh-residue\ncultivation"
+label_break_comma_cult <- function(x) {
+  x |>
+    stringr::str_replace("high-residue cultivation",
+                         "high-residue\ncultivation") |>
+    stringr::str_replace_all(", ", ",\n")
+}
 
-#Helper: tidy emmeans output regardless of CI column names
-#(works directly on an emmeans object)
+# Helper: tidy emmeans output regardless of CI column names --------------
+# (works directly on an emmeans object)
 
 tidy_emm <- function(emm, ref_levels = NULL) {
-emm_df <- as.data.frame(emm)
+  emm_df <- as.data.frame(emm)
 
-lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
-ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+  lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+  ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
 
-if (is.na(lcl_col) || is.na(ucl_col)) {
-stop("Could not find CI columns in emmeans output.")
-}
+  if (is.na(lcl_col) || is.na(ucl_col)) {
+    stop("Could not find CI columns in emmeans output.")
+  }
 
-out <- emm_df |>
-mutate(
-ci_low = .data[[lcl_col]],
-ci_high = .data[[ucl_col]]
-)
+  out <- emm_df |>
+    dplyr::mutate(
+      ci_low  = .data[[lcl_col]],
+      ci_high = .data[[ucl_col]]
+    )
 
-if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
-out <- out |>
-mutate(weed_trt = factor(weed_trt, levels = ref_levels))
-}
+  if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
+    out <- out |>
+      dplyr::mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+  }
 
-out
+  out
 }
 ```
 
@@ -113,10 +122,10 @@ bean_biomass_clean <- read_excel(
     weed_trt  = recode(
       weed_trt,
       "RNO" = "Rolled, no control",
-      "RIM" = "Rolled + mowing",
-      "RIC" = "Rolled + high-residue cult.",
-      "TIM" = "Tilled + mowing",
-      "TIC" = "Tilled + cultivation"
+      "RIM" = "Rolled, mowing",
+      "RIC" = "Rolled, high-residue cultivation",
+      "TIM" = "Tilled, mowing",
+      "TIC" = "Tilled, cultivation"
     ),
     weed_trt = factor(weed_trt, levels = mow_levels)
   ) |>
@@ -142,18 +151,20 @@ kable(
 
 | id | location | year | weed_trt | block | plot | bean_emergence | bean_biomass | inrow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight | site_year | bean_biomass_g_m2 | bean_biomass_kg_ha | bean_biomass_lbs_acre |
 |:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---|---:|---:|---:|
-| CU_B1_P101 | field v | 2023 | Tilled + mowing | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 2023.field v | 447.48 | 4474.8 | 3992.323 |
-| CU_B1_P102 | field v | 2023 | Tilled + cultivation | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 2023.field v | 534.92 | 5349.2 | 4772.444 |
-| CU_B1_P103 | field v | 2023 | Rolled + mowing | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 2023.field v | 435.78 | 4357.8 | 3887.938 |
+| CU_B1_P101 | field v | 2023 | Tilled, mowing | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 2023.field v | 447.48 | 4474.8 | 3992.323 |
+| CU_B1_P102 | field v | 2023 | Tilled, cultivation | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 2023.field v | 534.92 | 5349.2 | 4772.444 |
+| CU_B1_P103 | field v | 2023 | Rolled, mowing | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 2023.field v | 435.78 | 4357.8 | 3887.938 |
 | CU_B1_P104 | field v | 2023 | Rolled, no control | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35.0 | 412.59 | 16.1450 | 2023.field v | 415.35 | 4153.5 | 3705.665 |
-| CU_B1_P105 | field v | 2023 | Rolled + high-residue cult. | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 2023.field v | 460.57 | 4605.7 | 4109.109 |
-| CU_B1_P201 | field v | 2023 | Rolled + high-residue cult. | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 2023.field v | 416.21 | 4162.1 | 3713.338 |
+| CU_B1_P105 | field v | 2023 | Rolled, high-residue cultivation | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 2023.field v | 460.57 | 4605.7 | 4109.109 |
+| CU_B1_P201 | field v | 2023 | Rolled, high-residue cultivation | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 2023.field v | 416.21 | 4162.1 | 3713.338 |
 
 All site-years, cleaned (bean biomass)
 
 # Model testing
 
-## Exploratory Analysis: Soybean biomass
+## Exploratory:
+
+\###Raw by site-year
 
 ``` r
 # 1) Summary table: bean biomass by site-year × treatment
@@ -169,7 +180,7 @@ bean_biomass_clean |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "Bean biomass (kg/ha) by site-year × treatment"
+    caption = "Bean biomass (kg ha⁻¹) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -178,7 +189,7 @@ bean_biomass_clean |>
 
 <caption>
 
-Bean biomass (kg/ha) by site-year × treatment
+Bean biomass (kg ha⁻¹) by site-year × treatment
 </caption>
 
 <thead>
@@ -264,7 +275,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -298,7 +309,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -332,7 +343,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -366,7 +377,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -434,7 +445,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -468,7 +479,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -502,7 +513,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -536,7 +547,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -604,7 +615,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -638,7 +649,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -672,7 +683,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -706,7 +717,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -751,12 +762,12 @@ bean_biomass_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  facet_wrap(~ site_year, nrow = 1) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+ scale_x_discrete(labels = label_break_comma_cult) +
   labs(
     x     = NULL,
-    y     = "Bean biomass (kg/ha)",
+  y = expression(Bean~yield~"(kg"~ha^{-1}*")"),
     title = "Bean biomass by treatment across site-years"
   ) +
   theme_classic(base_size = 14) +
@@ -785,10 +796,10 @@ bean_biomass_field_v_2023 |>
     color  = "grey30"
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+   scale_x_discrete(labels = label_break_comma_cult) +
   labs(
     x     = NULL,
-    y     = "Bean biomass (kg/ha)",
+    y = expression(Bean~yield~"(kg"~ha^{-1}*")"),
     title = "Bean biomass by treatment, 2023 – Field V"
   ) +
   theme_classic(base_size = 14) +
@@ -804,7 +815,7 @@ bean_biomass_field_v_2023 |>
 #### Pooled, Raw by site-year
 
 ``` r
-### Model testing / selection for bean biomass (kg/ha)
+### Model testing / selection for bean biomass (kg ha⁻¹)
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
@@ -821,6 +832,7 @@ bio_add <- lmer(
 )
 
 # Compare models (AIC + LRT) ---------------------------------------------
+# AIC table
 aic_biomass <- tibble(
   model = c(
     "Additive: weed_trt + site_year",
@@ -829,22 +841,126 @@ aic_biomass <- tibble(
   AIC = c(AIC(bio_add), AIC(bio_int))
 )
 
+# Likelihood-ratio test (is the interaction worth keeping?)
+lrt_bio <- anova(bio_add, bio_int)
+
+p_int_bio <- lrt_bio$`Pr(>Chisq)`[2]
+
+# Apply your rule: choose simpler additive model unless interaction is clearly needed
+chosen_model_name_bio <- if (p_int_bio < 0.05) {
+  "Interaction: weed_trt * site_year"
+} else {
+  "Additive: weed_trt + site_year"
+}
+
+bio.lmer <- if (p_int_bio < 0.05) bio_int else bio_add
+
+# Add ΔAIC and "Selected" flag to the table ------------------------------
+aic_biomass_out <- aic_biomass |>
+  mutate(
+    deltaAIC = AIC - min(AIC),
+    Selected = if_else(model == chosen_model_name_bio, "Yes", "")
+  )
+
 kable(
-  aic_biomass,
-  digits  = 1,
-  caption = "Bean biomass (kg/ha): model comparison (additive vs interaction)"
-)
+  aic_biomass_out,
+  digits  = 2,
+  caption = "Bean biomass (kg ha⁻¹): model comparison (additive vs interaction)"
+) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
 
-| model                              |   AIC |
-|:-----------------------------------|------:|
-| Additive: weed_trt + site_year     | 891.0 |
-| Interaction: weed_trt \* site_year | 794.6 |
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 
-Bean biomass (kg/ha): model comparison (additive vs interaction)
+<caption>
+
+Bean biomass (kg ha⁻¹): model comparison (additive vs interaction)
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+model
+</th>
+
+<th style="text-align:right;">
+
+AIC
+</th>
+
+<th style="text-align:right;">
+
+deltaAIC
+</th>
+
+<th style="text-align:left;">
+
+Selected
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+Additive: weed_trt + site_year
+</td>
+
+<td style="text-align:right;">
+
+891.00
+</td>
+
+<td style="text-align:right;">
+
+96.43
+</td>
+
+<td style="text-align:left;">
+
+Yes
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Interaction: weed_trt \* site_year
+</td>
+
+<td style="text-align:right;">
+
+794.57
+</td>
+
+<td style="text-align:right;">
+
+0.00
+</td>
+
+<td style="text-align:left;">
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
 
 ``` r
-anova(bio_add, bio_int)  # LRT: is the interaction worth keeping?
+# Also show the LRT table (optional but handy)
+lrt_bio
 ```
 
     ## Data: bean_biomass_clean
@@ -858,10 +974,17 @@ anova(bio_add, bio_int)  # LRT: is the interaction worth keeping?
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
 ``` r
-# Choose simpler additive model unless interaction is clearly needed -----
-# (this is the model used in all downstream emmeans/plots)
-bio.lmer <- bio_add
+# Quick text reminder of which model is used downstream ------------------
+cat("\nSelected model for bean biomass (used in all downstream emmeans/plots):\n  ",
+    chosen_model_name_bio,
+    sprintf("  [LRT p = %.3f]\n", p_int_bio))
+```
 
+    ## 
+    ## Selected model for bean biomass (used in all downstream emmeans/plots):
+    ##    Additive: weed_trt + site_year   [LRT p = 0.072]
+
+``` r
 # Diagnostics on chosen model --------------------------------------------
 set.seed(123)
 res_bio <- DHARMa::simulateResiduals(bio.lmer)
@@ -901,7 +1024,7 @@ car::Anova(bio.lmer, type = 3)
 ### Post-hoc summary table
 
 ``` r
-### Bean biomass (kg/ha) with Fisher's LSD CLDs
+### Bean biomass (kg ha⁻¹) with Fisher's LSD CLDs
 
 # Estimated marginal means for weed_trt
 emm_bio <- emmeans(bio.lmer, ~ weed_trt)
@@ -915,8 +1038,8 @@ cld_bio <- cld(
   emm_bio,
   adjust  = "none",
   Letters = letters,
-  sort    = TRUE,   # default, but explicit
-  reversed = TRUE   # now 'a' goes to the highest group(s)
+  sort    = TRUE,
+  reversed = TRUE
 ) |>
   as_tibble() |>
   mutate(
@@ -931,7 +1054,7 @@ emm_bio_df |>
   select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
   mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))) |>
   kable(
-    caption   = "Estimated bean biomass (kg/ha) with 95% CI and Fisher's LSD group letters",
+    caption   = "Estimated bean biomass (kg ha⁻¹) with 95% CI and Fisher's LSD group letters",
     col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -941,7 +1064,7 @@ emm_bio_df |>
 
 <caption>
 
-Estimated bean biomass (kg/ha) with 95% CI and Fisher’s LSD group
+Estimated bean biomass (kg ha⁻¹) with 95% CI and Fisher’s LSD group
 letters
 </caption>
 
@@ -1023,7 +1146,7 @@ b
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1057,7 +1180,7 @@ b
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1091,7 +1214,7 @@ b
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1125,7 +1248,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1193,7 +1316,7 @@ pvals_bio <- tibble(
 
 pvals_bio |>
   kable(
-    caption   = "Bean biomass (kg/ha): P-values for location, treatment, and interaction",
+    caption   = "Bean biomass (kg ha⁻¹): P-values for location, treatment, and interaction",
     col.names = c("Effect", "P-value")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1203,7 +1326,8 @@ pvals_bio |>
 
 <caption>
 
-Bean biomass (kg/ha): P-values for location, treatment, and interaction
+Bean biomass (kg ha⁻¹): P-values for location, treatment, and
+interaction
 </caption>
 
 <thead>
@@ -1322,7 +1446,7 @@ loc_summary_bio <- emm_loc_bio_df |>
 
 loc_summary_bio |>
   kable(
-    caption   = "Bean biomass (kg/ha): location (site-year) means with CLDs",
+    caption   = "Bean biomass (kg ha⁻¹): location (site-year) means with CLDs",
     col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1332,7 +1456,7 @@ loc_summary_bio |>
 
 <caption>
 
-Bean biomass (kg/ha): location (site-year) means with CLDs
+Bean biomass (kg ha⁻¹): location (site-year) means with CLDs
 </caption>
 
 <thead>
@@ -1511,7 +1635,7 @@ trt_summary_bio <- emm_trt_bio_df |>
 
 trt_summary_bio |>
   kable(
-    caption   = "Bean biomass (kg/ha): treatment means with CLDs",
+    caption   = "Bean biomass (kg ha⁻¹): treatment means with CLDs",
     col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1521,7 +1645,7 @@ trt_summary_bio |>
 
 <caption>
 
-Bean biomass (kg/ha): treatment means with CLDs
+Bean biomass (kg ha⁻¹): treatment means with CLDs
 </caption>
 
 <thead>
@@ -1592,7 +1716,7 @@ b
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1621,7 +1745,7 @@ b
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1650,7 +1774,7 @@ b
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1679,7 +1803,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1763,7 +1887,7 @@ int_summary_bio <- emm_sy_bio_df |>
 
 int_summary_bio |>
   kable(
-    caption   = "Bean biomass (kg/ha): site-year × treatment means with CLDs",
+    caption   = "Bean biomass (kg ha⁻¹): site-year × treatment means with CLDs",
     col.names = c(
       "Site-year", "Treatment",
       "Model mean", "Model CLD",
@@ -1777,7 +1901,7 @@ int_summary_bio |>
 
 <caption>
 
-Bean biomass (kg/ha): site-year × treatment means with CLDs
+Bean biomass (kg ha⁻¹): site-year × treatment means with CLDs
 </caption>
 
 <thead>
@@ -1863,7 +1987,7 @@ b
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1897,7 +2021,7 @@ b
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1931,7 +2055,7 @@ b
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1965,7 +2089,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2033,7 +2157,7 @@ b
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2067,7 +2191,7 @@ b
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2101,7 +2225,7 @@ b
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2135,7 +2259,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2203,7 +2327,7 @@ b
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2237,7 +2361,7 @@ b
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2271,7 +2395,7 @@ b
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2305,7 +2429,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2383,19 +2507,20 @@ ggplot(plot_df_bio, aes(x = weed_trt, y = response, fill = weed_trt)) +
     size     = 6
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Bean biomass (kg/ha)",
-    title    = "Bean biomass by weed management treatment",
-    caption  = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y       = expression(Bean~biomass~"(kg"~ha^{-1}*")"),
+    title   = "Bean biomass by weed management",
+    caption = "Model-based means (kg"~ha^{-1}*") \u00b1 SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
   ) +
   theme_classic(base_size = 18) +
   theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    axis.text.x    = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y   = element_text(margin = margin(r = 8)),
+    plot.title     = element_text(face = "bold"),
+    plot.caption   = element_text(size = 9, hjust = 0)
   )
 ```
 
@@ -2464,19 +2589,21 @@ ggplot(plot_df_bio_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
     size     = 6
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Bean biomass (kg/ha)",
-    title    = "Bean biomass by weed management treatment",
-    caption  = "Raw means ± SE; letters = model-based Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y       = expression(Bean~biomass~"(kg"~ha^{-1}*")"),
+    title   = "Bean biomass by weed management",
+    caption = "Raw means (kg"~ha^{-1}*") \u00b1 SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
+  
   ) +
   theme_classic(base_size = 18) +
   theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    axis.text.x    = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y   = element_text(margin = margin(r = 8)),
+    plot.title     = element_text(face = "bold"),
+    plot.caption   = element_text(size = 9, hjust = 0)
   )
 ```
 
