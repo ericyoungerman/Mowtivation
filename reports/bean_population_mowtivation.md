@@ -19,7 +19,7 @@ Soybean population
 
 ``` r
 # Packages
-library(tidyverse) # includes dplyr, ggplot2, readr, tibble, etc.
+library(tidyverse)    # includes dplyr, ggplot2, readr, tibble, etc.
 library(janitor)
 library(readxl)
 library(glmmTMB)
@@ -31,6 +31,8 @@ library(kableExtra)
 library(here)
 library(conflicted)
 library(lme4)
+library(WrensBookshelf)
+
 
 # Handle conflicts
 conflicts_prefer(dplyr::select)
@@ -39,59 +41,67 @@ conflicts_prefer(dplyr::recode)
 
 # Treatment level order (use everywhere)
 mow_levels <- c(
-"Rolled, no control",
-"Rolled + mowing",
-"Rolled + high-residue cult.",
-"Tilled + mowing",
-"Tilled + cultivation"
+  "Rolled, no control",
+  "Rolled, mowing",
+  "Rolled, high-residue cultivation",
+  "Tilled, mowing",
+  "Tilled, cultivation"
 )
 
-# One consistent color palette for all figures
+# One consistent CVD-safe color palette for all figures (WrensBookshelf)
+fill_cols <- WB_brewer(
+  name = "WhatWellBuild",
+  n    = length(mow_levels),
+  type = "discrete"
+) |>
+  setNames(mow_levels)
 
-fill_cols <- c(
-"Rolled, no control" = "#0072B2", # blue
-"Rolled + mowing" = "#009E73", # green
-"Rolled + high-residue cult." = "#F0E442", # yellow
-"Tilled + mowing" = "#D55E00", # reddish
-"Tilled + cultivation" = "#CC79A7" # magenta
-)
+# x-axis label helpers ---------------------------------------------------
 
-#x-axis label helpers
-
+# Break on spaces (if you ever want every word on its own line)
 label_break_spaces <- function(x) {
   stringr::str_replace_all(x, " ", "\n")
 }
 
-label_break_plus <- function(x) {
-  stringr::str_replace_all(x, " \\+ ", "\n+ ")
+# Break after the comma: "Rolled,\nno control", etc.
+label_break_comma <- function(x) {
+  stringr::str_replace_all(x, ", ", ",\n")
 }
 
+# Break after comma AND split "high-residue cultivation"
+# -> "Rolled,\nhigh-residue\ncultivation"
+label_break_comma_cult <- function(x) {
+  x |>
+    stringr::str_replace("high-residue cultivation",
+                         "high-residue\ncultivation") |>
+    stringr::str_replace_all(", ", ",\n")
+}
 
-#Helper: tidy emmeans output regardless of CI column names
-#(works directly on an emmeans object)
+# Helper: tidy emmeans output regardless of CI column names --------------
+# (works directly on an emmeans object)
 
 tidy_emm <- function(emm, ref_levels = NULL) {
-emm_df <- as.data.frame(emm)
+  emm_df <- as.data.frame(emm)
 
-lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
-ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+  lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+  ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
 
-if (is.na(lcl_col) || is.na(ucl_col)) {
-stop("Could not find CI columns in emmeans output.")
-}
+  if (is.na(lcl_col) || is.na(ucl_col)) {
+    stop("Could not find CI columns in emmeans output.")
+  }
 
-out <- emm_df |>
-mutate(
-ci_low = .data[[lcl_col]],
-ci_high = .data[[ucl_col]]
-)
+  out <- emm_df |>
+    dplyr::mutate(
+      ci_low  = .data[[lcl_col]],
+      ci_high = .data[[ucl_col]]
+    )
 
-if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
-out <- out |>
-mutate(weed_trt = factor(weed_trt, levels = ref_levels))
-}
+  if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
+    out <- out |>
+      dplyr::mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+  }
 
-out
+  out
 }
 ```
 
@@ -111,10 +121,10 @@ bean_population_clean <- read_excel(
     weed_trt  = recode(
       weed_trt,
       "RNO" = "Rolled, no control",
-      "RIM" = "Rolled + mowing",
-      "RIC" = "Rolled + high-residue cult.",
-      "TIM" = "Tilled + mowing",
-      "TIC" = "Tilled + cultivation"
+      "RIM" = "Rolled, mowing",
+      "RIC" = "Rolled, high-residue cultivation",
+      "TIM" = "Tilled, mowing",
+      "TIC" = "Tilled, cultivation"
     ),
     weed_trt = factor(weed_trt, levels = mow_levels)
   ) |>
@@ -140,12 +150,12 @@ kable(
 
 | id | location | year | weed_trt | block | plot | bean_emergence | bean_biomass | inrow_weed_biomass | interrow_weed_biomass | weed_biomass | bean_population | bean_yield | seed_weight | site_year | bean_population_two_meter | bean_population_hectare | bean_population_acre |
 |:---|:---|:---|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---|---:|---:|---:|
-| CU_B1_P101 | field v | 2023 | Tilled + mowing | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 2023.field v | 69 | 452755.9 | 183227.8 |
-| CU_B1_P102 | field v | 2023 | Tilled + cultivation | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 2023.field v | 79 | 518372.7 | 209782.6 |
-| CU_B1_P103 | field v | 2023 | Rolled + mowing | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 2023.field v | 75 | 492126.0 | 199160.7 |
+| CU_B1_P101 | field v | 2023 | Tilled, mowing | 1 | 101 | 46.5 | 223.740 | 19.000 | 44.490 | 63.490 | 34.5 | 417.21 | 17.1200 | 2023.field v | 69 | 452755.9 | 183227.8 |
+| CU_B1_P102 | field v | 2023 | Tilled, cultivation | 1 | 102 | 42.5 | 267.460 | 30.975 | 0.720 | 31.695 | 39.5 | 565.54 | 17.4750 | 2023.field v | 79 | 518372.7 | 209782.6 |
+| CU_B1_P103 | field v | 2023 | Rolled, mowing | 1 | 103 | 36.5 | 217.890 | 0.950 | 6.890 | 7.840 | 37.5 | 449.93 | 16.7525 | 2023.field v | 75 | 492126.0 | 199160.7 |
 | CU_B1_P104 | field v | 2023 | Rolled, no control | 1 | 104 | 41.0 | 207.675 | 0.660 | 45.735 | 46.395 | 35.0 | 412.59 | 16.1450 | 2023.field v | 70 | 459317.6 | 185883.3 |
-| CU_B1_P105 | field v | 2023 | Rolled + high-residue cult. | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 2023.field v | 78 | 511811.0 | 207127.1 |
-| CU_B1_P201 | field v | 2023 | Rolled + high-residue cult. | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 2023.field v | 67 | 439632.5 | 177916.9 |
+| CU_B1_P105 | field v | 2023 | Rolled, high-residue cultivation | 1 | 105 | 41.0 | 230.285 | 0.495 | 22.025 | 22.520 | 39.0 | 473.79 | 17.0475 | 2023.field v | 78 | 511811.0 | 207127.1 |
+| CU_B1_P201 | field v | 2023 | Rolled, high-residue cultivation | 2 | 201 | 36.5 | 208.105 | 6.395 | 19.460 | 25.855 | 33.5 | 484.04 | 17.1500 | 2023.field v | 67 | 439632.5 | 177916.9 |
 
 All site-years, cleaned (bean population)
 
@@ -167,7 +177,7 @@ bean_population_clean |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "Bean population (plants/ha) by site-year × treatment"
+    caption = "Bean population (plants ha⁻¹) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -176,7 +186,7 @@ bean_population_clean |>
 
 <caption>
 
-Bean population (plants/ha) by site-year × treatment
+Bean population (plants ha⁻¹) by site-year × treatment
 </caption>
 
 <thead>
@@ -262,7 +272,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -296,7 +306,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -330,7 +340,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -364,7 +374,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -432,7 +442,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -466,7 +476,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -500,7 +510,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -534,7 +544,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -602,7 +612,7 @@ Rolled, no control
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -636,7 +646,7 @@ Rolled + mowing
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -670,7 +680,7 @@ Rolled + high-residue cult.
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -704,7 +714,7 @@ Tilled + mowing
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -749,12 +759,13 @@ bean_population_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  facet_wrap(~ site_year, nrow = 1) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
   labs(
     x     = NULL,
-    y     = "Bean population (plants/ha)",
+    y     = expression(Bean~population~"(plants"~ha^{-1}*")"),
     title = "Bean population by treatment across site-years"
   ) +
   theme_classic(base_size = 14) +
@@ -783,10 +794,11 @@ bean_population_field_v_2023 |>
     color  = "grey30"
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
   labs(
     x     = NULL,
-    y     = "Bean population (plants/ha)",
+    y     = expression(Bean~population~"(plants"~ha^{-1}*")"),
     title = "Bean population by treatment, 2023 – Field V"
   ) +
   theme_classic(base_size = 14) +
@@ -799,7 +811,7 @@ bean_population_field_v_2023 |>
 Selection
 
 ``` r
-### Model testing / selection for bean population (plants/ha)
+### Model testing / selection for bean population (plants ha⁻¹)
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
@@ -816,6 +828,7 @@ pop_add <- lmer(
 )
 
 # Compare models (AIC + LRT) ---------------------------------------------
+# AIC table
 aic_population <- tibble(
   model = c(
     "Additive: weed_trt + site_year",
@@ -824,22 +837,127 @@ aic_population <- tibble(
   AIC = c(AIC(pop_add), AIC(pop_int))
 )
 
+# Likelihood-ratio test (is the interaction worth keeping?)
+lrt_pop <- anova(pop_add, pop_int)
+
+p_int_pop <- lrt_pop$`Pr(>Chisq)`[2]
+
+# Apply your rule: choose simpler additive model unless interaction is clearly needed
+chosen_model_name_pop <- if (p_int_pop < 0.05) {
+  "Interaction: weed_trt * site_year"
+} else {
+  "Additive: weed_trt + site_year"
+}
+
+pop.lmer <- if (p_int_pop < 0.05) pop_int else pop_add
+
+# Add ΔAIC and "Selected" flag to the table ------------------------------
+aic_population_out <- aic_population |>
+  mutate(
+    deltaAIC = AIC - min(AIC),
+    Selected = if_else(model == chosen_model_name_pop, "Yes", "")
+  )
+
 kable(
-  aic_population,
-  digits  = 1,
-  caption = "Bean population (plants/ha): model comparison (additive vs interaction)"
-)
+  aic_population_out,
+  digits  = 2,
+  caption = "Bean population (plants ha⁻¹): model comparison (additive vs interaction)"
+) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
 
-| model                              |    AIC |
-|:-----------------------------------|-------:|
-| Additive: weed_trt + site_year     | 1345.4 |
-| Interaction: weed_trt \* site_year | 1181.5 |
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 
-Bean population (plants/ha): model comparison (additive vs interaction)
+<caption>
+
+Bean population (plants ha⁻¹): model comparison (additive vs
+interaction)
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+model
+</th>
+
+<th style="text-align:right;">
+
+AIC
+</th>
+
+<th style="text-align:right;">
+
+deltaAIC
+</th>
+
+<th style="text-align:left;">
+
+Selected
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+Additive: weed_trt + site_year
+</td>
+
+<td style="text-align:right;">
+
+1345.37
+</td>
+
+<td style="text-align:right;">
+
+163.88
+</td>
+
+<td style="text-align:left;">
+
+Yes
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Interaction: weed_trt \* site_year
+</td>
+
+<td style="text-align:right;">
+
+1181.49
+</td>
+
+<td style="text-align:right;">
+
+0.00
+</td>
+
+<td style="text-align:left;">
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
 
 ``` r
-anova(pop_add, pop_int)  # LRT: is the interaction worth keeping?
+# Also show the LRT table (optional but handy)
+lrt_pop
 ```
 
     ## Data: bean_population_clean
@@ -851,10 +969,19 @@ anova(pop_add, pop_int)  # LRT: is the interaction worth keeping?
     ## pop_int   17 1491.5 1527.1 -728.74    1457.5 12.028  8     0.1499
 
 ``` r
-# Choose simpler additive model unless interaction is clearly needed -----
-# (this is the model used in all downstream emmeans/plots)
-pop.lmer <- pop_add
+# Quick text reminder of which model is used downstream ------------------
+cat(
+  "\nSelected model for bean population (used in all downstream emmeans/plots):\n  ",
+  chosen_model_name_pop,
+  sprintf("  [LRT p = %.3f]\n", p_int_pop)
+)
+```
 
+    ## 
+    ## Selected model for bean population (used in all downstream emmeans/plots):
+    ##    Additive: weed_trt + site_year   [LRT p = 0.150]
+
+``` r
 # Diagnostics on chosen model --------------------------------------------
 set.seed(123)
 res_pop <- DHARMa::simulateResiduals(pop.lmer)
@@ -894,7 +1021,7 @@ car::Anova(pop.lmer, type = 3)
 ### Post-hoc summary table
 
 ``` r
-### Bean population (plants/ha) with Fisher's LSD CLDs
+### Bean population (plants ha⁻¹) with Fisher's LSD CLDs
 
 # Estimated marginal means for weed_trt
 emm_pop <- emmeans(pop.lmer, ~ weed_trt)
@@ -906,10 +1033,10 @@ emm_pop_df <- tidy_emm(emm_pop, ref_levels = mow_levels) |>
 # Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
 cld_pop <- cld(
   emm_pop,
-  adjust  = "none",
-  Letters = letters,
-  sort    = TRUE,   # default, but explicit
-  reversed = TRUE   # now 'a' goes to the highest group(s)
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE   # "a" = highest group(s)
 ) |>
   as_tibble() |>
   mutate(
@@ -924,7 +1051,7 @@ emm_pop_df |>
   select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
   mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))) |>
   kable(
-    caption   = "Estimated bean population (plants/ha) with 95% CI and Fisher's LSD group letters",
+    caption   = "Estimated bean population (plants ha⁻¹) with 95% CI and Fisher's LSD group letters",
     col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -934,8 +1061,8 @@ emm_pop_df |>
 
 <caption>
 
-Estimated bean population (plants/ha) with 95% CI and Fisher’s LSD group
-letters
+Estimated bean population (plants ha⁻¹) with 95% CI and Fisher’s LSD
+group letters
 </caption>
 
 <thead>
@@ -1016,7 +1143,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1050,7 +1177,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1084,7 +1211,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1118,7 +1245,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1155,6 +1282,8 @@ a
 ### ANOVA-style summary tables for bean population
 
 ``` r
+## ANOVA-style summary tables for bean population ------------------------
+
 ## 1) P-value summary (Location, Treatment, Interaction) -----------------
 
 # Type-III tests for additive model (weed_trt + site_year)
@@ -1186,7 +1315,7 @@ pvals_pop <- tibble(
 
 pvals_pop |>
   kable(
-    caption   = "Bean population (plants/ha): P-values for location, treatment, and interaction",
+    caption   = "Bean population (plants ha⁻¹): P-values for location, treatment, and interaction",
     col.names = c("Effect", "P-value")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1196,7 +1325,7 @@ pvals_pop |>
 
 <caption>
 
-Bean population (plants/ha): P-values for location, treatment, and
+Bean population (plants ha⁻¹): P-values for location, treatment, and
 interaction
 </caption>
 
@@ -1316,7 +1445,7 @@ loc_summary_pop <- emm_loc_pop_df |>
 
 loc_summary_pop |>
   kable(
-    caption   = "Bean population (plants/ha): location (site-year) means with CLDs",
+    caption   = "Bean population (plants ha⁻¹): location (site-year) means with CLDs",
     col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1326,7 +1455,7 @@ loc_summary_pop |>
 
 <caption>
 
-Bean population (plants/ha): location (site-year) means with CLDs
+Bean population (plants ha⁻¹): location (site-year) means with CLDs
 </caption>
 
 <thead>
@@ -1505,7 +1634,7 @@ trt_summary_pop <- emm_trt_pop_df |>
 
 trt_summary_pop |>
   kable(
-    caption   = "Bean population (plants/ha): treatment means with CLDs",
+    caption   = "Bean population (plants ha⁻¹): treatment means with CLDs",
     col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -1515,7 +1644,7 @@ trt_summary_pop |>
 
 <caption>
 
-Bean population (plants/ha): treatment means with CLDs
+Bean population (plants ha⁻¹): treatment means with CLDs
 </caption>
 
 <thead>
@@ -1586,7 +1715,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1615,7 +1744,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1644,7 +1773,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1673,7 +1802,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1757,7 +1886,7 @@ int_summary_pop <- emm_sy_pop_df |>
 
 int_summary_pop |>
   kable(
-    caption   = "Bean population (plants/ha): site-year × treatment means with CLDs",
+    caption   = "Bean population (plants ha⁻¹): site-year × treatment means with CLDs",
     col.names = c(
       "Site-year", "Treatment",
       "Model mean", "Model CLD",
@@ -1771,7 +1900,7 @@ int_summary_pop |>
 
 <caption>
 
-Bean population (plants/ha): site-year × treatment means with CLDs
+Bean population (plants ha⁻¹): site-year × treatment means with CLDs
 </caption>
 
 <thead>
@@ -1857,7 +1986,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1891,7 +2020,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -1925,7 +2054,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -1959,7 +2088,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2027,7 +2156,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2061,7 +2190,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2095,7 +2224,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2129,7 +2258,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2197,7 +2326,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + mowing
+Rolled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2231,7 +2360,7 @@ a
 
 <td style="text-align:left;">
 
-Rolled + high-residue cult.
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2265,7 +2394,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + mowing
+Tilled, mowing
 </td>
 
 <td style="text-align:right;">
@@ -2299,7 +2428,7 @@ a
 
 <td style="text-align:left;">
 
-Tilled + cultivation
+Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
@@ -2339,7 +2468,7 @@ a
 emm_pop <- emmeans(pop.lmer, ~ weed_trt)
 
 # Tidy emmeans for plotting
-emm_pop_df <- tidy_emm(emm_pop, ref_levels = mow_levels) |>
+plot_df_pop <- tidy_emm(emm_pop, ref_levels = mow_levels) |>
   as_tibble() |>
   mutate(
     response = emmean,
@@ -2347,49 +2476,25 @@ emm_pop_df <- tidy_emm(emm_pop, ref_levels = mow_levels) |>
     ymax     = response + SE
   )
 
-# CLDs for treatments (Fisher's LSD, "a" = highest)
-cld_pop <- cld(
-  emm_pop,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# Merge means and CLDs
-plot_df_pop <- emm_pop_df |>
-  left_join(cld_pop, by = "weed_trt")
-
-# Plot
+# Plot (no CLD letters)
 ggplot(plot_df_pop, aes(x = weed_trt, y = response, fill = weed_trt)) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Bean population (plants/ha)",
-    title    = "Bean population by weed management treatment",
-    caption  = "Model-based means ± SE; letters = Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y       = expression(Bean~population~"(plants"~ha^{-1}*")"),
+    title   = "Bean population by weed management",
+    caption = "Model-based means (plants"~ha^{-1}*") ±  SE across weed management treatments."
   ) +
   theme_classic(base_size = 18) +
   theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    axis.text.x    = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y   = element_text(margin = margin(r = 8)),
+    plot.title     = element_text(face = "bold"),
+    plot.caption   = element_text(size = 9, hjust = 0)
   )
 ```
 
@@ -2408,7 +2513,7 @@ ggsave(
 ## Pooled Raw
 
 ``` r
-# Figure: Bean population by weed management treatment (raw means ± SE, model CLDs)
+# Figure: Bean population by weed management treatment (raw means ± SE)
 
 # 1) Raw means and SE by treatment --------------------------------------
 raw_pop_summary <- bean_population_clean |>
@@ -2426,51 +2531,25 @@ raw_pop_summary <- bean_population_clean |>
     ymax     = mean + se
   )
 
-# 2) Model-based CLDs for treatment main effect -------------------------
-emm_pop <- emmeans(pop.lmer, ~ weed_trt)
-
-cld_pop <- cld(
-  emm_pop,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE   # "a" = highest mean
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# 3) Join raw means and model CLDs --------------------------------------
-plot_df_pop_raw <- raw_pop_summary |>
-  left_join(cld_pop, by = "weed_trt")
-
-# 4) Plot ---------------------------------------------------------------
-ggplot(plot_df_pop_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+# 2) Plot (raw means ± SE, no CLD letters) ------------------------------
+ggplot(raw_pop_summary, aes(x = weed_trt, y = mean, fill = weed_trt)) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_plus) +
+  scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x        = NULL,
-    y        = "Bean population (plants/ha)",
-    title    = "Bean population by weed management treatment",
-    caption  = "Raw means ± SE; letters = model-based Fisher-style CLD for treatment main effect."
+    x       = NULL,
+    y       = expression(Bean~population~"(plants"~ha^{-1}*")"),
+    title   = "Bean population by weed management",
+    caption = "Raw means (plants"~ha^{-1}*") ± SE across weed management treatments."
   ) +
   theme_classic(base_size = 18) +
   theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold")
+    axis.text.x    = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y   = element_text(margin = margin(r = 8)),
+    plot.title     = element_text(face = "bold"),
+    plot.caption   = element_text(size = 9, hjust = 0)
   )
 ```
 
