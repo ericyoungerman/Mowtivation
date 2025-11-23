@@ -195,6 +195,7 @@ bean_biomass_clean |>
   facet_wrap(~ site_year, nrow = 1) +
   scale_fill_manual(values = fill_cols, guide = "none") +
  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
   labs(
     x     = NULL,
   y = expression(Bean~yield~"(kg"~ha^{-1}*")"),
@@ -223,6 +224,7 @@ bean_biomass_field_v_2023 |>
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
    scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
   labs(
     x     = NULL,
     y = expression(Bean~yield~"(kg"~ha^{-1}*")"),
