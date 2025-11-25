@@ -311,7 +311,7 @@ DHARMa::testDispersion(bio.lmer)
 car::Anova(bio.lmer, type = 3)
 
 ```
-### Post-hoc summary table
+### Post-hoc summary tables
 ```{r}
 ### Bean biomass (kg ha⁻¹) with Fisher's LSD CLDs
 
@@ -565,7 +565,7 @@ int_summary_bio |>
 
 ```
 # Figures
-## Pooled model
+## Pooled model means
 ```{r}
 # Figure: Bean biomass by weed management treatment (pooled across site-years)
 
@@ -638,7 +638,7 @@ ggsave(
 
 
 ```
-## Pooled Raw
+## Pooled Raw means
 ```{r}
 # Figure: Bean biomass by weed management treatment (raw means ± SE, model CLDs)
 
