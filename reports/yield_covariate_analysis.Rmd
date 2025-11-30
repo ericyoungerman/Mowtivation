@@ -1,0 +1,615 @@
+---
+title: "Yield covariate analysis"
+
+output:
+  github_document:
+    toc: true
+always_allow_html: true
+
+
+---
+
+#Setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.path = "figs/analysis/covariate_yield-"
+)
+```
+
+#Packages
+```{r}
+## Packages -----------------------------------------------------------------
+
+library(tidyverse)    # dplyr, ggplot2, readr, tibble, etc.
+library(janitor)
+library(readxl)
+library(here)
+
+# Mixed models / GLMMs
+library(lme4)
+library(glmmTMB)
+library(DHARMa)
+library(emmeans)
+library(multcomp)
+library(car)
+library(ggeffects) install.packages("ggeffects")
+
+# Tables / reporting
+library(kableExtra)
+library(broom)        # tidy() / glance() for lm
+library(broom.mixed)  # tidy() / glance() for lmer / glmmTMB
+
+# Diagnostics
+library(performance)  # check_model(), etc.
+
+# Nonlinear fits
+library(minpack.lm)   # nlsLM(), if needed
+
+# Palettes
+library(WrensBookshelf)
+
+# Conflict handling ---------------------------------------------------------
+
+library(conflicted)
+conflicts_prefer(dplyr::select)
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(dplyr::recode)
+
+## Treatment level order (used everywhere) ----------------------------------
+
+mow_levels <- c(
+  "Rolled, no control",
+  "Rolled, mowing",
+  "Rolled, high-residue cultivation",
+  "Tilled, mowing",
+  "Tilled, cultivation"
+)
+
+## Color palette for treatments (CVD-safe) ----------------------------------
+
+fill_cols <- WB_brewer(
+  name = "WhatWellBuild",
+  n    = length(mow_levels),
+  type = "discrete"
+) |>
+  setNames(mow_levels)
+
+## Axis label helpers -------------------------------------------------------
+
+# Break on spaces (every word on its own line)
+label_break_spaces <- function(x) {
+  stringr::str_replace_all(x, " ", "\n")
+}
+
+# Break after the comma: "Rolled,\nno control"
+label_break_comma <- function(x) {
+  stringr::str_replace_all(x, ", ", ",\n")
+}
+
+# Break after comma and split "high-residue cultivation"
+# -> "Rolled,\nhigh-residue\ncultivation"
+label_break_comma_cult <- function(x) {
+  x |>
+    stringr::str_replace("high-residue cultivation",
+                         "high-residue\ncultivation") |>
+    stringr::str_replace_all(", ", ",\n")
+}
+
+## Helper: tidy emmeans output regardless of CI column names ---------------
+
+tidy_emm <- function(emm, ref_levels = NULL) {
+  emm_df <- as.data.frame(emm)
+
+  lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
+  ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+
+  if (is.na(lcl_col) || is.na(ucl_col)) {
+    stop("Could not find CI columns in emmeans output.")
+  }
+
+  out <- emm_df |>
+    dplyr::mutate(
+      ci_low  = .data[[lcl_col]],
+      ci_high = .data[[ucl_col]]
+    )
+
+  if (!is.null(ref_levels) && "weed_trt" %in% names(out)) {
+    out <- out |>
+      dplyr::mutate(weed_trt = factor(weed_trt, levels = ref_levels))
+  }
+
+  out
+}
+
+```
+
+# Data import & prep
+```{r}
+## Data import & prep ---------------------------------------------------------
+
+# convenient conversion factor (kg/ha -> lb/ac)
+kg_ha_to_lb_ac <- 0.892179   # 1 kg/ha ≈ 0.892179 lb/ac
+
+# 1) Read + clean master (weed + soybean) -------------------------------------
+
+weed_biomass_clean <- read_excel(
+  here("data", "raw", "All Treatments", "combined_raw.xlsx")
+) |>
+  clean_names() |>
+  rename(weed_trt = treatment) |>
+  mutate(
+    year      = factor(year),
+    location  = factor(location),
+    site_year = factor(interaction(year, location, drop = TRUE)),
+    block     = factor(block),
+    weed_trt  = recode(
+      weed_trt,
+      "RNO" = "Rolled, no control",
+      "RIM" = "Rolled, mowing",
+      "RIC" = "Rolled, high-residue cultivation",
+      "TIM" = "Tilled, mowing",
+      "TIC" = "Tilled, cultivation"
+    ),
+    weed_trt = factor(weed_trt, levels = mow_levels)
+  ) |>
+  # keep only rows with non-missing total weed biomass
+  filter(!is.na(weed_biomass)) |>
+  # per-area metrics (biomass in g per 0.5 m² quadrat)
+  mutate(
+    ## ---- WEEDS: total / in-row / interrow ----------------------------------
+    weed_biomass_g_m2           = weed_biomass          * 2,   # g/m²
+    weed_biomass_kg_ha          = weed_biomass          * 20,  # kg/ha
+    weed_biomass_lb_ac          = weed_biomass_kg_ha    * kg_ha_to_lb_ac,
+
+    inrow_weed_biomass_g_m2     = inrow_weed_biomass    * 2,
+    inrow_weed_biomass_kg_ha    = inrow_weed_biomass    * 20,
+    inrow_weed_biomass_lb_ac    = inrow_weed_biomass_kg_ha * kg_ha_to_lb_ac,
+
+    interrow_weed_biomass_g_m2  = interrow_weed_biomass * 2,
+    interrow_weed_biomass_kg_ha = interrow_weed_biomass * 20,
+    interrow_weed_biomass_lb_ac = interrow_weed_biomass_kg_ha * kg_ha_to_lb_ac,
+
+    ## ---- SOYBEAN: biomass --------------------------------------------------
+    # bean_biomass assumed g per 0.5 m² quadrat (same as weeds)
+    bean_biomass_g_m2    = bean_biomass * 2,           # g/m²
+    bean_biomass_kg_ha   = bean_biomass * 20,          # kg/ha
+    bean_biomass_lb_ac   = bean_biomass_kg_ha * kg_ha_to_lb_ac,
+
+    ## ---- SOYBEAN: adjusted yield (same formulas as before) -----------------
+    bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) *
+      ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) *
+      ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 *
+      ((100 - 0.00001) / (100 - 13)),
+
+    ## ---- SOYBEAN: population metrics --------------------------------------
+    # bean_population assumed plants per 1 m of row
+    bean_population_two_meter = bean_population * 2,
+    bean_population_hectare   = (bean_population / 0.762) * 10000,
+    bean_population_acre      = bean_population_hectare / 2.471
+  )
+
+# 2) 2023 Field V subset ------------------------------------------------------
+
+weed_biomass_field_v_2023 <- weed_biomass_clean |>
+  filter(
+    year == "2023",          # year is a factor; compare to character label
+    location == "field v"
+  )
+
+# Quick check tables ----------------------------------------------------------
+
+kable(
+  head(weed_biomass_clean),
+  caption = "All site-years, cleaned (weed + soybean metrics)"
+)
+
+kable(
+  head(weed_biomass_field_v_2023),
+  caption = "Field V only, 2023 (weed + soybean metrics)"
+)
+
+```
+
+#Dataset
+```{r}
+yield_cov_dat <- weed_biomass_clean |>
+  filter(
+    !is.na(bean_yield_adj_kg_ha),
+    !is.na(interrow_weed_biomass_kg_ha),
+    !is.na(site_year),
+    !is.na(block),
+    !is.na(weed_trt)
+  ) |>
+  mutate(
+    # optional: center biomass within site-year to reduce collinearity
+    interrow_center = interrow_weed_biomass_kg_ha -
+      ave(interrow_weed_biomass_kg_ha, site_year, FUN = mean, na.rm = TRUE)
+  )
+
+```
+## Models on original yield scale
+```{r}
+## ------------------------------------------------------------------
+## 1) Candidate GLMMs on original yield scale
+## ------------------------------------------------------------------
+
+m0_yield <- lmer(
+  bean_yield_adj_kg_ha ~ weed_trt * site_year +
+    (1 | site_year:block),
+  data = yield_cov_dat
+)
+
+m1_yield <- lmer(
+  bean_yield_adj_kg_ha ~ weed_trt * site_year + interrow_center +
+    (1 | site_year:block),
+  data = yield_cov_dat
+)
+
+```
+## Model comparison (original scale)
+```{r}
+## ------------------------------------------------------------------
+## 2) Model comparison: does the covariate improve fit?
+## ------------------------------------------------------------------
+
+anova_yield_cov <- anova(m0_yield, m1_yield)
+anova_yield_cov   # keep this printed for the LRT p-value
+
+# AIC / logLik / R2 summary table
+r2_m0 <- performance::r2(m0_yield)
+r2_m1 <- performance::r2(m1_yield)
+
+mod_comp_tbl <- tibble(
+  model = c("m0: no covariate", "m1: + interrow_center"),
+  AIC   = c(AIC(m0_yield), AIC(m1_yield)),
+  logLik = c(logLik(m0_yield), logLik(m1_yield)),
+  `Marginal R2`    = c(r2_m0$R2_marginal,    r2_m1$R2_marginal),
+  `Conditional R2` = c(r2_m0$R2_conditional, r2_m1$R2_conditional)
+) |>
+  mutate(deltaAIC = AIC - min(AIC))
+
+mod_comp_tbl |>
+  kable(
+    digits  = 3,
+    caption = "Yield GLMMs with and without interrow biomass covariate (original scale)."
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+```
+## Diagnostics (original scale)
+```{r}
+## ------------------------------------------------------------------
+## 3) Diagnostics (original scale) – motivates log transform
+## ------------------------------------------------------------------
+
+check_model(m1_yield)      # main plot you already saved
+
+check_heteroscedasticity(m1_yield)
+check_normality(m1_yield)
+check_outliers(m1_yield)
+```
+## Log-transform yield + refit
+```{r}
+## ------------------------------------------------------------------
+## 4) Log-transform yield and refit models
+## ------------------------------------------------------------------
+
+yield_cov_dat <- yield_cov_dat |>
+  mutate(log_yield = log(bean_yield_adj_kg_ha))
+
+m0_yield_log <- lmer(
+  log_yield ~ weed_trt * site_year +
+    (1 | site_year:block),
+  data = yield_cov_dat
+)
+
+m1_yield_log <- lmer(
+  log_yield ~ weed_trt * site_year + interrow_center +
+    (1 | site_year:block),
+  data = yield_cov_dat
+)
+
+
+```
+
+## Models + comparison (log scale)
+```{r}
+## ------------------------------------------------------------------
+## 5) Model comparison on log scale
+## ------------------------------------------------------------------
+
+anova_yield_cov_log <- anova(m0_yield_log, m1_yield_log)
+anova_yield_cov_log
+
+r2_m0_log <- performance::r2(m0_yield_log)
+r2_m1_log <- performance::r2(m1_yield_log)
+
+mod_comp_tbl_log <- tibble(
+  model = c("m0_log: no covariate", "m1_log: + interrow_center"),
+  AIC   = c(AIC(m0_yield_log), AIC(m1_yield_log)),
+  logLik = c(logLik(m0_yield_log), logLik(m1_yield_log)),
+  `Marginal R2`    = c(r2_m0_log$R2_marginal,    r2_m1_log$R2_marginal),
+  `Conditional R2` = c(r2_m0_log$R2_conditional, r2_m1_log$R2_conditional)
+) |>
+  mutate(deltaAIC = AIC - min(AIC))
+
+mod_comp_tbl_log |>
+  kable(
+    digits  = 3,
+    caption = "Yield GLMMs with and without interrow biomass covariate (log scale)."
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+```
+##Compare additive vs interaction for log model & choose final model
+
+Diagnostics for final model
+```{r}
+## ------------------------------------------------------------------
+## 6) Additive vs interaction for log-yield covariate model
+## ------------------------------------------------------------------
+
+# Additive covariate model (no weed_trt:site_year interaction)
+m1_yield_log_add <- lmer(
+  log_yield ~ weed_trt + site_year + interrow_center +
+    (1 | site_year:block),
+  data = yield_cov_dat
+)
+
+# 6a. AIC table ------------------------------------------------------
+aic_yield_cov <- tibble(
+  model = c(
+    "Additive: weed_trt + site_year + interrow_center",
+    "Interaction: weed_trt * site_year + interrow_center"
+  ),
+  AIC    = c(AIC(m1_yield_log_add), AIC(m1_yield_log)),
+  logLik = c(logLik(m1_yield_log_add), logLik(m1_yield_log))
+)
+
+# 6b. Likelihood-ratio test (is the interaction worth keeping?) ------
+lrt_yield_cov <- anova(m1_yield_log_add, m1_yield_log)
+p_int_yield_cov <- lrt_yield_cov$`Pr(>Chisq)`[2]
+
+# Decide which model to keep (same rule as before: keep additive
+# unless interaction is clearly needed)
+chosen_model_name_yield_cov <- if (p_int_yield_cov < 0.05) {
+  "Interaction: weed_trt * site_year + interrow_center"
+} else {
+  "Additive: weed_trt + site_year + interrow_center"
+}
+
+yield_cov_mod_final <- if (p_int_yield_cov < 0.05) {
+  m1_yield_log
+} else {
+  m1_yield_log_add
+}
+
+# 6c. Add ΔAIC and Selected flag -------------------------------------
+aic_yield_cov_out <- aic_yield_cov |>
+  mutate(
+    deltaAIC = AIC - min(AIC),
+    Selected = if_else(model == chosen_model_name_yield_cov, "Yes", "")
+  )
+
+aic_yield_cov_out |>
+  kable(
+    digits  = 2,
+    caption = "Log-yield GLMM with interrow biomass covariate: model comparison (additive vs interaction in weed_trt × site_year)."
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+# 6d. Show LRT table (optional but handy) ----------------------------
+lrt_yield_cov
+
+# 6e. Quick text reminder for yourself -------------------------------
+cat(
+  "\nSelected model for log-yield covariate analysis (used in all downstream emmeans/plots):\n  ",
+  chosen_model_name_yield_cov,
+  sprintf("  [LRT p (interaction) = %.3f]\n", p_int_yield_cov)
+)
+
+
+```
+
+## Diagnostics (log scale; final model)
+```{r}
+## ------------------------------------------------------------------
+## 7) Diagnostics for final (log-yield) model
+## ------------------------------------------------------------------
+
+check_model(yield_cov_mod_final)
+
+check_heteroscedasticity(yield_cov_mod_final)
+check_normality(yield_cov_mod_final)
+check_outliers(yield_cov_mod_final)
+
+```
+##Effect size for interrow biomass (log model → % change in yield)
+```{r}
+## ------------------------------------------------------------------
+## 8) Effect of interrow biomass on log-yield
+## ------------------------------------------------------------------
+
+# helper: find the trend column name from emtrends output
+get_trend_col <- function(df, var = "weed_biomass_kg_ha") {
+  nm <- grep(paste0("^", var, "\\.trend$"), names(df), value = TRUE)
+  if (length(nm) != 1) {
+    stop("Could not uniquely identify trend column for ", var)
+  }
+  nm
+}
+## ------------------------------------------------------------------
+## 7) Effect of interrow biomass on log-yield
+## ------------------------------------------------------------------
+
+# Slope of log_yield with respect to interrow_center
+emm_slope_log <- emtrends(
+  yield_cov_mod_final,
+  ~ 1,
+  var = "interrow_center"
+)
+
+emm_slope_log_df <- summary(emm_slope_log, infer = c(TRUE, TRUE)) |>
+  as_tibble()
+
+# use your generic helper to find the trend column
+trend_col_log <- get_trend_col(emm_slope_log_df, "interrow_center")
+
+slope_log_df <- emm_slope_log_df |>
+  transmute(
+    # log-scale slopes per 1 kg and per 100 kg increase
+    slope_log_per_kg    = .data[[trend_col_log]],
+    slope_log_per_100kg = slope_log_per_kg * 100,
+    lower_log_per_100kg = lower.CL * 100,
+    upper_log_per_100kg = upper.CL * 100,
+    p_value             = p.value,
+    # convert to percent change in yield per +100 kg interrow biomass
+    pct_change_100 = (exp(slope_log_per_100kg) - 1) * 100,
+    pct_low_100    = (exp(lower_log_per_100kg) - 1) * 100,
+    pct_up_100     = (exp(upper_log_per_100kg) - 1) * 100
+  )
+
+slope_log_df |>
+  kable(
+    digits  = 2,
+    caption = "Effect of interrow weed biomass on yield (log-scale model): percent change in yield per +100 kg ha^-1 interrow biomass."
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+```
+
+## Adjusted treatment means from the covariate model
+```{r}
+## ------------------------------------------------------------------
+## 8) Back-transformed means from covariate log-yield model
+##     (site-year, weed management, and their combination)
+## ------------------------------------------------------------------
+
+# Helper to back-transform emmeans from log_yield to kg ha⁻¹ ----------
+bt_emm_yield <- function(emm_obj) {
+  as.data.frame(emm_obj) |>
+    as_tibble() |>
+    mutate(
+      mean_yield_kg_ha = exp(emmean),
+      lower_95_kg_ha   = exp(lower.CL),
+      upper_95_kg_ha   = exp(upper.CL),
+      SE_log           = SE,
+      SE_kg_ha         = mean_yield_kg_ha * SE_log
+    )
+}
+
+## 8a) Site-year means (marginal over weed_trt) -----------------------
+
+emm_site <- emmeans(
+  yield_cov_mod_final,
+  ~ site_year
+)
+
+emm_site_df <- bt_emm_yield(emm_site)
+
+emm_site_df |>
+  select(
+    site_year,
+    mean_yield_kg_ha, SE_kg_ha, df,
+    lower_95_kg_ha, upper_95_kg_ha
+  ) |>
+  kable(
+    digits  = 1,
+    caption = "Adjusted soybean yield (kg ha⁻¹) by site-year from covariate log-yield model (controlling for interrow biomass and averaging over weed management)."
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+## 8b) Weed-management means (marginal over site-year) ----------------
+
+emm_trt <- emmeans(
+  yield_cov_mod_final,
+  ~ weed_trt
+)
+
+emm_trt_df <- bt_emm_yield(emm_trt)
+
+emm_trt_df |>
+  select(
+    weed_trt,
+    mean_yield_kg_ha, SE_kg_ha, df,
+    lower_95_kg_ha, upper_95_kg_ha
+  ) |>
+  kable(
+    digits  = 1,
+    caption = "Adjusted soybean yield (kg ha⁻¹) by weed management from covariate log-yield model (controlling for interrow biomass and averaging over site-years)."
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+## 8c) Weed management × site-year means ------------------------------
+
+emm_trt_site <- emmeans(
+  yield_cov_mod_final,
+  ~ weed_trt | site_year
+)
+
+emm_trt_site_df <- bt_emm_yield(emm_trt_site)
+
+emm_trt_site_df |>
+  select(
+    site_year, weed_trt,
+    mean_yield_kg_ha, SE_kg_ha, df,
+    lower_95_kg_ha, upper_95_kg_ha
+  ) |>
+  kable(
+    digits  = 1,
+    caption = "Adjusted soybean yield (kg ha⁻¹) by weed management and site-year from covariate log-yield model (controlling for interrow biomass)."
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+```
+
+##Figure
+```{r}
+## ------------------------------------------------------------------
+## 7) Partial effect of interrow weed biomass on soybean yield
+## ------------------------------------------------------------------
+
+library(ggeffects)
+
+# Predictions from the final log-yield model,
+# varying the centered interrow biomass covariate
+pred_interrow <- ggpredict(
+  yield_cov_mod_final,
+  terms = "interrow_center [all]"
+)
+
+ggplot(pred_interrow, aes(x = x, y = predicted)) +
+  # 95% CI ribbon
+  geom_ribbon(
+    aes(ymin = conf.low, ymax = conf.high),
+    fill  = "grey80",
+    alpha = 0.6,
+    colour = NA
+  ) +
+  # Mean partial effect line
+  geom_line(size = 1) +
+  labs(
+    x = bquote("Interrow weed biomass (kg ha"^-1*"; centered within site-year)"),
+    y = bquote("Predicted soybean yield (kg ha"^-1*")"),
+    title = "Partial effect of interrow weed biomass on soybean yield",
+    subtitle = "Predictions from log-yield mixed model,\naveraged over weed management and site-years"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    plot.title    = element_text(face = "bold"),
+    plot.subtitle = element_text(size = 11),
+    axis.title.x  = element_text(margin = margin(t = 8)),
+    axis.title.y  = element_text(margin = margin(r = 8))
+  )
+
+
+```
+
+
