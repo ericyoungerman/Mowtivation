@@ -7166,6 +7166,8 @@ check_outliers(lin_mod_interrow)
 
 #### Visualisation
 
+##### Exploratory
+
 ``` r
 ggplot(dat_yield_interrow, aes(x = B, y = Y)) +
   # points: always black
@@ -7231,6 +7233,106 @@ ggplot(dat_yield_interrow, aes(x = B, y = Y)) +
 ```
 
 ![](figs/analysis/weed_soy-unnamed-chunk-57-1.png)<!-- -->
+
+##### Final
+
+``` r
+## Yield vs interrow weed biomass: points + hyperbolic fit -------------------
+
+p_yield_interrow_hyper <- ggplot(dat_yield_interrow, aes(x = B, y = Y)) +
+  # raw data points
+  geom_point(
+    color = "black",
+    alpha = 1
+  ) +
+  # rectangular hyperbola fit (single line, fixed color)
+  stat_function(
+    fun = function(x) {
+      pars <- coef(hyper_mod_interrow)
+      pars["Y0"] - (pars["Lmax"] * x) / (pars["K"] + x)
+    },
+    linewidth = 1.2,
+    color = line_cols[2] 
+  ) +
+  labs(
+    x = bquote("Interrow weed biomass (kg ha"^-1*")"),
+    y = bquote("Adjusted soybean yield (kg ha"^-1*")"),
+    title = "Yield vs interrow weed biomass"
+  ) +
+   theme_classic(base_size = 18)
+  theme(axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    legend.position = "none"
+  )
+```
+
+    ## <theme> List of 4
+    ##  $ axis.title.y   : <ggplot2::element_text>
+    ##   ..@ family       : NULL
+    ##   ..@ face         : NULL
+    ##   ..@ italic       : chr NA
+    ##   ..@ fontweight   : num NA
+    ##   ..@ fontwidth    : num NA
+    ##   ..@ colour       : NULL
+    ##   ..@ size         : NULL
+    ##   ..@ hjust        : NULL
+    ##   ..@ vjust        : NULL
+    ##   ..@ angle        : NULL
+    ##   ..@ lineheight   : NULL
+    ##   ..@ margin       : <ggplot2::margin> num [1:4] 0 8 0 0
+    ##   ..@ debug        : NULL
+    ##   ..@ inherit.blank: logi FALSE
+    ##  $ axis.text.x    : <ggplot2::element_text>
+    ##   ..@ family       : NULL
+    ##   ..@ face         : NULL
+    ##   ..@ italic       : chr NA
+    ##   ..@ fontweight   : num NA
+    ##   ..@ fontwidth    : num NA
+    ##   ..@ colour       : NULL
+    ##   ..@ size         : NULL
+    ##   ..@ hjust        : NULL
+    ##   ..@ vjust        : NULL
+    ##   ..@ angle        : NULL
+    ##   ..@ lineheight   : num 0.95
+    ##   ..@ margin       : <ggplot2::margin> num [1:4] 8 0 0 0
+    ##   ..@ debug        : NULL
+    ##   ..@ inherit.blank: logi FALSE
+    ##  $ legend.position: chr "none"
+    ##  $ plot.title     : <ggplot2::element_text>
+    ##   ..@ family       : NULL
+    ##   ..@ face         : chr "bold"
+    ##   ..@ italic       : chr NA
+    ##   ..@ fontweight   : num NA
+    ##   ..@ fontwidth    : num NA
+    ##   ..@ colour       : NULL
+    ##   ..@ size         : NULL
+    ##   ..@ hjust        : NULL
+    ##   ..@ vjust        : NULL
+    ##   ..@ angle        : NULL
+    ##   ..@ lineheight   : NULL
+    ##   ..@ margin       : NULL
+    ##   ..@ debug        : NULL
+    ##   ..@ inherit.blank: logi FALSE
+    ##  @ complete: logi FALSE
+    ##  @ validate: logi TRUE
+
+``` r
+p_yield_interrow_hyper
+```
+
+![](figs/analysis/weed_soy-unnamed-chunk-58-1.png)<!-- -->
+
+``` r
+# Save figure ---------------------------------------------------------------
+ggsave(
+  filename = here("figs", "analysis", "yield-interrow-hyperbolic.png"),
+  plot     = p_yield_interrow_hyper,
+  width    = 6,
+  height   = 4,
+  dpi      = 300
+)
+```
 
 ### Biomass
 
@@ -7871,14 +7973,14 @@ Hyperbolic
 check_model(biomass_interrow_mod_best)
 ```
 
-![](figs/analysis/weed_soy-unnamed-chunk-62-1.png)<!-- -->
+![](figs/analysis/weed_soy-unnamed-chunk-63-1.png)<!-- -->
 
 ``` r
 # Simple linear model diagnostics (biomass ~ interrow biomass)
 check_model(lin_mod_biomass_interrow)
 ```
 
-![](figs/analysis/weed_soy-unnamed-chunk-62-2.png)<!-- -->
+![](figs/analysis/weed_soy-unnamed-chunk-63-2.png)<!-- -->
 
 ``` r
 # Optional specific checks for the biomass linear model
@@ -7959,7 +8061,7 @@ ggplot(dat_biomass_interrow, aes(x = B, y = Y)) +
   )
 ```
 
-![](figs/analysis/weed_soy-unnamed-chunk-63-1.png)<!-- --> \###
+![](figs/analysis/weed_soy-unnamed-chunk-64-1.png)<!-- --> \###
 Population \#### Dataset
 
 ``` r
@@ -8597,14 +8699,14 @@ Hyperbolic
 check_model(pop_interrow_mod_best)
 ```
 
-![](figs/analysis/weed_soy-unnamed-chunk-68-1.png)<!-- -->
+![](figs/analysis/weed_soy-unnamed-chunk-69-1.png)<!-- -->
 
 ``` r
 # Simple linear model diagnostics (population)
 check_model(lin_mod_pop_interrow)
 ```
 
-![](figs/analysis/weed_soy-unnamed-chunk-68-2.png)<!-- -->
+![](figs/analysis/weed_soy-unnamed-chunk-69-2.png)<!-- -->
 
 ``` r
 # Optional specific checks for the population linear model
@@ -8697,7 +8799,7 @@ ggplot(dat_pop_interrow, aes(x = B, y = Y)) +
   )
 ```
 
-![](figs/analysis/weed_soy-unnamed-chunk-69-1.png)<!-- --> \### Seed
+![](figs/analysis/weed_soy-unnamed-chunk-70-1.png)<!-- --> \### Seed
 weight \#### Dataset
 
 ``` r
@@ -9333,14 +9435,14 @@ Hyperbolic
 check_model(sw100_interrow_mod_best)
 ```
 
-![](figs/analysis/weed_soy-unnamed-chunk-74-1.png)<!-- -->
+![](figs/analysis/weed_soy-unnamed-chunk-75-1.png)<!-- -->
 
 ``` r
 # Simple linear model diagnostics (100-seed weight)
 check_model(lin_mod_sw100_interrow)
 ```
 
-![](figs/analysis/weed_soy-unnamed-chunk-74-2.png)<!-- -->
+![](figs/analysis/weed_soy-unnamed-chunk-75-2.png)<!-- -->
 
 ``` r
 # Optional specific checks for the 100-seed weight linear model
@@ -9421,4 +9523,4 @@ ggplot(dat_sw100_interrow, aes(x = B, y = Y)) +
   )
 ```
 
-![](figs/analysis/weed_soy-unnamed-chunk-75-1.png)<!-- -->
+![](figs/analysis/weed_soy-unnamed-chunk-76-1.png)<!-- -->

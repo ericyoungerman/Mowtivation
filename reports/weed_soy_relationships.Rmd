@@ -3433,6 +3433,7 @@ check_outliers(lin_mod_interrow)
 ```
 
 #### Visualisation
+##### Exploratory
 ```{r}
 ggplot(dat_yield_interrow, aes(x = B, y = Y)) +
   # points: always black
@@ -3495,6 +3496,51 @@ ggplot(dat_yield_interrow, aes(x = B, y = Y)) +
   theme(
     legend.position = "right"
   )
+
+```
+
+
+##### Final
+```{r}
+## Yield vs interrow weed biomass: points + hyperbolic fit -------------------
+
+p_yield_interrow_hyper <- ggplot(dat_yield_interrow, aes(x = B, y = Y)) +
+  # raw data points
+  geom_point(
+    color = "black",
+    alpha = 1
+  ) +
+  # rectangular hyperbola fit (single line, fixed color)
+  stat_function(
+    fun = function(x) {
+      pars <- coef(hyper_mod_interrow)
+      pars["Y0"] - (pars["Lmax"] * x) / (pars["K"] + x)
+    },
+    linewidth = 1.2,
+    color = line_cols[2] 
+  ) +
+  labs(
+    x = bquote("Interrow weed biomass (kg ha"^-1*")"),
+    y = bquote("Adjusted soybean yield (kg ha"^-1*")"),
+    title = "Yield vs interrow weed biomass"
+  ) +
+   theme_classic(base_size = 18)
+  theme(axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    legend.position = "none"
+  )
+
+p_yield_interrow_hyper
+
+# Save figure ---------------------------------------------------------------
+ggsave(
+  filename = here("figs", "analysis", "yield-interrow-hyperbolic.png"),
+  plot     = p_yield_interrow_hyper,
+  width    = 6,
+  height   = 4,
+  dpi      = 300
+)
 
 ```
 
