@@ -775,6 +775,7 @@ ggsave(
 
 ```
 ### Pooled raw
+#### Exploratory
 ```{r}
 # Figure: Bean yield by weed management treatment (raw means ± SE)
 
@@ -806,6 +807,56 @@ ggplot(raw_yield_summary, aes(x = weed_trt, y = mean, fill = weed_trt)) +
     y       = "Soybean yield (kg"~ha^{-1}*")",
     title   = "Soybean yield by weed management",
     caption = "Raw soybean yield means (kg"~ha^{-1}*") ± SE across weed management treatments."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x    = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y   = element_text(margin = margin(r = 8)),
+    plot.title     = element_text(face = "bold"),
+    plot.caption   = element_text(size = 10, hjust = 0)  # smaller, left-aligned
+  )
+
+# Save figure
+ggsave(
+  filename = here("figs", "analysis", "fig_bean_yield_mowing_pooled_raw.png"),
+  width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
+
+
+```
+#### Final
+```{r}
+# Figure: Bean yield by weed management treatment (raw means ± SE)
+
+# 1) Raw means and SE by treatment --------------------------------------
+raw_yield_summary <- bean_yield_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    n    = n(),
+    mean = mean(bean_yield_kg_ha, na.rm = TRUE),
+    sd   = sd(bean_yield_kg_ha, na.rm = TRUE),
+    se   = sd / sqrt(n),
+    .groups = "drop"
+  ) |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    ymin     = pmax(mean - se, 0),
+    ymax     = mean + se
+  )
+
+# 2) Plot ---------------------------------------------------------------
+ggplot(raw_yield_summary, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x       = NULL,
+    y       = "Soybean yield (kg"~ha^{-1}*")",
+    title   = "Soybean yield by weed management"
   ) +
   theme_classic(base_size = 18) +
   theme(
