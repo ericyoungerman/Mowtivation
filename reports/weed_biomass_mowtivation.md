@@ -11673,6 +11673,8 @@ ggsave(
 
 #### Raw means (kg ha⁻¹)
 
+##### Exploratory
+
 ``` r
 ### Figure: Interrow weed biomass by weed management treatment (2023 Field V; raw means with model CLDs)
 
@@ -11763,7 +11765,7 @@ ggsave(
 )
 ```
 
-#### Raw means (lb ac⁻¹)
+#### Final Raw means (lb ac⁻¹)
 
 ``` r
 ### Figure: Interrow weed biomass by weed management treatment (2023 Field V; raw means with model CLDs)
@@ -11838,8 +11840,7 @@ ggplot(plot_df_inter_v23, aes(x = weed_trt, y = raw_mean, fill = weed_trt)) +
   labs(
     x       = NULL,
     y       = expression(Interrow~weed~biomass~"(lb"~ac^{-1}*")"),
-    title   = "Interrow weed biomass by weed management (2023)",
-    caption = "Bars show raw means (lb ac^-1) ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
+    title   = "Interrow weed biomass by weed management (2023)"
   ) +
   theme_classic(base_size = 18) +
   theme(
@@ -11856,7 +11857,7 @@ ggplot(plot_df_inter_v23, aes(x = weed_trt, y = raw_mean, fill = weed_trt)) +
 # Save figure
 ggsave(
   filename = here("figs", "analysis", "fig_interrow_weed_biomass_mowing_fieldV_2023_raw_lb_ac.png"),
-  width    = 9,
+  width    = 7.5,
   height   = 5.5,
   dpi      = 300
 )
