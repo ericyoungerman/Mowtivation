@@ -165,28 +165,38 @@ kable(
 ```
 
 # Model testing
-## Exploratory 
+## Exploratory dat visualisation
 ###Total weed biomass (kg ha⁻¹) by site-year × treatment
 ```{r}
+## Exploratory data visualisation
+### Total weed biomass (kg ha^-1) by site-year × treatment
+
 # 1) Summary table: total weed biomass by site-year × treatment ---------
 weed_biomass_clean |>
   group_by(site_year, weed_trt) |>
   summarise(
     n      = n(),
-    mean   = mean(weed_biomass_kg_ha, na.rm = TRUE),
+    mean   = mean(weed_biomass_kg_ha,   na.rm = TRUE),
     median = median(weed_biomass_kg_ha, na.rm = TRUE),
-    sd     = sd(weed_biomass_kg_ha, na.rm = TRUE),
+    sd     = sd(weed_biomass_kg_ha,     na.rm = TRUE),
     .groups = "drop"
   ) |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "Weed biomass (kg ha⁻¹) by site-year × treatment"
+    caption = "Weed biomass (kg ha^-1) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
+# Nice facet labels for site_year ---------------------------------------
+site_year_labs <- c(
+  "2024.field O2 east" = "2024 \u2013 Field O2 East",
+  "2024.field O2 west" = "2024 \u2013 Field O2 West",
+  "2023.field v"       = "2023 \u2013 Field V"
+)
+
 # 2) Faceted boxplot: all site-years -----------------------------------
-weed_biomass_clean |>
+wbm_box_total <- weed_biomass_clean |>
   ggplot(aes(x = weed_trt, y = weed_biomass_kg_ha, fill = weed_trt)) +
   geom_boxplot(
     outlier.shape = NA,
@@ -200,7 +210,11 @@ weed_biomass_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1) +
+  facet_wrap(
+    ~ site_year,
+    nrow     = 1,
+    labeller = labeller(site_year = site_year_labs)
+  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
   scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
@@ -215,57 +229,52 @@ weed_biomass_clean |>
     strip.text  = element_text(face = "bold")
   )
 
-# 3) Boxplot: 2023 – Field V only --------------------------------------
-weed_biomass_field_v_2023 |>
-  ggplot(aes(x = weed_trt, y = weed_biomass_kg_ha, fill = weed_trt)) +
-  geom_boxplot(
-    outlier.shape = NA,
-    width  = 0.55,
-    color  = "black"
-  ) +
-  geom_jitter(
-    width  = 0.12,
-    height = 0,
-    alpha  = 0.4,
-    size   = 1.8,
-    color  = "grey30"
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x     = NULL,
-    y     = expression(Weed~biomass~"(kg"~ha^{-1}*")"),
-    title = "Weed biomass by treatment, 2023 – Field V"
-  ) +
-  theme_classic(base_size = 14) +
-  theme(
-    axis.text.x = element_text(size = 10)
-  )
+# Print to document
+wbm_box_total
+
+# 3) Save figure --------------------------------------------------------
+ggsave(
+  filename = here("figs", "analysis",
+                  "fig_weed_biomass_total_box_by-site-year_kg_ha.png"),
+  plot     = wbm_box_total,
+  width    = 12,
+  height   = 5.5,
+  dpi      = 300
+)
 
 ```
 
 ### In-row weed biomass (kg ha⁻¹) by site-year × treatment
 ```{r}
+## In-row weed biomass (kg ha^-1) by site-year × treatment --------------
+
 # 1) Summary table: in-row weed biomass by site-year × treatment -------
 weed_biomass_clean |>
   group_by(site_year, weed_trt) |>
   summarise(
     n      = n(),
-    mean   = mean(inrow_weed_biomass_kg_ha, na.rm = TRUE),
+    mean   = mean(inrow_weed_biomass_kg_ha,   na.rm = TRUE),
     median = median(inrow_weed_biomass_kg_ha, na.rm = TRUE),
-    sd     = sd(inrow_weed_biomass_kg_ha, na.rm = TRUE),
+    sd     = sd(inrow_weed_biomass_kg_ha,     na.rm = TRUE),
     .groups = "drop"
   ) |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "In-row weed biomass (kg ha⁻¹) by site-year × treatment"
+    caption = "In-row weed biomass (kg ha^-1) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
+# (Assumes site_year_labs already defined as in the total biomass chunk)
+# site_year_labs <- c(
+#   "2024.field O2 east" = "2024 \u2013 Field O2 East",
+#   "2024.field O2 west" = "2024 \u2013 Field O2 West",
+#   "2023.field v"       = "2023 \u2013 Field V"
+# )
+
 # 2) Faceted boxplot: all site-years -----------------------------------
-weed_biomass_clean |>
+
+inrow_box_total <- weed_biomass_clean |>
   ggplot(aes(x = weed_trt, y = inrow_weed_biomass_kg_ha, fill = weed_trt)) +
   geom_boxplot(
     outlier.shape = NA,
@@ -279,7 +288,11 @@ weed_biomass_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1) +
+  facet_wrap(
+    ~ site_year,
+    nrow     = 1,
+    labeller = labeller(site_year = site_year_labs)
+  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
   scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
@@ -294,57 +307,53 @@ weed_biomass_clean |>
     strip.text  = element_text(face = "bold")
   )
 
-# 3) Boxplot: 2023 – Field V only --------------------------------------
-weed_biomass_field_v_2023 |>
-  ggplot(aes(x = weed_trt, y = inrow_weed_biomass_kg_ha, fill = weed_trt)) +
-  geom_boxplot(
-    outlier.shape = NA,
-    width  = 0.55,
-    color  = "black"
-  ) +
-  geom_jitter(
-    width  = 0.12,
-    height = 0,
-    alpha  = 0.4,
-    size   = 1.8,
-    color  = "grey30"
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x     = NULL,
-    y     = expression(In-row~weed~biomass~"(kg"~ha^{-1}*")"),
-    title = "In-row weed biomass by treatment, 2023 – Field V"
-  ) +
-  theme_classic(base_size = 14) +
-  theme(
-    axis.text.x = element_text(size = 10)
-  )
+# Print to document
+inrow_box_total
+
+# 3) Save figure --------------------------------------------------------
+ggsave(
+  filename = here("figs", "analysis",
+                  "fig_inrow-weed_biomass_box_by-site-year_kg_ha.png"),
+  plot     = inrow_box_total,
+  width    = 12,
+  height   = 5.5,
+  dpi      = 300
+)
+
 
 ```
 
 ### Inter-row weed biomass (kg ha⁻¹) by site-year × treatment
 ```{r}
-# 1) Summary table: interrow weed biomass by site-year × treatment -----
+## Inter-row weed biomass (kg ha^-1) by site-year × treatment -----------
+
+# 1) Summary table: inter-row weed biomass by site-year × treatment ----
 weed_biomass_clean |>
   group_by(site_year, weed_trt) |>
   summarise(
     n      = n(),
-    mean   = mean(interrow_weed_biomass_kg_ha, na.rm = TRUE),
+    mean   = mean(interrow_weed_biomass_kg_ha,   na.rm = TRUE),
     median = median(interrow_weed_biomass_kg_ha, na.rm = TRUE),
-    sd     = sd(interrow_weed_biomass_kg_ha, na.rm = TRUE),
+    sd     = sd(interrow_weed_biomass_kg_ha,     na.rm = TRUE),
     .groups = "drop"
   ) |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "Interrow weed biomass (kg ha⁻¹) by site-year × treatment"
+    caption = "Inter-row weed biomass (kg ha^-1) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
+# Assumes site_year_labs already defined earlier, e.g.:
+# site_year_labs <- c(
+#   "2024.field O2 east" = "2024 \u2013 Field O2 East",
+#   "2024.field O2 west" = "2024 \u2013 Field O2 West",
+#   "2023.field v"       = "2023 \u2013 Field V"
+# )
+
 # 2) Faceted boxplot: all site-years -----------------------------------
-weed_biomass_clean |>
+
+interrow_box_total <- weed_biomass_clean |>
   ggplot(aes(x = weed_trt, y = interrow_weed_biomass_kg_ha, fill = weed_trt)) +
   geom_boxplot(
     outlier.shape = NA,
@@ -358,14 +367,18 @@ weed_biomass_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1) +
+  facet_wrap(
+    ~ site_year,
+    nrow     = 1,
+    labeller = labeller(site_year = site_year_labs)
+  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
   scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
     x     = NULL,
-    y     = expression(Interrow~weed~biomass~"(kg"~ha^{-1}*")"),
-    title = "Interrow weed biomass by treatment across site-years"
+    y     = expression(Inter-row~weed~biomass~"(kg"~ha^{-1}*")"),
+    title = "Inter-row weed biomass by treatment across site-years"
   ) +
   theme_classic(base_size = 14) +
   theme(
@@ -373,37 +386,38 @@ weed_biomass_clean |>
     strip.text  = element_text(face = "bold")
   )
 
-# 3) Boxplot: 2023 – Field V only --------------------------------------
-weed_biomass_field_v_2023 |>
-  ggplot(aes(x = weed_trt, y = interrow_weed_biomass_kg_ha, fill = weed_trt)) +
-  geom_boxplot(
-    outlier.shape = NA,
-    width  = 0.55,
-    color  = "black"
-  ) +
-  geom_jitter(
-    width  = 0.12,
-    height = 0,
-    alpha  = 0.4,
-    size   = 1.8,
-    color  = "grey30"
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x     = NULL,
-    y     = expression(Interrow~weed~biomass~"(kg"~ha^{-1}*")"),
-    title = "Interrow weed biomass by treatment, 2023 – Field V"
-  ) +
-  theme_classic(base_size = 14) +
-  theme(
-    axis.text.x = element_text(size = 10)
-  )
+# Print to document
+interrow_box_total
+
+# 3) Save figure --------------------------------------------------------
+ggsave(
+  filename = here("figs", "analysis",
+                  "fig_interrow-weed_biomass_box_by-site-year_kg_ha.png"),
+  plot     = interrow_box_total,
+  width    = 12,
+  height   = 5.5,
+  dpi      = 300
+)
 
 ```
 
-## Selection
+
+##Selection
+
+```{r}
+# Model selection rule for weed biomass responses:
+# - Fit a full GLMM with weed_trt × site_year.
+# - Compare to an additive model (weed_trt + site_year) using LRT + ΔAIC:
+#     * LRT p < 0.01 or ΔAIC ≥ 4 → keep the interaction model.
+#     * LRT p > 0.20 and |ΔAIC| < 2 → treat the interaction as negligible and use the additive model.
+#     * Intermediate cases (0.01 ≤ p ≤ 0.20 and |ΔAIC| < 2) = ambiguous evidence:
+#         use the additive model for parsimony, but visualize site-year patterns
+#         and note the marginal interaction in the text/figure captions.
+
+
+```
+
+
 ### Total weed biomass
 #### Pooled
 ```{r}
@@ -497,7 +511,7 @@ cat("Selected family/structure for weed biomass (all site-years):", best_all_n, 
 
 ## 3) Within chosen family: additive vs interaction ----------------------
 
-# Interaction model in chosen family
+# Interaction model in chosen family (already fit above)
 wbm_int <- best_all
 
 # Additive model: same family/ZI/dispersion, simpler fixed effects
@@ -506,31 +520,50 @@ wbm_add <- update(
   . ~ weed_trt + site_year + (1 | site_year:block)
 )
 
-# AIC comparison
-aic_wbm <- tibble(
+# Compare additive vs interaction
+lrt_wbm <- anova(wbm_add, wbm_int)   # LRT for interaction
+p_int_wbm <- lrt_wbm$`Pr(>Chisq)`[2]
+
+AIC_add <- AIC(wbm_add)
+AIC_int <- AIC(wbm_int)
+deltaAIC <- AIC_add - AIC_int        # > 0 means interaction has lower AIC
+
+# Helper thresholds (you can tweak these globally if you like)
+p_strong    <- 0.01   # strong evidence for interaction
+p_none      <- 0.20   # essentially no evidence for interaction
+dAIC_strong <- 4      # standard "substantial" AIC improvement
+
+# Classify evidence for interaction
+interaction_class <- dplyr::case_when(
+  p_int_wbm < p_strong | deltaAIC >= dAIC_strong ~ "interaction",
+  p_int_wbm > p_none  & abs(deltaAIC) < 2        ~ "additive",
+  TRUE                                           ~ "gray_zone"
+)
+
+# Choose primary model (for now: default to additive in gray zone)
+primary_model_name_wbm <- dplyr::case_when(
+  interaction_class == "interaction" ~ "Interaction: weed_trt * site_year",
+  TRUE                               ~ "Additive: weed_trt + site_year"
+)
+
+weed_glmm <- if (primary_model_name_wbm == "Interaction: weed_trt * site_year") {
+  wbm_int
+} else {
+  wbm_add
+}
+
+# AIC table for reporting
+aic_wbm_out <- tibble::tibble(
   model = c(
     "Additive: weed_trt + site_year",
     "Interaction: weed_trt * site_year"
   ),
-  AIC = c(AIC(wbm_add), AIC(wbm_int))
-)
-
-# Likelihood-ratio test for interaction term
-lrt_wbm   <- anova(wbm_add, wbm_int)
-p_int_wbm <- lrt_wbm$`Pr(>Chisq)`[2]
-
-# Apply your rule: choose simpler additive model unless interaction is clearly needed
-chosen_model_name_wbm <- if (p_int_wbm < 0.05) {
-  "Interaction: weed_trt * site_year"
-} else {
-  "Additive: weed_trt + site_year"
-}
-
-# Add ΔAIC and Selected flag
-aic_wbm_out <- aic_wbm |>
-  mutate(
+  AIC = c(AIC_add, AIC_int)
+) |>
+  dplyr::mutate(
     deltaAIC = AIC - min(AIC),
-    Selected = if_else(model == chosen_model_name_wbm, "Yes", "")
+    Selected = dplyr::if_else(model == primary_model_name_wbm, "Yes", ""),
+    Evidence_for_interaction = interaction_class
   )
 
 kable(
@@ -540,14 +573,15 @@ kable(
 ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
-# Final model used downstream
-weed_glmm <- if (p_int_wbm < 0.05) wbm_int else wbm_add
-
 cat(
-  "\nSelected model for weed biomass (used in all downstream emmeans/plots):\n  ",
-  chosen_model_name_wbm,
-  sprintf("  [LRT p = %.3f]\n", p_int_wbm)
+  "\nSelected primary model for weed biomass (used in emmeans/plots):\n  ",
+  primary_model_name_wbm,
+  sprintf(
+    "  [LRT p = %.3f; ΔAIC (add - int) = %.2f; class = %s]\n",
+    p_int_wbm, deltaAIC, interaction_class
+  )
 )
+
 
 ## 4) Diagnostics + Type-III tests for the chosen model ------------------
 
@@ -563,9 +597,11 @@ car::Anova(weed_glmm, type = 3)
 ```
 ##### Post-hoc summary table
 ```{r}
-### Total weed biomass (kg ha⁻¹) with Fisher's LSD CLDs
+##### Post-hoc summary table
 
-# Estimated marginal means for weed_trt on the response scale (kg/ha)
+### Total weed biomass (kg ha^-1) with Fisher's LSD CLDs
+
+# Estimated marginal means for weed_trt on the response scale (kg ha^-1)
 emm_wbm <- emmeans(
   weed_glmm,
   ~ weed_trt,
@@ -578,9 +614,9 @@ emm_wbm_df <- as_tibble(emm_wbm) |>
     weed_trt = factor(weed_trt, levels = mow_levels)
   ) |>
   rename(
-    emmean = response,     # mean on response scale
-    ci_low = asymp.LCL,    # lower CI
-    ci_high = asymp.UCL    # upper CI
+    emmean  = response,   # mean on response scale
+    ci_low  = asymp.LCL,  # lower CI
+    ci_high = asymp.UCL   # upper CI
   )
 
 # Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
@@ -606,10 +642,24 @@ emm_wbm_df |>
     across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))
   ) |>
   kable(
-    caption   = "Estimated total weed biomass (kg ha⁻¹) with 95% CI and Fisher's LSD group letters",
+    caption   = "Estimated total weed biomass (kg ha^-1) with 95% CI and Fisher's LSD group letters",
     col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+emm_wbm_out <- emm_wbm_df |>
+  left_join(cld_wbm, by = "weed_trt") |>
+  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
+  mutate(
+    across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))
+  )
+
+# Write to CSV for supplementary tables / committee folder
+readr::write_csv(
+  emm_wbm_out,
+  here("tables", "analysis", "tab_total-weed_biomass_emm_cld_kg_ha.csv")
+)
+
 
 ```
 
@@ -3421,8 +3471,7 @@ ggplot(plot_df_interrow_raw,
   labs(
     x       = NULL,
     y       = expression(Interrow~weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "Interrow weed biomass by weed management and site-year",
-    caption = "Bars show raw means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
+    title   = "Interrow weed biomass by weed management and site-year"
   ) +
   theme_classic(base_size = 18) +
   theme(
@@ -3699,6 +3748,114 @@ ggplot(plot_df_inter_v23, aes(x = weed_trt, y = raw_mean, fill = weed_trt)) +
 ggsave(
   filename = here("figs", "analysis", "fig_interrow_weed_biomass_mowing_fieldV_2023_raw_lb_ac.png"),
   width    = 7.5,
+  height   = 5.5,
+  dpi      = 300
+)
+
+```
+```{r}
+## Figure: Interrow weed biomass by weed management (2023 Field V; raw means with model CLDs)
+## Units: kg ha^-1
+
+library(dplyr)
+library(ggplot2)
+library(emmeans)
+library(multcomp)
+library(stringr)
+
+# site-year label for 2023 Field V (adjust if needed)
+sy_target <- "2023.field v"
+
+# 1) Model-based emmeans on the response scale (kg/ha), from GLOBAL model
+emm_interrow_sy <- emmeans(
+  weed_interrow_glmm,
+  ~ weed_trt | site_year,
+  type = "response"
+)
+
+emm_interrow_v23_df <- as_tibble(emm_interrow_sy) |>
+  filter(site_year == sy_target) |>
+  mutate(
+    weed_trt   = factor(weed_trt, levels = mow_levels),
+    model_mean = response,        # kg/ha
+    SE         = SE,              # kg/ha
+    ymin       = pmax(model_mean - SE, 0),
+    ymax       = model_mean + SE
+  )
+
+# 2) CLDs for treatments within site-year (Fisher-style, "a" = highest)
+cld_interrow_sy <- cld(
+  emm_interrow_sy,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  )
+
+cld_interrow_v23 <- cld_interrow_sy |>
+  filter(site_year == sy_target) |>
+  select(weed_trt, .group)
+
+# 3) Raw means for interrow weed biomass (2023 Field V), kg/ha
+weed_biomass_field_v_2023 <- weed_biomass_clean |>
+  filter(site_year == sy_target)
+
+raw_interrow_v23 <- weed_biomass_field_v_2023 |>
+  group_by(weed_trt) |>
+  summarise(
+    raw_mean = mean(interrow_weed_biomass_kg_ha, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels)
+  )
+
+# 4) Merge raw means, model SE, and CLDs
+plot_df_interrow_v23 <- emm_interrow_v23_df |>
+  select(weed_trt, model_mean, ymin, ymax) |>
+  left_join(raw_interrow_v23,  by = "weed_trt") |>
+  left_join(cld_interrow_v23,  by = "weed_trt")
+
+# 5) Plot: bars = raw means (kg/ha), error bars = model-based SE (kg/ha), letters = model CLDs
+fig_interrow_v23 <- ggplot(plot_df_interrow_v23,
+                           aes(x = weed_trt, y = raw_mean, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x       = NULL,
+    y       = expression(Interrow~weed~biomass~"(kg"~ha^{-1}*")"),
+    title   = "Interrow weed biomass by weed management (2023)"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x           = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y          = element_text(margin = margin(r = 8)),
+    plot.title            = element_text(face = "bold"),
+    plot.caption          = element_text(size = 9, hjust = 0.5),
+    plot.caption.position = "plot"
+  )
+
+fig_interrow_v23
+
+# 6) Save figure
+ggsave(
+  filename = here("figs", "analysis", "fig_interrow_weed_biomass_mowing_fieldV_2023_raw_kg_ha.png"),
+  plot     = fig_interrow_v23,
+  width    = 9,
   height   = 5.5,
   dpi      = 300
 )
