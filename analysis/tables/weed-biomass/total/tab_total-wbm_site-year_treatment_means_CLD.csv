@@ -1,0 +1,16 @@
+site_year,weed_trt,model_mean,int_CLD,raw_mean,raw_CLD
+2024.field O2 east,"Rolled, no control",58.5,bc,124.8,bc
+2024.field O2 east,"Rolled, mowing",30.3,c,24.2,c
+2024.field O2 east,"Rolled, high-residue cultivation",54.8,bc,2.3,bc
+2024.field O2 east,"Tilled, mowing",134.9,a,132.9,a
+2024.field O2 east,"Tilled, cultivation",93.4,ab,93.7,ab
+2024.field O2 west,"Rolled, no control",152.9,bc,247.2,bc
+2024.field O2 west,"Rolled, mowing",79.3,c,87.8,c
+2024.field O2 west,"Rolled, high-residue cultivation",143.4,bc,272.2,bc
+2024.field O2 west,"Tilled, mowing",352.7,a,195,a
+2024.field O2 west,"Tilled, cultivation",244.2,ab,12.2,ab
+2023.field v,"Rolled, no control",493.4,bc,419.5,bc
+2023.field v,"Rolled, mowing",255.8,c,257.8,c
+2023.field v,"Rolled, high-residue cultivation",462.7,bc,463.4,bc
+2023.field v,"Tilled, mowing",1138,a,1184.3,a
+2023.field v,"Tilled, cultivation",788,ab,853.7,ab

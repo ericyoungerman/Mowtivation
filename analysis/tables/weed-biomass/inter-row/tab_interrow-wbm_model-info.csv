@@ -1,0 +1,2 @@
+response_label,family_structure,fixed_effects,random_effects,AIC_additive,AIC_interaction,deltaAIC_add_int,LRT_p_int_raw,LRT_p_int_label,interaction_class
+"Inter-row weed biomass (kg ha^-1), model-predicted means*",INTERROW: Tweedie,Interaction: weed_trt * site_year,(1 | site_year:block),615.78,611.36,4.42,0.008859193516764445,<0.01,interaction

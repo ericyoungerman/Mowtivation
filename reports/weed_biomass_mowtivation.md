@@ -3,7 +3,9 @@ Weed biomass
 
 - [Data import & prep](#data-import--prep)
 - [Model testing](#model-testing)
-  - [Exploratory](#exploratory)
+  - [Exploratory data visualisation](#exploratory-data-visualisation)
+    - [Total weed biomass (kg ha⁻¹) by site-year ×
+      treatment](#total-weed-biomass-kg-ha¹-by-site-year--treatment)
     - [In-row weed biomass (kg ha⁻¹) by site-year ×
       treatment](#in-row-weed-biomass-kg-ha¹-by-site-year--treatment)
     - [Inter-row weed biomass (kg ha⁻¹) by site-year ×
@@ -11,17 +13,27 @@ Weed biomass
   - [Selection](#selection)
     - [Total weed biomass](#total-weed-biomass)
     - [In-row weed biomass](#in-row-weed-biomass)
-    - [Interrow weed biomass](#interrow-weed-biomass)
+    - [Inter-row weed biomass](#inter-row-weed-biomass)
 - [Figures](#figures)
   - [Total weed biomass](#total-weed-biomass-1)
-    - [Pooled](#pooled-3)
-    - [2023](#2023-1)
+    - [Model-prediected means (kg ha⁻¹)](#model-prediected-means-kg-ha¹)
+    - [Model-prediected means (lb ac⁻¹)](#model-prediected-means-lb-ac¹)
+    - [Raw means (kg ha⁻¹)](#raw-means-kg-ha¹)
+    - [Raw means (lb ha⁻¹)](#raw-means-lb-ha¹)
   - [In-row weed biomass](#in-row-weed-biomass-1)
-    - [Pooled](#pooled-4)
-    - [2023](#2023-2)
-  - [Interrow weed biomass](#interrow-weed-biomass-1)
-    - [Pooled](#pooled-5)
-    - [2023](#2023-3)
+    - [Model-prediected means (kg
+      ha⁻¹)](#model-prediected-means-kg-ha¹-1)
+    - [Model-prediected means (lb
+      ac⁻¹)](#model-prediected-means-lb-ac¹-1)
+    - [Raw means (kg ha⁻¹)](#raw-means-kg-ha¹-1)
+    - [Raw means (lb ha⁻¹)](#raw-means-lb-ha¹-1)
+  - [Interrow weed biomass](#interrow-weed-biomass)
+    - [Model-prediected means (kg
+      ha⁻¹)](#model-prediected-means-kg-ha¹-2)
+    - [Model-prediected means (lb
+      ac⁻¹)](#model-prediected-means-lb-ac¹-2)
+    - [Raw means (kg ha⁻¹)](#raw-means-kg-ha¹-2)
+    - [Raw means (lb ha⁻¹)](#raw-means-lb-ha¹-2)
 
 \#Setup
 
@@ -195,25 +207,28 @@ Field V only, 2023 (weed biomass)
 
 # Model testing
 
-## Exploratory
+## Exploratory data visualisation
 
-\###Total weed biomass (kg ha⁻¹) by site-year × treatment
+### Total weed biomass (kg ha⁻¹) by site-year × treatment
 
 ``` r
+## Exploratory data visualisation
+### Total weed biomass (kg ha^-1) by site-year × treatment
+
 # 1) Summary table: total weed biomass by site-year × treatment ---------
 weed_biomass_clean |>
   group_by(site_year, weed_trt) |>
   summarise(
     n      = n(),
-    mean   = mean(weed_biomass_kg_ha, na.rm = TRUE),
+    mean   = mean(weed_biomass_kg_ha,   na.rm = TRUE),
     median = median(weed_biomass_kg_ha, na.rm = TRUE),
-    sd     = sd(weed_biomass_kg_ha, na.rm = TRUE),
+    sd     = sd(weed_biomass_kg_ha,     na.rm = TRUE),
     .groups = "drop"
   ) |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "Weed biomass (kg ha⁻¹) by site-year × treatment"
+    caption = "Weed biomass (kg ha^-1) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -222,7 +237,7 @@ weed_biomass_clean |>
 
 <caption>
 
-Weed biomass (kg ha⁻¹) by site-year × treatment
+Weed biomass (kg ha^-1) by site-year × treatment
 </caption>
 
 <thead>
@@ -780,8 +795,15 @@ Tilled, cultivation
 </table>
 
 ``` r
+# Nice facet labels for site_year ---------------------------------------
+site_year_labs <- c(
+  "2024.field O2 east" = "2024 \u2013 Field O2 East",
+  "2024.field O2 west" = "2024 \u2013 Field O2 West",
+  "2023.field v"       = "2023 \u2013 Field V"
+)
+
 # 2) Faceted boxplot: all site-years -----------------------------------
-weed_biomass_clean |>
+wbm_box_total <- weed_biomass_clean |>
   ggplot(aes(x = weed_trt, y = weed_biomass_kg_ha, fill = weed_trt)) +
   geom_boxplot(
     outlier.shape = NA,
@@ -795,7 +817,11 @@ weed_biomass_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1) +
+  facet_wrap(
+    ~ site_year,
+    nrow     = 1,
+    labeller = labeller(site_year = site_year_labs)
+  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
   scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
@@ -809,59 +835,47 @@ weed_biomass_clean |>
     axis.text.x = element_text(size = 10),
     strip.text  = element_text(face = "bold")
   )
+
+# Print to document
+wbm_box_total
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-3-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-3-1.png)<!-- -->
 
 ``` r
-# 3) Boxplot: 2023 – Field V only --------------------------------------
-weed_biomass_field_v_2023 |>
-  ggplot(aes(x = weed_trt, y = weed_biomass_kg_ha, fill = weed_trt)) +
-  geom_boxplot(
-    outlier.shape = NA,
-    width  = 0.55,
-    color  = "black"
-  ) +
-  geom_jitter(
-    width  = 0.12,
-    height = 0,
-    alpha  = 0.4,
-    size   = 1.8,
-    color  = "grey30"
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x     = NULL,
-    y     = expression(Weed~biomass~"(kg"~ha^{-1}*")"),
-    title = "Weed biomass by treatment, 2023 – Field V"
-  ) +
-  theme_classic(base_size = 14) +
-  theme(
-    axis.text.x = element_text(size = 10)
-  )
-```
+# 3) Save figure --------------------------------------------------------
+fig_dir_total <- here("analysis", "figs", "weed-biomass", "total")
+dir.create(fig_dir_total, showWarnings = FALSE, recursive = TRUE)
 
-![](figs/analysis/weed_biomass-unnamed-chunk-3-2.png)<!-- -->
+ggsave(
+  filename = file.path(fig_dir_total,
+                       "fig_weed_biomass_total_box_by-site-year_kg_ha.png"),
+  plot     = wbm_box_total,
+  width    = 12,
+  height   = 5.5,
+  dpi      = 300
+)
+```
 
 ### In-row weed biomass (kg ha⁻¹) by site-year × treatment
 
 ``` r
+## In-row weed biomass (kg ha^-1) by site-year × treatment --------------
+
 # 1) Summary table: in-row weed biomass by site-year × treatment -------
 weed_biomass_clean |>
   group_by(site_year, weed_trt) |>
   summarise(
     n      = n(),
-    mean   = mean(inrow_weed_biomass_kg_ha, na.rm = TRUE),
+    mean   = mean(inrow_weed_biomass_kg_ha,   na.rm = TRUE),
     median = median(inrow_weed_biomass_kg_ha, na.rm = TRUE),
-    sd     = sd(inrow_weed_biomass_kg_ha, na.rm = TRUE),
+    sd     = sd(inrow_weed_biomass_kg_ha,     na.rm = TRUE),
     .groups = "drop"
   ) |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "In-row weed biomass (kg ha⁻¹) by site-year × treatment"
+    caption = "In-row weed biomass (kg ha^-1) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -870,7 +884,7 @@ weed_biomass_clean |>
 
 <caption>
 
-In-row weed biomass (kg ha⁻¹) by site-year × treatment
+In-row weed biomass (kg ha^-1) by site-year × treatment
 </caption>
 
 <thead>
@@ -1428,8 +1442,16 @@ Tilled, cultivation
 </table>
 
 ``` r
+# (Assumes site_year_labs already defined as in the total biomass chunk)
+# site_year_labs <- c(
+#   "2024.field O2 east" = "2024 \u2013 Field O2 East",
+#   "2024.field O2 west" = "2024 \u2013 Field O2 West",
+#   "2023.field v"       = "2023 \u2013 Field V"
+# )
+
 # 2) Faceted boxplot: all site-years -----------------------------------
-weed_biomass_clean |>
+
+inrow_box_total <- weed_biomass_clean |>
   ggplot(aes(x = weed_trt, y = inrow_weed_biomass_kg_ha, fill = weed_trt)) +
   geom_boxplot(
     outlier.shape = NA,
@@ -1443,7 +1465,11 @@ weed_biomass_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1) +
+  facet_wrap(
+    ~ site_year,
+    nrow     = 1,
+    labeller = labeller(site_year = site_year_labs)
+  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
   scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
@@ -1457,59 +1483,47 @@ weed_biomass_clean |>
     axis.text.x = element_text(size = 10),
     strip.text  = element_text(face = "bold")
   )
+
+# Print to document
+inrow_box_total
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-4-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-4-1.png)<!-- -->
 
 ``` r
-# 3) Boxplot: 2023 – Field V only --------------------------------------
-weed_biomass_field_v_2023 |>
-  ggplot(aes(x = weed_trt, y = inrow_weed_biomass_kg_ha, fill = weed_trt)) +
-  geom_boxplot(
-    outlier.shape = NA,
-    width  = 0.55,
-    color  = "black"
-  ) +
-  geom_jitter(
-    width  = 0.12,
-    height = 0,
-    alpha  = 0.4,
-    size   = 1.8,
-    color  = "grey30"
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x     = NULL,
-    y     = expression(In-row~weed~biomass~"(kg"~ha^{-1}*")"),
-    title = "In-row weed biomass by treatment, 2023 – Field V"
-  ) +
-  theme_classic(base_size = 14) +
-  theme(
-    axis.text.x = element_text(size = 10)
-  )
-```
+# 3) Save figure --------------------------------------------------------
+fig_dir_total <- here("analysis", "figs", "weed-biomass", "in-row")
+dir.create(fig_dir_total, showWarnings = FALSE, recursive = TRUE)
 
-![](figs/analysis/weed_biomass-unnamed-chunk-4-2.png)<!-- -->
+ggsave(
+  filename = file.path(fig_dir_total,
+                       "fig_weed_biomass_inrow_box_by-site-year_kg_ha.png"),
+  plot     = wbm_box_total,
+  width    = 12,
+  height   = 5.5,
+  dpi      = 300
+)
+```
 
 ### Inter-row weed biomass (kg ha⁻¹) by site-year × treatment
 
 ``` r
-# 1) Summary table: interrow weed biomass by site-year × treatment -----
+## Inter-row weed biomass (kg ha^-1) by site-year × treatment -----------
+
+# 1) Summary table: inter-row weed biomass by site-year × treatment ----
 weed_biomass_clean |>
   group_by(site_year, weed_trt) |>
   summarise(
     n      = n(),
-    mean   = mean(interrow_weed_biomass_kg_ha, na.rm = TRUE),
+    mean   = mean(interrow_weed_biomass_kg_ha,   na.rm = TRUE),
     median = median(interrow_weed_biomass_kg_ha, na.rm = TRUE),
-    sd     = sd(interrow_weed_biomass_kg_ha, na.rm = TRUE),
+    sd     = sd(interrow_weed_biomass_kg_ha,     na.rm = TRUE),
     .groups = "drop"
   ) |>
   arrange(site_year, weed_trt) |>
   kable(
     digits  = 1,
-    caption = "Interrow weed biomass (kg ha⁻¹) by site-year × treatment"
+    caption = "Inter-row weed biomass (kg ha^-1) by site-year × treatment"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -1518,7 +1532,7 @@ weed_biomass_clean |>
 
 <caption>
 
-Interrow weed biomass (kg ha⁻¹) by site-year × treatment
+Inter-row weed biomass (kg ha^-1) by site-year × treatment
 </caption>
 
 <thead>
@@ -2076,8 +2090,16 @@ Tilled, cultivation
 </table>
 
 ``` r
+# Assumes site_year_labs already defined earlier, e.g.:
+# site_year_labs <- c(
+#   "2024.field O2 east" = "2024 \u2013 Field O2 East",
+#   "2024.field O2 west" = "2024 \u2013 Field O2 West",
+#   "2023.field v"       = "2023 \u2013 Field V"
+# )
+
 # 2) Faceted boxplot: all site-years -----------------------------------
-weed_biomass_clean |>
+
+interrow_box_total <- weed_biomass_clean |>
   ggplot(aes(x = weed_trt, y = interrow_weed_biomass_kg_ha, fill = weed_trt)) +
   geom_boxplot(
     outlier.shape = NA,
@@ -2091,61 +2113,60 @@ weed_biomass_clean |>
     size   = 1.8,
     color  = "grey30"
   ) +
-  facet_wrap(~ site_year, nrow = 1) +
+  facet_wrap(
+    ~ site_year,
+    nrow     = 1,
+    labeller = labeller(site_year = site_year_labs)
+  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
   scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
     x     = NULL,
-    y     = expression(Interrow~weed~biomass~"(kg"~ha^{-1}*")"),
-    title = "Interrow weed biomass by treatment across site-years"
+    y     = expression(Inter-row~weed~biomass~"(kg"~ha^{-1}*")"),
+    title = "Inter-row weed biomass by treatment across site-years"
   ) +
   theme_classic(base_size = 14) +
   theme(
     axis.text.x = element_text(size = 10),
     strip.text  = element_text(face = "bold")
   )
+
+# Print to document
+interrow_box_total
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-5-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-5-1.png)<!-- -->
 
 ``` r
-# 3) Boxplot: 2023 – Field V only --------------------------------------
-weed_biomass_field_v_2023 |>
-  ggplot(aes(x = weed_trt, y = interrow_weed_biomass_kg_ha, fill = weed_trt)) +
-  geom_boxplot(
-    outlier.shape = NA,
-    width  = 0.55,
-    color  = "black"
-  ) +
-  geom_jitter(
-    width  = 0.12,
-    height = 0,
-    alpha  = 0.4,
-    size   = 1.8,
-    color  = "grey30"
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x     = NULL,
-    y     = expression(Interrow~weed~biomass~"(kg"~ha^{-1}*")"),
-    title = "Interrow weed biomass by treatment, 2023 – Field V"
-  ) +
-  theme_classic(base_size = 14) +
-  theme(
-    axis.text.x = element_text(size = 10)
-  )
-```
+# 3) Save figure --------------------------------------------------------
+fig_dir_total <- here("analysis", "figs", "weed-biomass", "inter-row")
+dir.create(fig_dir_total, showWarnings = FALSE, recursive = TRUE)
 
-![](figs/analysis/weed_biomass-unnamed-chunk-5-2.png)<!-- -->
+ggsave(
+  filename = file.path(fig_dir_total,
+                       "fig_weed_biomass_interrow_box_by-site-year_kg_ha.png"),
+  plot     = wbm_box_total,
+  width    = 12,
+  height   = 5.5,
+  dpi      = 300
+)
+```
 
 ## Selection
 
-### Total weed biomass
+``` r
+# Model selection rule for weed biomass responses:
+# - Fit a full GLMM with weed_trt × site_year.
+# - Compare to an additive model (weed_trt + site_year) using LRT + ΔAIC:
+#     * LRT p < 0.01 or ΔAIC ≥ 4 → keep the interaction model.
+#     * LRT p > 0.20 and |ΔAIC| < 2 → treat the interaction as negligible and use the additive model.
+#     * Intermediate cases (0.01 ≤ p ≤ 0.20 and |ΔAIC| < 2) = ambiguous evidence:
+#         use the additive model for parsimony, but visualize site-year patterns
+#         and note the marginal interaction in the text/figure captions.
+```
 
-#### Pooled
+### Total weed biomass
 
 ``` r
 ### Model testing / selection for weed biomass (kg ha⁻¹)
@@ -2332,7 +2353,7 @@ cat("Selected family/structure for weed biomass (all site-years):", best_all_n, 
 ``` r
 ## 3) Within chosen family: additive vs interaction ----------------------
 
-# Interaction model in chosen family
+# Interaction model in chosen family (already fit above)
 wbm_int <- best_all
 
 # Additive model: same family/ZI/dispersion, simpler fixed effects
@@ -2341,31 +2362,50 @@ wbm_add <- update(
   . ~ weed_trt + site_year + (1 | site_year:block)
 )
 
-# AIC comparison
-aic_wbm <- tibble(
+# Compare additive vs interaction
+lrt_wbm <- anova(wbm_add, wbm_int)   # LRT for interaction
+p_int_wbm <- lrt_wbm$`Pr(>Chisq)`[2]
+
+AIC_add <- AIC(wbm_add)
+AIC_int <- AIC(wbm_int)
+deltaAIC <- AIC_add - AIC_int        # > 0 means interaction has lower AIC
+
+# Helper thresholds (you can tweak these globally if you like)
+p_strong    <- 0.01   # strong evidence for interaction
+p_none      <- 0.20   # essentially no evidence for interaction
+dAIC_strong <- 4      # standard "substantial" AIC improvement
+
+# Classify evidence for interaction
+interaction_class <- dplyr::case_when(
+  p_int_wbm < p_strong | deltaAIC >= dAIC_strong ~ "interaction",
+  p_int_wbm > p_none  & abs(deltaAIC) < 2        ~ "additive",
+  TRUE                                           ~ "gray_zone"
+)
+
+# Choose primary model (for now: default to additive in gray zone)
+primary_model_name_wbm <- dplyr::case_when(
+  interaction_class == "interaction" ~ "Interaction: weed_trt * site_year",
+  TRUE                               ~ "Additive: weed_trt + site_year"
+)
+
+weed_glmm <- if (primary_model_name_wbm == "Interaction: weed_trt * site_year") {
+  wbm_int
+} else {
+  wbm_add
+}
+
+# AIC table for reporting
+aic_wbm_out <- tibble::tibble(
   model = c(
     "Additive: weed_trt + site_year",
     "Interaction: weed_trt * site_year"
   ),
-  AIC = c(AIC(wbm_add), AIC(wbm_int))
-)
-
-# Likelihood-ratio test for interaction term
-lrt_wbm   <- anova(wbm_add, wbm_int)
-p_int_wbm <- lrt_wbm$`Pr(>Chisq)`[2]
-
-# Apply your rule: choose simpler additive model unless interaction is clearly needed
-chosen_model_name_wbm <- if (p_int_wbm < 0.05) {
-  "Interaction: weed_trt * site_year"
-} else {
-  "Additive: weed_trt + site_year"
-}
-
-# Add ΔAIC and Selected flag
-aic_wbm_out <- aic_wbm |>
-  mutate(
+  AIC = c(AIC_add, AIC_int)
+) |>
+  dplyr::mutate(
     deltaAIC = AIC - min(AIC),
-    Selected = if_else(model == chosen_model_name_wbm, "Yes", "")
+    Selected = dplyr::if_else(model == primary_model_name_wbm, "Yes", ""),
+    Evidence_for_interaction = interaction_class
   )
 
 kable(
@@ -2407,6 +2447,11 @@ deltaAIC
 Selected
 </th>
 
+<th style="text-align:left;">
+
+Evidence_for_interaction
+</th>
+
 </tr>
 
 </thead>
@@ -2435,6 +2480,11 @@ Additive: weed_trt + site_year
 Yes
 </td>
 
+<td style="text-align:left;">
+
+gray_zone
+</td>
+
 </tr>
 
 <tr>
@@ -2458,6 +2508,11 @@ Interaction: weed_trt \* site_year
 
 </td>
 
+<td style="text-align:left;">
+
+gray_zone
+</td>
+
 </tr>
 
 </tbody>
@@ -2465,19 +2520,19 @@ Interaction: weed_trt \* site_year
 </table>
 
 ``` r
-# Final model used downstream
-weed_glmm <- if (p_int_wbm < 0.05) wbm_int else wbm_add
-
 cat(
-  "\nSelected model for weed biomass (used in all downstream emmeans/plots):\n  ",
-  chosen_model_name_wbm,
-  sprintf("  [LRT p = %.3f]\n", p_int_wbm)
+  "\nSelected primary model for weed biomass (used in emmeans/plots):\n  ",
+  primary_model_name_wbm,
+  sprintf(
+    "  [LRT p = %.3f; ΔAIC (add - int) = %.2f; class = %s]\n",
+    p_int_wbm, deltaAIC, interaction_class
+  )
 )
 ```
 
     ## 
-    ## Selected model for weed biomass (used in all downstream emmeans/plots):
-    ##    Additive: weed_trt + site_year   [LRT p = 0.054]
+    ## Selected primary model for weed biomass (used in emmeans/plots):
+    ##    Additive: weed_trt + site_year   [LRT p = 0.054; ΔAIC (add - int) = -0.74; class = gray_zone]
 
 ``` r
 ## 4) Diagnostics + Type-III tests for the chosen model ------------------
@@ -2487,13 +2542,13 @@ res_wbm <- DHARMa::simulateResiduals(weed_glmm)
 plot(res_wbm)
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-6-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-7-1.png)<!-- -->
 
 ``` r
 DHARMa::testDispersion(weed_glmm)
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-6-2.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-7-2.png)<!-- -->
 
     ## 
     ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
@@ -2507,7 +2562,7 @@ DHARMa::testDispersion(weed_glmm)
 DHARMa::testZeroInflation(weed_glmm)
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-6-3.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-7-3.png)<!-- -->
 
     ## 
     ##  DHARMa zero-inflation test via comparison to expected zeros with
@@ -2531,12 +2586,14 @@ car::Anova(weed_glmm, type = 3)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-##### Post-hoc summary table
+#### Post-hoc summary table
 
 ``` r
-### Total weed biomass (kg ha⁻¹) with Fisher's LSD CLDs
+##### Post-hoc summary table
 
-# Estimated marginal means for weed_trt on the response scale (kg/ha)
+### Total weed biomass (kg ha^-1) with Fisher's LSD CLDs
+
+# Estimated marginal means for weed_trt on the response scale (kg ha^-1)
 emm_wbm <- emmeans(
   weed_glmm,
   ~ weed_trt,
@@ -2549,9 +2606,9 @@ emm_wbm_df <- as_tibble(emm_wbm) |>
     weed_trt = factor(weed_trt, levels = mow_levels)
   ) |>
   rename(
-    emmean = response,     # mean on response scale
-    ci_low = asymp.LCL,    # lower CI
-    ci_high = asymp.UCL    # upper CI
+    emmean  = response,   # mean on response scale
+    ci_low  = asymp.LCL,  # lower CI
+    ci_high = asymp.UCL   # upper CI
   )
 
 # Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
@@ -2577,7 +2634,7 @@ emm_wbm_df |>
     across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))
   ) |>
   kable(
-    caption   = "Estimated total weed biomass (kg ha⁻¹) with 95% CI and Fisher's LSD group letters",
+    caption   = "Estimated total weed biomass (kg ha^-1) with 95% CI and Fisher's LSD group letters",
     col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -2587,7 +2644,7 @@ emm_wbm_df |>
 
 <caption>
 
-Estimated total weed biomass (kg ha⁻¹) with 95% CI and Fisher’s LSD
+Estimated total weed biomass (kg ha^-1) with 95% CI and Fisher’s LSD
 group letters
 </caption>
 
@@ -2805,24 +2862,36 @@ ab
 
 </table>
 
-##### ANOVA-style summary tables
+``` r
+emm_wbm_out <- emm_wbm_df |>
+  left_join(cld_wbm, by = "weed_trt") |>
+  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
+  mutate(
+    across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))
+  )
+```
+
+#### Global response summary table
 
 ``` r
-## 1) P-value summary (Location, Treatment, Interaction) -----------------
+## 0) Directory for all weed-biomass tables ------------------------------
 
-# Type-III tests for the selected GLMM
+tab_dir_wbm <- here("analysis", "tables", "weed-biomass", "total")
+dir.create(tab_dir_wbm, showWarnings = FALSE, recursive = TRUE)
+
+
+# 1) P-value summary (Location, Treatment, Interaction) ------------------
+
 anova_wbm <- Anova(weed_glmm, type = 3)
 
 anova_wbm_df <- anova_wbm |>
   as.data.frame() |>
   tibble::rownames_to_column("Effect")
 
-# Extract Wald p-values from the selected model
 p_site <- anova_wbm_df$`Pr(>Chisq)`[anova_wbm_df$Effect == "site_year"]
 p_trt  <- anova_wbm_df$`Pr(>Chisq)`[anova_wbm_df$Effect == "weed_trt"]
 p_int  <- anova_wbm_df$`Pr(>Chisq)`[anova_wbm_df$Effect == "weed_trt:site_year"]
 
-# Always include Location and Treatment rows
 pvals_wbm <- tibble(
   Effect = c(
     "Location (site_year)",
@@ -2831,8 +2900,8 @@ pvals_wbm <- tibble(
   p_raw = c(p_site, p_trt)
 )
 
-# Only include the interaction row if the interaction model was selected
-if (chosen_model_name_wbm == "Interaction: weed_trt * site_year") {
+# Only include the interaction row if the *selected* primary model uses the interaction
+if (primary_model_name_wbm == "Interaction: weed_trt * site_year") {
   pvals_wbm <- bind_rows(
     pvals_wbm,
     tibble(
@@ -2852,81 +2921,18 @@ pvals_wbm <- pvals_wbm |>
   ) |>
   select(Effect, `P-value`)
 
-pvals_wbm |>
-  kable(
-    caption   = "Weed biomass (kg ha⁻¹): P-values for location and treatment (and interaction if included in the selected model)",
-    col.names = c("Effect", "P-value")
-  ) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
+# Save ANOVA p-value summary
+readr::write_csv(
+  pvals_wbm,
+  file.path(tab_dir_wbm, "tab_total-wbm_Anova_pvals.csv")
+)
 
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 
-<caption>
+## 1b) Likelihood-ratio test: additive vs interaction --------------------
 
-Weed biomass (kg ha⁻¹): P-values for location and treatment (and
-interaction if included in the selected model)
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-Effect
-</th>
-
-<th style="text-align:left;">
-
-P-value
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-Location (site_year)
-</td>
-
-<td style="text-align:left;">
-
-\<0.001
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Treatment (weed_trt)
-</td>
-
-<td style="text-align:left;">
-
-\<0.001
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-``` r
-## 1b) Likelihood-ratio test: additive vs interaction -------------------
-
-# LRT table for model structure (additive vs interaction)
 lrt_table_wbm <- tibble(
-  Test    = "LRT (additive vs interaction)",
-  p_raw   = lrt_wbm$`Pr(>Chisq)`[2]
+  Test  = "LRT (additive vs interaction)",
+  p_raw = lrt_wbm$`Pr(>Chisq)`[2]
 ) |>
   mutate(
     `P-value` = case_when(
@@ -2937,9 +2943,15 @@ lrt_table_wbm <- tibble(
   ) |>
   select(Test, `P-value`)
 
+# Save LRT summary
+readr::write_csv(
+  lrt_table_wbm,
+  file.path(tab_dir_wbm, "tab_total-wbm_LRT_add-vs-int.csv")
+)
+
 lrt_table_wbm |>
   kable(
-    caption   = "Weed biomass (kg ha⁻¹): Likelihood-ratio test comparing additive vs interaction models",
+    caption   = "Weed biomass (kg ha^-1): Likelihood-ratio test comparing additive vs interaction models",
     col.names = c("Test", "P-value")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -2949,7 +2961,7 @@ lrt_table_wbm |>
 
 <caption>
 
-Weed biomass (kg ha⁻¹): Likelihood-ratio test comparing additive vs
+Weed biomass (kg ha^-1): Likelihood-ratio test comparing additive vs
 interaction models
 </caption>
 
@@ -2994,7 +3006,6 @@ LRT (additive vs interaction)
 ``` r
 ## 2) Location block: site-year means (model + raw) ----------------------
 
-# Model-based emmeans by site_year on the response scale
 emm_loc_wbm <- emmeans(
   weed_glmm,
   ~ site_year,
@@ -3004,11 +3015,10 @@ emm_loc_wbm <- emmeans(
 emm_loc_wbm_df <- as_tibble(emm_loc_wbm) |>
   mutate(
     site_year  = as.factor(site_year),
-    model_mean = response   # back-transformed mean (kg/ha)
+    model_mean = response   # kg ha^-1
   ) |>
   select(site_year, model_mean)
 
-# CLDs for site_year (a = highest)
 cld_loc_wbm <- cld(
   emm_loc_wbm,
   adjust   = "none",
@@ -3023,7 +3033,6 @@ cld_loc_wbm <- cld(
   ) |>
   select(site_year, loc_CLD)
 
-# Raw means by site_year
 raw_loc_wbm <- weed_biomass_clean |>
   group_by(site_year) |>
   summarise(
@@ -3042,9 +3051,15 @@ loc_summary_wbm <- emm_loc_wbm_df |>
   ) |>
   arrange(site_year)
 
+# Save location summary
+readr::write_csv(
+  loc_summary_wbm,
+  file.path(tab_dir_wbm, "tab_total-wbm_location_means_CLD.csv")
+)
+
 loc_summary_wbm |>
   kable(
-    caption   = "Weed biomass (kg ha⁻¹): location (site-year) means with CLDs",
+    caption   = "Weed biomass (kg ha^-1): location (site-year) means with CLDs",
     col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -3054,7 +3069,7 @@ loc_summary_wbm |>
 
 <caption>
 
-Weed biomass (kg ha⁻¹): location (site-year) means with CLDs
+Weed biomass (kg ha^-1): location (site-year) means with CLDs
 </caption>
 
 <thead>
@@ -3186,7 +3201,6 @@ a
 ``` r
 ## 3) Treatment block: means (model + raw) -------------------------------
 
-# emmeans for treatment on the response scale
 emm_wbm <- emmeans(
   weed_glmm,
   ~ weed_trt,
@@ -3196,11 +3210,10 @@ emm_wbm <- emmeans(
 emm_trt_wbm_df <- as_tibble(emm_wbm) |>
   mutate(
     weed_trt   = factor(weed_trt, levels = mow_levels),
-    model_mean = response   # kg/ha
+    model_mean = response   # kg ha^-1
   ) |>
   select(weed_trt, model_mean)
 
-# CLDs for treatment (a = highest)
 cld_wbm <- cld(
   emm_wbm,
   adjust   = "none",
@@ -3215,7 +3228,6 @@ cld_wbm <- cld(
   ) |>
   select(weed_trt, trt_CLD)
 
-# Raw means by treatment
 raw_trt_wbm <- weed_biomass_clean |>
   group_by(weed_trt) |>
   summarise(
@@ -3225,7 +3237,7 @@ raw_trt_wbm <- weed_biomass_clean |>
   mutate(weed_trt = factor(weed_trt, levels = mow_levels))
 
 trt_summary_wbm <- emm_trt_wbm_df |>
-  left_join(cld_wbm, by = "weed_trt") |>
+  left_join(cld_wbm,     by = "weed_trt") |>
   left_join(raw_trt_wbm, by = "weed_trt") |>
   mutate(
     model_mean = round(model_mean, 1),
@@ -3234,9 +3246,15 @@ trt_summary_wbm <- emm_trt_wbm_df |>
   ) |>
   arrange(weed_trt)
 
+# Save treatment summary
+readr::write_csv(
+  trt_summary_wbm,
+  file.path(tab_dir_wbm, "tab_total-wbm_treatment_means_CLD.csv")
+)
+
 trt_summary_wbm |>
   kable(
-    caption   = "Weed biomass (kg ha⁻¹): treatment means with CLDs",
+    caption   = "Weed biomass (kg ha^-1): treatment means with CLDs",
     col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -3246,7 +3264,7 @@ trt_summary_wbm |>
 
 <caption>
 
-Weed biomass (kg ha⁻¹): treatment means with CLDs
+Weed biomass (kg ha^-1): treatment means with CLDs
 </caption>
 
 <thead>
@@ -3436,7 +3454,6 @@ ab
 ``` r
 ## 4) Interaction block: site-year × treatment means ---------------------
 
-# Model emmeans by treatment within site_year on the response scale
 emm_sy_wbm <- emmeans(
   weed_glmm,
   ~ weed_trt | site_year,
@@ -3447,11 +3464,10 @@ emm_sy_wbm_df <- as_tibble(emm_sy_wbm) |>
   mutate(
     weed_trt   = factor(weed_trt, levels = mow_levels),
     site_year  = as.factor(site_year),
-    model_mean = response   # kg/ha
+    model_mean = response   # kg ha^-1
   ) |>
   select(site_year, weed_trt, model_mean)
 
-# CLDs within each site_year (a = highest within that site_year)
 cld_sy_wbm <- cld(
   emm_sy_wbm,
   adjust   = "none",
@@ -3467,7 +3483,6 @@ cld_sy_wbm <- cld(
   ) |>
   select(site_year, weed_trt, int_CLD)
 
-# Raw means by site_year × treatment
 raw_sy_wbm <- weed_biomass_clean |>
   group_by(site_year, weed_trt) |>
   summarise(
@@ -3489,9 +3504,15 @@ int_summary_wbm <- emm_sy_wbm_df |>
   ) |>
   arrange(site_year, weed_trt)
 
+# Save interaction summary
+readr::write_csv(
+  int_summary_wbm,
+  file.path(tab_dir_wbm, "tab_total-wbm_site-year_treatment_means_CLD.csv")
+)
+
 int_summary_wbm |>
   kable(
-    caption   = "Weed biomass (kg ha⁻¹): site-year × treatment means with CLDs",
+    caption   = "Weed biomass (kg ha^-1): site-year × treatment means with CLDs",
     col.names = c(
       "Site-year", "Treatment",
       "Model mean", "Model CLD",
@@ -3505,7 +3526,7 @@ int_summary_wbm |>
 
 <caption>
 
-Weed biomass (kg ha⁻¹): site-year × treatment means with CLDs
+Weed biomass (kg ha^-1): site-year × treatment means with CLDs
 </caption>
 
 <thead>
@@ -4062,555 +4083,36 @@ ab
 
 </table>
 
-#### 2023 only
-
 ``` r
-### Model testing / selection for weed biomass (kg ha⁻¹), 2023 Field V only
+## 5) Model-info row for global response summary -------------------------
 
-options(contrasts = c("contr.sum", "contr.poly"))
-
-# Simpler structure: single site-year (no site_year term)
-form_v23 <- weed_biomass_kg_ha ~ weed_trt + (1 | block)
-
-# 1) Fit candidate models -----------------------------------------------
-
-m_v23_tw <- weed_biomass_field_v_2023 |>
-  (\(d) glmmTMB(
-    formula = form_v23,
-    family  = tweedie(link = "log"),
-    data    = d
-  ))()
-
-m_v23_nb <- weed_biomass_field_v_2023 |>
-  (\(d) glmmTMB(
-    formula = form_v23,
-    family  = nbinom2(link = "log"),
-    data    = d
-  ))()
-
-m_v23_tw_zi <- weed_biomass_field_v_2023 |>
-  (\(d) glmmTMB(
-    formula   = form_v23,
-    family    = tweedie(link = "log"),
-    ziformula = ~ 1,
-    data      = d
-  ))()
-
-# 2) Safe AIC helper (reuse if already defined earlier) -----------------
-if (!exists("safe_aic")) {
-  safe_aic <- function(mod) {
-    out <- try(AIC(mod), silent = TRUE)
-    if (inherits(out, "try-error")) return(NA_real_)
-    out
-  }
-}
-
-# 3) AIC table ----------------------------------------------------------
-
-aic_v23 <- tibble::tibble(
-  model = c(
-    "V23: Tweedie",
-    "V23: NB2",
-    "V23: Tweedie + ZI"
+model_info_wbm <- tibble::tibble(
+  response_label    = "Weed biomass (kg ha^-1), model-predicted means*",
+  family_structure  = best_all_n,
+  fixed_effects     = primary_model_name_wbm,
+  random_effects    = "(1 | site_year:block)",
+  AIC_additive      = round(AIC_add, 2),
+  AIC_interaction   = round(AIC_int, 2),
+  deltaAIC_add_int  = round(deltaAIC, 2),
+  LRT_p_int_raw     = p_int_wbm,
+  LRT_p_int_label   = dplyr::case_when(
+    p_int_wbm < 0.001 ~ "<0.001",
+    p_int_wbm < 0.01  ~ "<0.01",
+    TRUE              ~ sprintf("%.3f", p_int_wbm)
   ),
-  AIC = c(
-    safe_aic(m_v23_tw),
-    safe_aic(m_v23_nb),
-    safe_aic(m_v23_tw_zi)
-  )
+  interaction_class = interaction_class
 )
 
-# 4) Select best model with ΔAIC > 2 rule -------------------------------
-
-best_v23      <- m_v23_tw
-best_v23_name <- "V23: Tweedie"
-best_v23_aic  <- safe_aic(m_v23_tw)
-
-cands_v23 <- list(
-  "V23: NB2"          = m_v23_nb,
-  "V23: Tweedie + ZI" = m_v23_tw_zi
-)
-
-for (nm in names(cands_v23)) {
-  this_aic <- safe_aic(cands_v23[[nm]])
-  if (is.finite(this_aic) && (this_aic + 2 < best_v23_aic)) {
-    best_v23      <- cands_v23[[nm]]
-    best_v23_name <- nm
-    best_v23_aic  <- this_aic
-  }
-}
-
-aic_v23_out <- aic_v23 |>
-  mutate(
-    deltaAIC = AIC - min(AIC, na.rm = TRUE),
-    Selected = if_else(model == best_v23_name, "Yes", "")
-  )
-
-kable(
-  aic_v23_out,
-  digits  = 2,
-  caption = "Weed biomass (kg ha⁻¹), 2023 Field V: model comparison (Tweedie vs NB2 vs Tweedie + ZI)"
-) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
-
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
-
-<caption>
-
-Weed biomass (kg ha⁻¹), 2023 Field V: model comparison (Tweedie vs NB2
-vs Tweedie + ZI)
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-model
-</th>
-
-<th style="text-align:right;">
-
-AIC
-</th>
-
-<th style="text-align:right;">
-
-deltaAIC
-</th>
-
-<th style="text-align:left;">
-
-Selected
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-V23: Tweedie
-</td>
-
-<td style="text-align:right;">
-
-289.09
-</td>
-
-<td style="text-align:right;">
-
-0.00
-</td>
-
-<td style="text-align:left;">
-
-Yes
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-V23: NB2
-</td>
-
-<td style="text-align:right;">
-
-292.65
-</td>
-
-<td style="text-align:right;">
-
-3.56
-</td>
-
-<td style="text-align:left;">
-
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-V23: Tweedie + ZI
-</td>
-
-<td style="text-align:right;">
-
-291.09
-</td>
-
-<td style="text-align:right;">
-
-2.00
-</td>
-
-<td style="text-align:left;">
-
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-``` r
-cat(
-  "\nSelected model for 2023 Field V weed biomass (used in downstream emmeans/plots):\n  ",
-  best_v23_name,
-  sprintf("  [AIC = %.2f]\n", best_v23_aic)
+readr::write_csv(
+  model_info_wbm,
+  file.path(tab_dir_wbm, "tab_total-wbm_model-info.csv")
 )
 ```
-
-    ## 
-    ## Selected model for 2023 Field V weed biomass (used in downstream emmeans/plots):
-    ##    V23: Tweedie   [AIC = 289.09]
-
-``` r
-# Save final model to a clear object for downstream use -----------------
-weed_glmm_v23 <- best_v23
-
-# 5) Diagnostics for the selected Field V model -------------------------
-set.seed(123)
-res_v23 <- DHARMa::simulateResiduals(weed_glmm_v23)
-plot(res_v23)
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-9-1.png)<!-- -->
-
-``` r
-DHARMa::testDispersion(weed_glmm_v23)
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-9-2.png)<!-- -->
-
-    ## 
-    ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
-    ##  simulated
-    ## 
-    ## data:  simulationOutput
-    ## dispersion = 1.0276, p-value = 0.88
-    ## alternative hypothesis: two.sided
-
-``` r
-DHARMa::testZeroInflation(weed_glmm_v23)
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-9-3.png)<!-- -->
-
-    ## 
-    ##  DHARMa zero-inflation test via comparison to expected zeros with
-    ##  simulation under H0 = fitted model
-    ## 
-    ## data:  simulationOutput
-    ## ratioObsSim = 0, p-value = 1
-    ## alternative hypothesis: two.sided
-
-``` r
-car::Anova(weed_glmm_v23, type = 3)
-```
-
-    ## Analysis of Deviance Table (Type III Wald chisquare tests)
-    ## 
-    ## Response: weed_biomass_kg_ha
-    ##                Chisq Df Pr(>Chisq)    
-    ## (Intercept) 4532.517  1  < 2.2e-16 ***
-    ## weed_trt      37.179  4  1.654e-07 ***
-    ## ---
-    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-##### Post-hoc summary table
-
-``` r
-### Total weed biomass (kg ha⁻¹), 2023 Field V — Fisher's LSD CLDs
-
-# Estimated marginal means for weed_trt on the response scale (kg/ha)
-emm_wbm_v23 <- emmeans(
-  weed_glmm_v23,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale
-)
-
-# Tidy emmeans for reporting (rename columns to match other RMDs)
-emm_wbm_v23_df <- as_tibble(emm_wbm_v23) |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels)
-  ) |>
-  rename(
-    emmean = response,     # mean on response scale (kg/ha)
-    ci_low = asymp.LCL,    # lower CI
-    ci_high = asymp.UCL    # upper CI
-  )
-
-# Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
-cld_wbm_v23 <- cld(
-  emm_wbm_v23,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE   # so "a" = highest biomass group(s)
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# Join emmeans + CLDs and format for reporting
-emm_wbm_v23_df |>
-  left_join(cld_wbm_v23, by = "weed_trt") |>
-  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
-  mutate(
-    across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))
-  ) |>
-  kable(
-    caption   = "Estimated total weed biomass (kg ha⁻¹) in 2023 Field V with 95% CI and Fisher's LSD group letters",
-    col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
-  ) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
-
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
-
-<caption>
-
-Estimated total weed biomass (kg ha⁻¹) in 2023 Field V with 95% CI and
-Fisher’s LSD group letters
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-Treatment
-</th>
-
-<th style="text-align:right;">
-
-Mean
-</th>
-
-<th style="text-align:right;">
-
-SE
-</th>
-
-<th style="text-align:right;">
-
-Lower CI
-</th>
-
-<th style="text-align:right;">
-
-Upper CI
-</th>
-
-<th style="text-align:left;">
-
-Group
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-Rolled, no control
-</td>
-
-<td style="text-align:right;">
-
-419.5
-</td>
-
-<td style="text-align:right;">
-
-93.9
-</td>
-
-<td style="text-align:right;">
-
-270.6
-</td>
-
-<td style="text-align:right;">
-
-650.5
-</td>
-
-<td style="text-align:left;">
-
-b
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Rolled, mowing
-</td>
-
-<td style="text-align:right;">
-
-257.8
-</td>
-
-<td style="text-align:right;">
-
-71.5
-</td>
-
-<td style="text-align:right;">
-
-149.6
-</td>
-
-<td style="text-align:right;">
-
-444.0
-</td>
-
-<td style="text-align:left;">
-
-b
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Rolled, high-residue cultivation
-</td>
-
-<td style="text-align:right;">
-
-463.4
-</td>
-
-<td style="text-align:right;">
-
-99.2
-</td>
-
-<td style="text-align:right;">
-
-304.5
-</td>
-
-<td style="text-align:right;">
-
-705.0
-</td>
-
-<td style="text-align:left;">
-
-b
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Tilled, mowing
-</td>
-
-<td style="text-align:right;">
-
-1184.3
-</td>
-
-<td style="text-align:right;">
-
-167.6
-</td>
-
-<td style="text-align:right;">
-
-897.5
-</td>
-
-<td style="text-align:right;">
-
-1562.8
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Tilled, cultivation
-</td>
-
-<td style="text-align:right;">
-
-853.7
-</td>
-
-<td style="text-align:right;">
-
-139.6
-</td>
-
-<td style="text-align:right;">
-
-619.7
-</td>
-
-<td style="text-align:right;">
-
-1176.2
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
 
 ### In-row weed biomass
 
-#### Pooled
-
 ``` r
-#### In-row pooled (all site-years): model testing / selection
+#### In-row pooled (all site-years): model testing / selection ----------
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
@@ -4646,7 +4148,7 @@ m_all_inrow_tw_disp <- glmmTMB(
   data        = weed_biomass_clean
 )
 
-# NA-safe AIC helper (reuse if already defined) -------------------------
+# NA-safe AIC helper (if already defined earlier, you can omit this) ----
 safe_aic <- function(mod) {
   out <- try(AIC(mod), silent = TRUE)
   if (inherits(out, "try-error")) return(NA_real_)
@@ -4671,7 +4173,7 @@ aic_all_inrow <- tibble(
 kable(
   aic_all_inrow,
   digits  = 2,
-  caption = "In-row weed biomass (kg ha⁻¹): candidate distributional families"
+  caption = "In-row weed biomass (kg ha^-1): candidate distributional families"
 ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -4680,7 +4182,7 @@ kable(
 
 <caption>
 
-In-row weed biomass (kg ha⁻¹): candidate distributional families
+In-row weed biomass (kg ha^-1): candidate distributional families
 </caption>
 
 <thead>
@@ -4805,36 +4307,55 @@ inrow_add <- update(
   . ~ weed_trt + site_year + (1 | site_year:block)
 )
 
-# AIC comparison
-aic_inrow <- tibble(
+# Compare additive vs interaction
+lrt_inrow   <- anova(inrow_add, inrow_int)
+p_int_inrow <- lrt_inrow$`Pr(>Chisq)`[2]
+
+AIC_add_inrow <- AIC(inrow_add)
+AIC_int_inrow <- AIC(inrow_int)
+deltaAIC_inrow <- AIC_add_inrow - AIC_int_inrow  # > 0 => interaction has lower AIC
+
+# Same decision rule as total biomass -----------------------------------
+
+p_strong_inrow    <- 0.01  # strong evidence
+p_none_inrow      <- 0.20  # essentially none
+dAIC_strong_inrow <- 4     # substantial AIC drop
+
+interaction_class_inrow <- dplyr::case_when(
+  p_int_inrow < p_strong_inrow | deltaAIC_inrow >= dAIC_strong_inrow ~ "interaction",
+  p_int_inrow > p_none_inrow  & abs(deltaAIC_inrow) < 2              ~ "additive",
+  TRUE                                                               ~ "gray_zone"
+)
+
+primary_model_name_inrow <- dplyr::case_when(
+  interaction_class_inrow == "interaction" ~ "Interaction: weed_trt * site_year",
+  TRUE                                     ~ "Additive: weed_trt + site_year"
+)
+
+weed_inrow_glmm <- if (primary_model_name_inrow == "Interaction: weed_trt * site_year") {
+  inrow_int
+} else {
+  inrow_add
+}
+
+# AIC table for reporting
+aic_inrow_out <- tibble(
   model = c(
     "Additive: weed_trt + site_year",
     "Interaction: weed_trt * site_year"
   ),
-  AIC = c(AIC(inrow_add), AIC(inrow_int))
-)
-
-# Likelihood-ratio test for interaction
-lrt_inrow   <- anova(inrow_add, inrow_int)
-p_int_inrow <- lrt_inrow$`Pr(>Chisq)`[2]
-
-# Apply your rule: keep additive unless interaction clearly needed
-chosen_model_name_inrow <- if (p_int_inrow < 0.05) {
-  "Interaction: weed_trt * site_year"
-} else {
-  "Additive: weed_trt + site_year"
-}
-
-aic_inrow_out <- aic_inrow |>
+  AIC = c(AIC_add_inrow, AIC_int_inrow)
+) |>
   mutate(
-    deltaAIC = AIC - min(AIC),
-    Selected = if_else(model == chosen_model_name_inrow, "Yes", "")
+    deltaAIC                = AIC - min(AIC),
+    Selected                = if_else(model == primary_model_name_inrow, "Yes", ""),
+    Evidence_for_interaction = interaction_class_inrow
   )
 
 kable(
   aic_inrow_out,
   digits  = 2,
-  caption = "In-row weed biomass (kg ha⁻¹): additive vs interaction (within chosen family)"
+  caption = "In-row weed biomass (kg ha^-1): additive vs interaction (within chosen family)"
 ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -4843,7 +4364,7 @@ kable(
 
 <caption>
 
-In-row weed biomass (kg ha⁻¹): additive vs interaction (within chosen
+In-row weed biomass (kg ha^-1): additive vs interaction (within chosen
 family)
 </caption>
 
@@ -4871,6 +4392,11 @@ deltaAIC
 Selected
 </th>
 
+<th style="text-align:left;">
+
+Evidence_for_interaction
+</th>
+
 </tr>
 
 </thead>
@@ -4896,6 +4422,12 @@ Additive: weed_trt + site_year
 
 <td style="text-align:left;">
 
+Yes
+</td>
+
+<td style="text-align:left;">
+
+gray_zone
 </td>
 
 </tr>
@@ -4919,7 +4451,11 @@ Interaction: weed_trt \* site_year
 
 <td style="text-align:left;">
 
-Yes
+</td>
+
+<td style="text-align:left;">
+
+gray_zone
 </td>
 
 </tr>
@@ -4929,19 +4465,19 @@ Yes
 </table>
 
 ``` r
-# Final in-row model used downstream
-weed_inrow_glmm <- if (p_int_inrow < 0.05) inrow_int else inrow_add
-
 cat(
-  "\nSelected model for in-row weed biomass (used in all downstream emmeans/plots):\n  ",
-  chosen_model_name_inrow,
-  sprintf("  [LRT p = %.3f]\n", p_int_inrow)
+  "\nSelected primary model for in-row weed biomass (used in emmeans/plots):\n  ",
+  primary_model_name_inrow,
+  sprintf(
+    "  [LRT p = %.3f; ΔAIC (add - int) = %.2f; class = %s]\n",
+    p_int_inrow, deltaAIC_inrow, interaction_class_inrow
+  )
 )
 ```
 
     ## 
-    ## Selected model for in-row weed biomass (used in all downstream emmeans/plots):
-    ##    Interaction: weed_trt * site_year   [LRT p = 0.019]
+    ## Selected primary model for in-row weed biomass (used in emmeans/plots):
+    ##    Additive: weed_trt + site_year   [LRT p = 0.019; ΔAIC (add - int) = 2.36; class = gray_zone]
 
 ``` r
 ## 4) Diagnostics + Type-III tests for chosen in-row model --------------
@@ -4951,34 +4487,34 @@ res_inrow <- DHARMa::simulateResiduals(weed_inrow_glmm)
 plot(res_inrow)
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-11-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-10-1.png)<!-- -->
 
 ``` r
 DHARMa::testDispersion(weed_inrow_glmm)
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-11-2.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-10-2.png)<!-- -->
 
     ## 
     ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
     ##  simulated
     ## 
     ## data:  simulationOutput
-    ## dispersion = 0.33543, p-value = 0.4
+    ## dispersion = 0.11726, p-value = 0.08
     ## alternative hypothesis: two.sided
 
 ``` r
 DHARMa::testZeroInflation(weed_inrow_glmm)
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-11-3.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-10-3.png)<!-- -->
 
     ## 
     ##  DHARMa zero-inflation test via comparison to expected zeros with
     ##  simulation under H0 = fitted model
     ## 
     ## data:  simulationOutput
-    ## ratioObsSim = 0.99602, p-value = 1
+    ## ratioObsSim = 0.9636, p-value = 0.968
     ## alternative hypothesis: two.sided
 
 ``` r
@@ -4988,71 +4524,63 @@ car::Anova(weed_inrow_glmm, type = 3)
     ## Analysis of Deviance Table (Type III Wald chisquare tests)
     ## 
     ## Response: inrow_weed_biomass_kg_ha
-    ##                     Chisq Df Pr(>Chisq)   
-    ## (Intercept)         0.000  1   0.999890   
-    ## weed_trt           16.312  4   0.002627 **
-    ## site_year          11.177  2   0.003741 **
-    ## weed_trt:site_year 17.483  8   0.025459 * 
+    ##               Chisq Df Pr(>Chisq)    
+    ## (Intercept)  91.564  1  < 2.2e-16 ***
+    ## weed_trt    107.412  4  < 2.2e-16 ***
+    ## site_year    25.185  2  3.398e-06 ***
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-##### Post-hoc summary table
+#### Post-hoc summary table
 
 ``` r
-### In-row weed biomass (kg ha⁻¹) with Fisher's LSD CLDs (by site-year)
+#### Post-hoc summary table
 
-# Because weed_trt × site_year is (potentially) important, we summarise treatment
-# effects within each site-year on the response scale (kg ha⁻¹).
+### In-row weed biomass (kg ha^-1) with Fisher's LSD CLDs
 
-# Estimated marginal means for weed_trt within site_year (response scale)
-emm_inrow_sy <- emmeans(
+# Estimated marginal means for weed_trt on the response scale (kg ha^-1)
+emm_inrow <- emmeans(
   weed_inrow_glmm,
-  ~ weed_trt | site_year,
-  type = "response"   # back-transform from link scale
+  ~ weed_trt,
+  type = "response"   # back-transform from log link
 )
 
-# Tidy emmeans for reporting (kg ha⁻¹)
-emm_inrow_sy_df <- summary(emm_inrow_sy) |>
-  as_tibble() |>
+# Tidy emmeans for reporting (rename columns to match other RMDs)
+emm_inrow_df <- as_tibble(emm_inrow) |>
   mutate(
-    site_year = factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels)
+    weed_trt = factor(weed_trt, levels = mow_levels)
   ) |>
   rename(
-    emmean = response,   # mean on response scale
-    ci_low = asymp.LCL,  # lower CI
-    ci_high = asymp.UCL  # upper CI
+    emmean  = response,   # mean on response scale
+    ci_low  = asymp.LCL,  # lower CI
+    ci_high = asymp.UCL   # upper CI
   )
 
-# Compact letter display (Fisher's LSD, no adjustment; "a" = highest within each site-year)
-cld_inrow_sy <- cld(
-  emm_inrow_sy,
+# Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
+cld_inrow <- cld(
+  emm_inrow,
   adjust   = "none",
   Letters  = letters,
   sort     = TRUE,
-  reversed = TRUE          # so "a" = highest biomass group(s)
+  reversed = TRUE   # so "a" = highest biomass group(s)
 ) |>
   as_tibble() |>
   mutate(
-    site_year = factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels),
-    .group    = str_trim(.group)
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
   ) |>
-  select(site_year, weed_trt, .group)
+  select(weed_trt, .group)
 
 # Join emmeans + CLDs and format for reporting
-table_inrow_sy <- emm_inrow_sy_df |>
-  left_join(cld_inrow_sy, by = c("site_year", "weed_trt")) |>
-  select(site_year, weed_trt, emmean, SE, ci_low, ci_high, .group) |>
+emm_inrow_df |>
+  left_join(cld_inrow, by = "weed_trt") |>
+  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
   mutate(
     across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))
   ) |>
-  arrange(site_year, weed_trt)
-
-table_inrow_sy |>
   kable(
-    caption   = "Estimated in-row weed biomass (kg ha⁻¹) by treatment within site-year (response scale) with 95% CI and Fisher's LSD group letters",
-    col.names = c("Site-year", "Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
+    caption   = "Estimated in-row weed biomass (kg ha^-1) with 95% CI and Fisher's LSD group letters",
+    col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -5061,18 +4589,13 @@ table_inrow_sy |>
 
 <caption>
 
-Estimated in-row weed biomass (kg ha⁻¹) by treatment within site-year
-(response scale) with 95% CI and Fisher’s LSD group letters
+Estimated in-row weed biomass (kg ha^-1) with 95% CI and Fisher’s LSD
+group letters
 </caption>
 
 <thead>
 
 <tr>
-
-<th style="text-align:left;">
-
-Site-year
-</th>
 
 <th style="text-align:left;">
 
@@ -5114,422 +4637,27 @@ Group
 
 <td style="text-align:left;">
 
-2024.field O2 east
-</td>
-
-<td style="text-align:left;">
-
 Rolled, no control
 </td>
 
 <td style="text-align:right;">
 
-0.0
+3.8
 </td>
 
 <td style="text-align:right;">
 
-0.0
+1.8
 </td>
 
 <td style="text-align:right;">
 
-0.0
+1.5
 </td>
 
 <td style="text-align:right;">
 
-Inf
-</td>
-
-<td style="text-align:left;">
-
-ab
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 east
-</td>
-
-<td style="text-align:left;">
-
-Rolled, mowing
-</td>
-
-<td style="text-align:right;">
-
-0.1
-</td>
-
-<td style="text-align:right;">
-
-0.2
-</td>
-
-<td style="text-align:right;">
-
-0.0
-</td>
-
-<td style="text-align:right;">
-
-3.7
-</td>
-
-<td style="text-align:left;">
-
-b
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 east
-</td>
-
-<td style="text-align:left;">
-
-Rolled, high-residue cultivation
-</td>
-
-<td style="text-align:right;">
-
-0.4
-</td>
-
-<td style="text-align:right;">
-
-0.6
-</td>
-
-<td style="text-align:right;">
-
-0.0
-</td>
-
-<td style="text-align:right;">
-
-6.7
-</td>
-
-<td style="text-align:left;">
-
-b
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 east
-</td>
-
-<td style="text-align:left;">
-
-Tilled, mowing
-</td>
-
-<td style="text-align:right;">
-
-18.3
-</td>
-
-<td style="text-align:right;">
-
-13.0
-</td>
-
-<td style="text-align:right;">
-
-4.5
-</td>
-
-<td style="text-align:right;">
-
-73.6
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 east
-</td>
-
-<td style="text-align:left;">
-
-Tilled, cultivation
-</td>
-
-<td style="text-align:right;">
-
-51.4
-</td>
-
-<td style="text-align:right;">
-
-34.3
-</td>
-
-<td style="text-align:right;">
-
-13.9
-</td>
-
-<td style="text-align:right;">
-
-190.4
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 west
-</td>
-
-<td style="text-align:left;">
-
-Rolled, no control
-</td>
-
-<td style="text-align:right;">
-
-17.7
-</td>
-
-<td style="text-align:right;">
-
-17.7
-</td>
-
-<td style="text-align:right;">
-
-2.5
-</td>
-
-<td style="text-align:right;">
-
-125.7
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 west
-</td>
-
-<td style="text-align:left;">
-
-Rolled, mowing
-</td>
-
-<td style="text-align:right;">
-
-44.6
-</td>
-
-<td style="text-align:right;">
-
-38.8
-</td>
-
-<td style="text-align:right;">
-
-8.1
-</td>
-
-<td style="text-align:right;">
-
-245.6
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 west
-</td>
-
-<td style="text-align:left;">
-
-Rolled, high-residue cultivation
-</td>
-
-<td style="text-align:right;">
-
-40.2
-</td>
-
-<td style="text-align:right;">
-
-35.1
-</td>
-
-<td style="text-align:right;">
-
-7.3
-</td>
-
-<td style="text-align:right;">
-
-222.3
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 west
-</td>
-
-<td style="text-align:left;">
-
-Tilled, mowing
-</td>
-
-<td style="text-align:right;">
-
-46.8
-</td>
-
-<td style="text-align:right;">
-
-35.1
-</td>
-
-<td style="text-align:right;">
-
-10.7
-</td>
-
-<td style="text-align:right;">
-
-204.0
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 west
-</td>
-
-<td style="text-align:left;">
-
-Tilled, cultivation
-</td>
-
-<td style="text-align:right;">
-
-12.6
-</td>
-
-<td style="text-align:right;">
-
-12.1
-</td>
-
-<td style="text-align:right;">
-
-1.9
-</td>
-
-<td style="text-align:right;">
-
-82.9
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2023.field v
-</td>
-
-<td style="text-align:left;">
-
-Rolled, no control
-</td>
-
-<td style="text-align:right;">
-
-23.4
-</td>
-
-<td style="text-align:right;">
-
-10.3
-</td>
-
-<td style="text-align:right;">
-
-9.9
-</td>
-
-<td style="text-align:right;">
-
-55.3
+9.7
 </td>
 
 <td style="text-align:left;">
@@ -5543,32 +4671,27 @@ c
 
 <td style="text-align:left;">
 
-2023.field v
-</td>
-
-<td style="text-align:left;">
-
 Rolled, mowing
 </td>
 
 <td style="text-align:right;">
 
-112.7
+16.6
 </td>
 
 <td style="text-align:right;">
 
-41.4
+7.0
 </td>
 
 <td style="text-align:right;">
 
-54.8
+7.2
 </td>
 
 <td style="text-align:right;">
 
-231.4
+38.0
 </td>
 
 <td style="text-align:left;">
@@ -5579,11 +4702,6 @@ b
 </tr>
 
 <tr>
-
-<td style="text-align:left;">
-
-2023.field v
-</td>
 
 <td style="text-align:left;">
 
@@ -5592,22 +4710,22 @@ Rolled, high-residue cultivation
 
 <td style="text-align:right;">
 
-153.0
+21.6
 </td>
 
 <td style="text-align:right;">
 
-54.4
+9.0
 </td>
 
 <td style="text-align:right;">
 
-76.2
+9.5
 </td>
 
 <td style="text-align:right;">
 
-307.3
+48.9
 </td>
 
 <td style="text-align:left;">
@@ -5621,32 +4739,27 @@ b
 
 <td style="text-align:left;">
 
-2023.field v
-</td>
-
-<td style="text-align:left;">
-
 Tilled, mowing
 </td>
 
 <td style="text-align:right;">
 
-635.1
+91.7
 </td>
 
 <td style="text-align:right;">
 
-197.0
+33.9
 </td>
 
 <td style="text-align:right;">
 
-345.8
+44.5
 </td>
 
 <td style="text-align:right;">
 
-1166.5
+189.1
 </td>
 
 <td style="text-align:left;">
@@ -5660,32 +4773,27 @@ a
 
 <td style="text-align:left;">
 
-2023.field v
-</td>
-
-<td style="text-align:left;">
-
 Tilled, cultivation
 </td>
 
 <td style="text-align:right;">
 
-835.0
+121.7
 </td>
 
 <td style="text-align:right;">
 
-253.3
+46.2
 </td>
 
 <td style="text-align:right;">
 
-460.8
+57.9
 </td>
 
 <td style="text-align:right;">
 
-1513.1
+256.0
 </td>
 
 <td style="text-align:left;">
@@ -5699,24 +4807,36 @@ a
 
 </table>
 
-##### ANOVA-style summary tables
+``` r
+emm_inrow_out <- emm_inrow_df |>
+  left_join(cld_inrow, by = "weed_trt") |>
+  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
+  mutate(
+    across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))
+  )
+```
+
+#### Global response summary table
 
 ``` r
-## 1) P-value summary (Location, Treatment, Interaction) -----------------
+## 0) Directory for all *in-row* weed-biomass tables ----------------------
 
-# Type-III tests for the selected in-row GLMM
+tab_dir_inrow <- here("analysis", "tables", "weed-biomass", "in-row")
+dir.create(tab_dir_inrow, showWarnings = FALSE, recursive = TRUE)
+
+
+# 1) P-value summary (Location, Treatment, Interaction) ------------------
+
 anova_inrow <- Anova(weed_inrow_glmm, type = 3)
 
 anova_inrow_df <- anova_inrow |>
   as.data.frame() |>
   tibble::rownames_to_column("Effect")
 
-# Extract Wald p-values from the selected model
 p_site_inrow <- anova_inrow_df$`Pr(>Chisq)`[anova_inrow_df$Effect == "site_year"]
 p_trt_inrow  <- anova_inrow_df$`Pr(>Chisq)`[anova_inrow_df$Effect == "weed_trt"]
-p_int_inrow  <- anova_inrow_df$`Pr(>Chisq)`[anova_inrow_df$Effect == "weed_trt:site_year"]
+p_int_inrow3 <- anova_inrow_df$`Pr(>Chisq)`[anova_inrow_df$Effect == "weed_trt:site_year"]
 
-# Always include Location and Treatment rows
 pvals_inrow <- tibble(
   Effect = c(
     "Location (site_year)",
@@ -5725,13 +4845,13 @@ pvals_inrow <- tibble(
   p_raw = c(p_site_inrow, p_trt_inrow)
 )
 
-# Only include the interaction row if the interaction model was selected
-if (chosen_model_name_inrow == "Interaction: weed_trt * site_year") {
+# Only include the interaction row if the *selected* primary model uses the interaction
+if (primary_model_name_inrow == "Interaction: weed_trt * site_year") {
   pvals_inrow <- bind_rows(
     pvals_inrow,
     tibble(
       Effect = "Location × Treatment",
-      p_raw  = p_int_inrow
+      p_raw  = p_int_inrow3
     )
   )
 }
@@ -5746,94 +4866,18 @@ pvals_inrow <- pvals_inrow |>
   ) |>
   select(Effect, `P-value`)
 
-pvals_inrow |>
-  kable(
-    caption   = "In-row weed biomass (kg ha⁻¹): P-values for location and treatment (and interaction if included in the selected model)",
-    col.names = c("Effect", "P-value")
-  ) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
+# Save ANOVA p-value summary
+readr::write_csv(
+  pvals_inrow,
+  file.path(tab_dir_inrow, "tab_inrow-wbm_Anova_pvals.csv")
+)
 
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 
-<caption>
-
-In-row weed biomass (kg ha⁻¹): P-values for location and treatment (and
-interaction if included in the selected model)
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-Effect
-</th>
-
-<th style="text-align:left;">
-
-P-value
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-Location (site_year)
-</td>
-
-<td style="text-align:left;">
-
-\<0.01
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Treatment (weed_trt)
-</td>
-
-<td style="text-align:left;">
-
-\<0.01
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Location × Treatment
-</td>
-
-<td style="text-align:left;">
-
-0.025
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-``` r
-## 1b) Likelihood-ratio test: additive vs interaction -------------------
+## 1b) Likelihood-ratio test: additive vs interaction --------------------
 
 lrt_table_inrow <- tibble(
-  Test    = "LRT (additive vs interaction)",
-  p_raw   = lrt_inrow$`Pr(>Chisq)`[2]
+  Test  = "LRT (additive vs interaction)",
+  p_raw = p_int_inrow   # from your in-row model selection chunk
 ) |>
   mutate(
     `P-value` = case_when(
@@ -5844,9 +4888,15 @@ lrt_table_inrow <- tibble(
   ) |>
   select(Test, `P-value`)
 
+# Save LRT summary
+readr::write_csv(
+  lrt_table_inrow,
+  file.path(tab_dir_inrow, "tab_inrow-wbm_LRT_add-vs-int.csv")
+)
+
 lrt_table_inrow |>
   kable(
-    caption   = "In-row weed biomass (kg ha⁻¹): Likelihood-ratio test comparing additive vs interaction models",
+    caption   = "In-row weed biomass (kg ha^-1): Likelihood-ratio test comparing additive vs interaction models",
     col.names = c("Test", "P-value")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -5856,7 +4906,7 @@ lrt_table_inrow |>
 
 <caption>
 
-In-row weed biomass (kg ha⁻¹): Likelihood-ratio test comparing additive
+In-row weed biomass (kg ha^-1): Likelihood-ratio test comparing additive
 vs interaction models
 </caption>
 
@@ -5901,22 +4951,19 @@ LRT (additive vs interaction)
 ``` r
 ## 2) Location block: site-year means (model + raw) ----------------------
 
-# Model-based emmeans by site_year (response scale)
 emm_loc_inrow <- emmeans(
   weed_inrow_glmm,
   ~ site_year,
   type = "response"
 )
 
-emm_loc_inrow_df <- summary(emm_loc_inrow) |>
-  as_tibble() |>
+emm_loc_inrow_df <- as_tibble(emm_loc_inrow) |>
   mutate(
     site_year  = as.factor(site_year),
-    model_mean = response
+    model_mean = response   # kg ha^-1
   ) |>
   select(site_year, model_mean)
 
-# CLDs for site_year (a = highest)
 cld_loc_inrow <- cld(
   emm_loc_inrow,
   adjust   = "none",
@@ -5931,7 +4978,6 @@ cld_loc_inrow <- cld(
   ) |>
   select(site_year, loc_CLD)
 
-# Raw means by site_year
 raw_loc_inrow <- weed_biomass_clean |>
   group_by(site_year) |>
   summarise(
@@ -5950,9 +4996,15 @@ loc_summary_inrow <- emm_loc_inrow_df |>
   ) |>
   arrange(site_year)
 
+# Save location summary
+readr::write_csv(
+  loc_summary_inrow,
+  file.path(tab_dir_inrow, "tab_inrow-wbm_location_means_CLD.csv")
+)
+
 loc_summary_inrow |>
   kable(
-    caption   = "In-row weed biomass (kg ha⁻¹): location (site-year) means with CLDs",
+    caption   = "In-row weed biomass (kg ha^-1): location (site-year) means with CLDs",
     col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -5962,7 +5014,7 @@ loc_summary_inrow |>
 
 <caption>
 
-In-row weed biomass (kg ha⁻¹): location (site-year) means with CLDs
+In-row weed biomass (kg ha^-1): location (site-year) means with CLDs
 </caption>
 
 <thead>
@@ -6009,12 +5061,12 @@ Raw CLD
 
 <td style="text-align:right;">
 
-0.0
+4.7
 </td>
 
 <td style="text-align:left;">
 
-ab
+b
 </td>
 
 <td style="text-align:right;">
@@ -6024,7 +5076,7 @@ ab
 
 <td style="text-align:left;">
 
-ab
+b
 </td>
 
 </tr>
@@ -6038,7 +5090,7 @@ ab
 
 <td style="text-align:right;">
 
-28.5
+23.3
 </td>
 
 <td style="text-align:left;">
@@ -6067,7 +5119,7 @@ b
 
 <td style="text-align:right;">
 
-184.5
+185.8
 </td>
 
 <td style="text-align:left;">
@@ -6094,23 +5146,20 @@ a
 ``` r
 ## 3) Treatment block: means (model + raw) -------------------------------
 
-# emmeans for treatment (response scale)
 emm_inrow <- emmeans(
   weed_inrow_glmm,
   ~ weed_trt,
   type = "response"
 )
 
-emm_trt_inrow_df <- summary(emm_inrow) |>
-  as_tibble() |>
+emm_trt_inrow_df <- as_tibble(emm_inrow) |>
   mutate(
     weed_trt   = factor(weed_trt, levels = mow_levels),
-    model_mean = response
+    model_mean = response   # kg ha^-1
   ) |>
   select(weed_trt, model_mean)
 
-# CLDs for treatment (a = highest)
-cld_inrow <- cld(
+cld_inrow_trt <- cld(
   emm_inrow,
   adjust   = "none",
   Letters  = letters,
@@ -6124,7 +5173,6 @@ cld_inrow <- cld(
   ) |>
   select(weed_trt, trt_CLD)
 
-# Raw means by treatment
 raw_trt_inrow <- weed_biomass_clean |>
   group_by(weed_trt) |>
   summarise(
@@ -6134,7 +5182,7 @@ raw_trt_inrow <- weed_biomass_clean |>
   mutate(weed_trt = factor(weed_trt, levels = mow_levels))
 
 trt_summary_inrow <- emm_trt_inrow_df |>
-  left_join(cld_inrow, by = "weed_trt") |>
+  left_join(cld_inrow_trt, by = "weed_trt") |>
   left_join(raw_trt_inrow, by = "weed_trt") |>
   mutate(
     model_mean = round(model_mean, 1),
@@ -6143,9 +5191,15 @@ trt_summary_inrow <- emm_trt_inrow_df |>
   ) |>
   arrange(weed_trt)
 
+# Save treatment summary
+readr::write_csv(
+  trt_summary_inrow,
+  file.path(tab_dir_inrow, "tab_inrow-wbm_treatment_means_CLD.csv")
+)
+
 trt_summary_inrow |>
   kable(
-    caption   = "In-row weed biomass (kg ha⁻¹): treatment means with CLDs",
+    caption   = "In-row weed biomass (kg ha^-1): treatment means with CLDs",
     col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -6155,7 +5209,7 @@ trt_summary_inrow |>
 
 <caption>
 
-In-row weed biomass (kg ha⁻¹): treatment means with CLDs
+In-row weed biomass (kg ha^-1): treatment means with CLDs
 </caption>
 
 <thead>
@@ -6202,12 +5256,12 @@ Rolled, no control
 
 <td style="text-align:right;">
 
-0.0
+3.8
 </td>
 
 <td style="text-align:left;">
 
-ab
+c
 </td>
 
 <td style="text-align:right;">
@@ -6217,7 +5271,7 @@ ab
 
 <td style="text-align:left;">
 
-ab
+c
 </td>
 
 </tr>
@@ -6231,7 +5285,7 @@ Rolled, mowing
 
 <td style="text-align:right;">
 
-8.8
+16.6
 </td>
 
 <td style="text-align:left;">
@@ -6260,7 +5314,7 @@ Rolled, high-residue cultivation
 
 <td style="text-align:right;">
 
-13.9
+21.6
 </td>
 
 <td style="text-align:left;">
@@ -6289,7 +5343,7 @@ Tilled, mowing
 
 <td style="text-align:right;">
 
-81.6
+91.7
 </td>
 
 <td style="text-align:left;">
@@ -6318,7 +5372,7 @@ Tilled, cultivation
 
 <td style="text-align:right;">
 
-81.5
+121.7
 </td>
 
 <td style="text-align:left;">
@@ -6345,23 +5399,20 @@ a
 ``` r
 ## 4) Interaction block: site-year × treatment means ---------------------
 
-# Model emmeans by treatment within site_year (response scale)
 emm_sy_inrow <- emmeans(
   weed_inrow_glmm,
   ~ weed_trt | site_year,
   type = "response"
 )
 
-emm_sy_inrow_df <- summary(emm_sy_inrow) |>
-  as_tibble() |>
+emm_sy_inrow_df <- as_tibble(emm_sy_inrow) |>
   mutate(
     weed_trt   = factor(weed_trt, levels = mow_levels),
     site_year  = as.factor(site_year),
-    model_mean = response
+    model_mean = response   # kg ha^-1
   ) |>
   select(site_year, weed_trt, model_mean)
 
-# CLDs within each site_year (a = highest within that site_year)
 cld_sy_inrow <- cld(
   emm_sy_inrow,
   adjust   = "none",
@@ -6377,7 +5428,6 @@ cld_sy_inrow <- cld(
   ) |>
   select(site_year, weed_trt, int_CLD)
 
-# Raw means by site_year × treatment
 raw_sy_inrow <- weed_biomass_clean |>
   group_by(site_year, weed_trt) |>
   summarise(
@@ -6399,9 +5449,15 @@ int_summary_inrow <- emm_sy_inrow_df |>
   ) |>
   arrange(site_year, weed_trt)
 
+# Save interaction summary
+readr::write_csv(
+  int_summary_inrow,
+  file.path(tab_dir_inrow, "tab_inrow-wbm_site-year_treatment_means_CLD.csv")
+)
+
 int_summary_inrow |>
   kable(
-    caption   = "In-row weed biomass (kg ha⁻¹): site-year × treatment means with CLDs",
+    caption   = "In-row weed biomass (kg ha^-1): site-year × treatment means with CLDs",
     col.names = c(
       "Site-year", "Treatment",
       "Model mean", "Model CLD",
@@ -6415,7 +5471,7 @@ int_summary_inrow |>
 
 <caption>
 
-In-row weed biomass (kg ha⁻¹): site-year × treatment means with CLDs
+In-row weed biomass (kg ha^-1): site-year × treatment means with CLDs
 </caption>
 
 <thead>
@@ -6472,12 +5528,12 @@ Rolled, no control
 
 <td style="text-align:right;">
 
-0.0
+0.7
 </td>
 
 <td style="text-align:left;">
 
-ab
+c
 </td>
 
 <td style="text-align:right;">
@@ -6487,7 +5543,7 @@ ab
 
 <td style="text-align:left;">
 
-ab
+c
 </td>
 
 </tr>
@@ -6506,7 +5562,7 @@ Rolled, mowing
 
 <td style="text-align:right;">
 
-0.1
+2.9
 </td>
 
 <td style="text-align:left;">
@@ -6540,7 +5596,7 @@ Rolled, high-residue cultivation
 
 <td style="text-align:right;">
 
-0.4
+3.7
 </td>
 
 <td style="text-align:left;">
@@ -6574,7 +5630,7 @@ Tilled, mowing
 
 <td style="text-align:right;">
 
-18.3
+15.9
 </td>
 
 <td style="text-align:left;">
@@ -6608,7 +5664,7 @@ Tilled, cultivation
 
 <td style="text-align:right;">
 
-51.4
+21.0
 </td>
 
 <td style="text-align:left;">
@@ -6642,12 +5698,12 @@ Rolled, no control
 
 <td style="text-align:right;">
 
-17.7
+3.3
 </td>
 
 <td style="text-align:left;">
 
-a
+c
 </td>
 
 <td style="text-align:right;">
@@ -6657,7 +5713,7 @@ a
 
 <td style="text-align:left;">
 
-a
+c
 </td>
 
 </tr>
@@ -6676,12 +5732,12 @@ Rolled, mowing
 
 <td style="text-align:right;">
 
-44.6
+14.1
 </td>
 
 <td style="text-align:left;">
 
-a
+b
 </td>
 
 <td style="text-align:right;">
@@ -6691,7 +5747,7 @@ a
 
 <td style="text-align:left;">
 
-a
+b
 </td>
 
 </tr>
@@ -6710,12 +5766,12 @@ Rolled, high-residue cultivation
 
 <td style="text-align:right;">
 
-40.2
+18.4
 </td>
 
 <td style="text-align:left;">
 
-a
+b
 </td>
 
 <td style="text-align:right;">
@@ -6725,7 +5781,7 @@ a
 
 <td style="text-align:left;">
 
-a
+b
 </td>
 
 </tr>
@@ -6744,7 +5800,7 @@ Tilled, mowing
 
 <td style="text-align:right;">
 
-46.8
+78.2
 </td>
 
 <td style="text-align:left;">
@@ -6778,7 +5834,7 @@ Tilled, cultivation
 
 <td style="text-align:right;">
 
-12.6
+103.8
 </td>
 
 <td style="text-align:left;">
@@ -6812,7 +5868,7 @@ Rolled, no control
 
 <td style="text-align:right;">
 
-23.4
+26.1
 </td>
 
 <td style="text-align:left;">
@@ -6846,7 +5902,7 @@ Rolled, mowing
 
 <td style="text-align:right;">
 
-112.7
+112.5
 </td>
 
 <td style="text-align:left;">
@@ -6880,7 +5936,7 @@ Rolled, high-residue cultivation
 
 <td style="text-align:right;">
 
-153.0
+146.4
 </td>
 
 <td style="text-align:left;">
@@ -6914,7 +5970,7 @@ Tilled, mowing
 
 <td style="text-align:right;">
 
-635.1
+622.7
 </td>
 
 <td style="text-align:left;">
@@ -6948,7 +6004,7 @@ Tilled, cultivation
 
 <td style="text-align:right;">
 
-835.0
+826.5
 </td>
 
 <td style="text-align:left;">
@@ -6972,558 +6028,43 @@ a
 
 </table>
 
-#### 2023 only
-
 ``` r
-#### 2023 Field V — in-row weed biomass: model testing / selection
+## 5) Model-info row for global response summary -------------------------
 
-options(contrasts = c("contr.sum", "contr.poly"))
-
-# Model formula: in-row instead of total (single site-year, so no site_year term)
-form_v23_inrow <- inrow_weed_biomass_kg_ha ~ weed_trt + (1 | block)
-
-## 1) Candidate families / structures -----------------------------------
-
-m_v23_inrow_tw <- glmmTMB(
-  formula = form_v23_inrow,
-  family  = tweedie(link = "log"),
-  data    = weed_biomass_field_v_2023
-)
-
-m_v23_inrow_nb <- glmmTMB(
-  formula = form_v23_inrow,
-  family  = nbinom2(link = "log"),
-  data    = weed_biomass_field_v_2023
-)
-
-m_v23_inrow_tw_zi <- glmmTMB(
-  formula   = form_v23_inrow,
-  family    = tweedie(link = "log"),
-  ziformula = ~ 1,
-  data      = weed_biomass_field_v_2023
-)
-
-## 2) NA-safe AIC helper -------------------------------------------------
-
-safe_aic <- function(mod) {
-  out <- try(AIC(mod), silent = TRUE)
-  if (inherits(out, "try-error")) return(NA_real_)
-  out
-}
-
-aic_v23_inrow <- tibble(
-  model = c(
-    "V23 INROW: Tweedie",
-    "V23 INROW: NB2",
-    "V23 INROW: Tweedie + ZI"
+model_info_inrow <- tibble::tibble(
+  response_label    = "In-row weed biomass (kg ha^-1), model-predicted means*",
+  family_structure  = best_all_inrow_n,
+  fixed_effects     = primary_model_name_inrow,
+  random_effects    = "(1 | site_year:block)",
+  AIC_additive      = round(AIC_add_inrow, 2),
+  AIC_interaction   = round(AIC_int_inrow, 2),
+  deltaAIC_add_int  = round(deltaAIC_inrow, 2),
+  LRT_p_int_raw     = p_int_inrow,
+  LRT_p_int_label   = dplyr::case_when(
+    p_int_inrow < 0.001 ~ "<0.001",
+    p_int_inrow < 0.01  ~ "<0.01",
+    TRUE                ~ sprintf("%.3f", p_int_inrow)
   ),
-  AIC = c(
-    safe_aic(m_v23_inrow_tw),
-    safe_aic(m_v23_inrow_nb),
-    safe_aic(m_v23_inrow_tw_zi)
-  )
+  interaction_class = interaction_class_inrow
 )
 
-## 3) Pick best family (require > 2 AIC units better) -------------------
-
-best_v23_inrow      <- m_v23_inrow_tw
-best_v23_inrow_name <- "V23 INROW: Tweedie"
-best_aic_v23_inrow  <- safe_aic(m_v23_inrow_tw)
-
-# Start from Tweedie and only move if clearly better (> 2 AIC units)
-cands_v23_inrow <- list(
-  "V23 INROW: NB2"          = m_v23_inrow_nb,
-  "V23 INROW: Tweedie + ZI" = m_v23_inrow_tw_zi
-)
-
-for (nm in names(cands_v23_inrow)) {
-  this_aic <- safe_aic(cands_v23_inrow[[nm]])
-  if (is.finite(this_aic) && (this_aic + 2 < best_aic_v23_inrow)) {
-    best_v23_inrow      <- cands_v23_inrow[[nm]]
-    best_v23_inrow_name <- nm
-    best_aic_v23_inrow  <- this_aic
-  }
-}
-
-aic_v23_inrow_out <- aic_v23_inrow |>
-  mutate(
-    deltaAIC = AIC - min(AIC, na.rm = TRUE),
-    Selected = if_else(model == best_v23_inrow_name, "Yes", "")
-  )
-
-kable(
-  aic_v23_inrow_out,
-  digits  = 2,
-  caption = "In-row weed biomass (kg ha⁻¹), 2023 Field V: model comparison (Tweedie vs NB2 vs Tweedie + ZI)"
-) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
-
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
-
-<caption>
-
-In-row weed biomass (kg ha⁻¹), 2023 Field V: model comparison (Tweedie
-vs NB2 vs Tweedie + ZI)
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-model
-</th>
-
-<th style="text-align:right;">
-
-AIC
-</th>
-
-<th style="text-align:right;">
-
-deltaAIC
-</th>
-
-<th style="text-align:left;">
-
-Selected
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-V23 INROW: Tweedie
-</td>
-
-<td style="text-align:right;">
-
-256.60
-</td>
-
-<td style="text-align:right;">
-
-0.00
-</td>
-
-<td style="text-align:left;">
-
-Yes
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-V23 INROW: NB2
-</td>
-
-<td style="text-align:right;">
-
-256.78
-</td>
-
-<td style="text-align:right;">
-
-0.18
-</td>
-
-<td style="text-align:left;">
-
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-V23 INROW: Tweedie + ZI
-</td>
-
-<td style="text-align:right;">
-
-258.60
-</td>
-
-<td style="text-align:right;">
-
-2.00
-</td>
-
-<td style="text-align:left;">
-
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-``` r
-cat(
-  "\nSelected model for 2023 Field V in-row weed biomass (used in downstream emmeans/plots):\n  ",
-  best_v23_inrow_name,
-  sprintf("  [AIC = %.2f]\n", best_aic_v23_inrow)
+readr::write_csv(
+  model_info_inrow,
+  file.path(tab_dir_inrow, "tab_inrow-wbm_model-info.csv")
 )
 ```
 
-    ## 
-    ## Selected model for 2023 Field V in-row weed biomass (used in downstream emmeans/plots):
-    ##    V23 INROW: Tweedie   [AIC = 256.60]
+### Inter-row weed biomass
 
 ``` r
-# Store final model object for later use
-weed_inrow_glmm_v23 <- best_v23_inrow
-
-## 4) Diagnostics + Type-III tests --------------------------------------
-
-set.seed(123)
-res_v23_inrow <- DHARMa::simulateResiduals(weed_inrow_glmm_v23)
-plot(res_v23_inrow)
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-14-1.png)<!-- -->
-
-``` r
-DHARMa::testDispersion(weed_inrow_glmm_v23)
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-14-2.png)<!-- -->
-
-    ## 
-    ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
-    ##  simulated
-    ## 
-    ## data:  simulationOutput
-    ## dispersion = 0.58647, p-value = 0.712
-    ## alternative hypothesis: two.sided
-
-``` r
-DHARMa::testZeroInflation(weed_inrow_glmm_v23)
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-14-3.png)<!-- -->
-
-    ## 
-    ##  DHARMa zero-inflation test via comparison to expected zeros with
-    ##  simulation under H0 = fitted model
-    ## 
-    ## data:  simulationOutput
-    ## ratioObsSim = 0, p-value = 1
-    ## alternative hypothesis: two.sided
-
-``` r
-car::Anova(weed_inrow_glmm_v23, type = 3)
-```
-
-    ## Analysis of Deviance Table (Type III Wald chisquare tests)
-    ## 
-    ## Response: inrow_weed_biomass_kg_ha
-    ##              Chisq Df Pr(>Chisq)    
-    ## (Intercept) 678.56  1  < 2.2e-16 ***
-    ## weed_trt    103.12  4  < 2.2e-16 ***
-    ## ---
-    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-##### Post-hoc summary table
-
-``` r
-### In-row weed biomass (kg ha⁻¹), 2023 Field V — Fisher's LSD CLDs
-
-# Estimated marginal means for weed_trt on the response scale (kg/ha)
-emm_inrow_v23 <- emmeans(
-  weed_inrow_glmm_v23,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale
-)
-
-# Tidy emmeans for reporting (rename columns to match other RMDs)
-emm_inrow_v23_df <- as_tibble(emm_inrow_v23) |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels)
-  ) |>
-  rename(
-    emmean = response,     # mean on response scale (kg/ha)
-    ci_low = asymp.LCL,    # lower CI
-    ci_high = asymp.UCL    # upper CI
-  )
-
-# Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
-cld_inrow_v23 <- cld(
-  emm_inrow_v23,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE   # so "a" = highest biomass group(s)
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# Join emmeans + CLDs and format for reporting
-emm_inrow_v23_df |>
-  left_join(cld_inrow_v23, by = "weed_trt") |>
-  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
-  mutate(
-    across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))
-  ) |>
-  kable(
-    caption   = "Estimated in-row weed biomass (kg ha⁻¹) in 2023 Field V with 95% CI and Fisher's LSD group letters",
-    col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
-  ) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
-
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
-
-<caption>
-
-Estimated in-row weed biomass (kg ha⁻¹) in 2023 Field V with 95% CI and
-Fisher’s LSD group letters
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-Treatment
-</th>
-
-<th style="text-align:right;">
-
-Mean
-</th>
-
-<th style="text-align:right;">
-
-SE
-</th>
-
-<th style="text-align:right;">
-
-Lower CI
-</th>
-
-<th style="text-align:right;">
-
-Upper CI
-</th>
-
-<th style="text-align:left;">
-
-Group
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-Rolled, no control
-</td>
-
-<td style="text-align:right;">
-
-23.5
-</td>
-
-<td style="text-align:right;">
-
-9.7
-</td>
-
-<td style="text-align:right;">
-
-10.5
-</td>
-
-<td style="text-align:right;">
-
-52.7
-</td>
-
-<td style="text-align:left;">
-
-c
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Rolled, mowing
-</td>
-
-<td style="text-align:right;">
-
-115.5
-</td>
-
-<td style="text-align:right;">
-
-37.8
-</td>
-
-<td style="text-align:right;">
-
-60.9
-</td>
-
-<td style="text-align:right;">
-
-219.2
-</td>
-
-<td style="text-align:left;">
-
-b
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Rolled, high-residue cultivation
-</td>
-
-<td style="text-align:right;">
-
-157.0
-</td>
-
-<td style="text-align:right;">
-
-49.1
-</td>
-
-<td style="text-align:right;">
-
-85.0
-</td>
-
-<td style="text-align:right;">
-
-289.9
-</td>
-
-<td style="text-align:left;">
-
-b
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Tilled, mowing
-</td>
-
-<td style="text-align:right;">
-
-639.5
-</td>
-
-<td style="text-align:right;">
-
-163.2
-</td>
-
-<td style="text-align:right;">
-
-387.8
-</td>
-
-<td style="text-align:right;">
-
-1054.7
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Tilled, cultivation
-</td>
-
-<td style="text-align:right;">
-
-835.8
-</td>
-
-<td style="text-align:right;">
-
-206.2
-</td>
-
-<td style="text-align:right;">
-
-515.3
-</td>
-
-<td style="text-align:right;">
-
-1355.6
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-### Interrow weed biomass
-
-#### Pooled
-
-``` r
-#### Interrow pooled (all site-years): model testing / selection
+#### Inter-row pooled (all site-years): model testing / selection ----------
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
-# Model formula: interrow instead of total (full interaction)
+# Model formula: inter-row instead of total (full interaction)
 form_all_interrow <- interrow_weed_biomass_kg_ha ~ weed_trt * site_year + (1 | site_year:block)
 
-## 1) Candidate families / structures (all with interaction) ------------
+## 1) Candidate families / structures (all with interaction) -------------
 
 m_all_interrow_tw <- glmmTMB(
   formula = form_all_interrow,
@@ -7552,7 +6093,7 @@ m_all_interrow_tw_disp <- glmmTMB(
   data        = weed_biomass_clean
 )
 
-# NA-safe AIC helper (reuse if already defined) -------------------------
+# NA-safe AIC helper (omit if already defined earlier) -------------------
 safe_aic <- function(mod) {
   out <- try(AIC(mod), silent = TRUE)
   if (inherits(out, "try-error")) return(NA_real_)
@@ -7577,7 +6118,7 @@ aic_all_interrow <- tibble(
 kable(
   aic_all_interrow,
   digits  = 2,
-  caption = "Interrow weed biomass (kg ha⁻¹): candidate distributional families"
+  caption = "Inter-row weed biomass (kg ha^-1): candidate distributional families"
 ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -7586,7 +6127,7 @@ kable(
 
 <caption>
 
-Interrow weed biomass (kg ha⁻¹): candidate distributional families
+Inter-row weed biomass (kg ha^-1): candidate distributional families
 </caption>
 
 <thead>
@@ -7670,7 +6211,7 @@ INTERROW: Tweedie + ZI + disp(site_year)
 </table>
 
 ``` r
-## 2) Choose best family (require > 2 AIC units better) -----------------
+## 2) Choose best family (require > 2 AIC units better) ------------------
 
 best_all_interrow   <- m_all_interrow_tw
 best_all_interrow_n <- "INTERROW: Tweedie"
@@ -7692,15 +6233,15 @@ for (nm in names(cands_interrow)) {
 }
 
 cat(
-  "Selected family/structure for interrow weed biomass (all site-years):",
+  "Selected family/structure for inter-row weed biomass (all site-years):",
   best_all_interrow_n, "\n"
 )
 ```
 
-    ## Selected family/structure for interrow weed biomass (all site-years): INTERROW: Tweedie
+    ## Selected family/structure for inter-row weed biomass (all site-years): INTERROW: Tweedie
 
 ``` r
-## 3) Within chosen family: additive vs interaction ---------------------
+## 3) Within chosen family: additive vs interaction ----------------------
 
 # Interaction model in chosen family
 interrow_int <- best_all_interrow
@@ -7711,36 +6252,55 @@ interrow_add <- update(
   . ~ weed_trt + site_year + (1 | site_year:block)
 )
 
-# AIC comparison
-aic_interrow <- tibble(
+# Compare additive vs interaction
+lrt_interrow    <- anova(interrow_add, interrow_int)
+p_int_interrow  <- lrt_interrow$`Pr(>Chisq)`[2]
+
+AIC_add_interrow   <- AIC(interrow_add)
+AIC_int_interrow   <- AIC(interrow_int)
+deltaAIC_interrow  <- AIC_add_interrow - AIC_int_interrow  # > 0 => interaction has lower AIC
+
+# Same decision rule as total & in-row -----------------------------------
+
+p_strong_interrow    <- 0.01  # strong evidence
+p_none_interrow      <- 0.20  # essentially none
+dAIC_strong_interrow <- 4     # substantial AIC drop
+
+interaction_class_interrow <- dplyr::case_when(
+  p_int_interrow < p_strong_interrow | deltaAIC_interrow >= dAIC_strong_interrow ~ "interaction",
+  p_int_interrow > p_none_interrow  & abs(deltaAIC_interrow) < 2                 ~ "additive",
+  TRUE                                                                          ~ "gray_zone"
+)
+
+primary_model_name_interrow <- dplyr::case_when(
+  interaction_class_interrow == "interaction" ~ "Interaction: weed_trt * site_year",
+  TRUE                                        ~ "Additive: weed_trt + site_year"
+)
+
+weed_interrow_glmm <- if (primary_model_name_interrow == "Interaction: weed_trt * site_year") {
+  interrow_int
+} else {
+  interrow_add
+}
+
+# AIC table for reporting
+aic_interrow_out <- tibble(
   model = c(
     "Additive: weed_trt + site_year",
     "Interaction: weed_trt * site_year"
   ),
-  AIC = c(AIC(interrow_add), AIC(interrow_int))
-)
-
-# Likelihood-ratio test for interaction
-lrt_interrow   <- anova(interrow_add, interrow_int)
-p_int_interrow <- lrt_interrow$`Pr(>Chisq)`[2]
-
-# Apply your rule: keep additive unless interaction clearly needed
-chosen_model_name_interrow <- if (p_int_interrow < 0.05) {
-  "Interaction: weed_trt * site_year"
-} else {
-  "Additive: weed_trt + site_year"
-}
-
-aic_interrow_out <- aic_interrow |>
+  AIC = c(AIC_add_interrow, AIC_int_interrow)
+) |>
   mutate(
-    deltaAIC = AIC - min(AIC),
-    Selected = if_else(model == chosen_model_name_interrow, "Yes", "")
+    deltaAIC                 = AIC - min(AIC),
+    Selected                 = if_else(model == primary_model_name_interrow, "Yes", ""),
+    Evidence_for_interaction = interaction_class_interrow
   )
 
 kable(
   aic_interrow_out,
   digits  = 2,
-  caption = "Interrow weed biomass (kg ha⁻¹): additive vs interaction (within chosen family)"
+  caption = "Inter-row weed biomass (kg ha^-1): additive vs interaction (within chosen family)"
 ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -7749,8 +6309,8 @@ kable(
 
 <caption>
 
-Interrow weed biomass (kg ha⁻¹): additive vs interaction (within chosen
-family)
+Inter-row weed biomass (kg ha^-1): additive vs interaction (within
+chosen family)
 </caption>
 
 <thead>
@@ -7775,6 +6335,11 @@ deltaAIC
 <th style="text-align:left;">
 
 Selected
+</th>
+
+<th style="text-align:left;">
+
+Evidence_for_interaction
 </th>
 
 </tr>
@@ -7804,6 +6369,11 @@ Additive: weed_trt + site_year
 
 </td>
 
+<td style="text-align:left;">
+
+interaction
+</td>
+
 </tr>
 
 <tr>
@@ -7828,6 +6398,11 @@ Interaction: weed_trt \* site_year
 Yes
 </td>
 
+<td style="text-align:left;">
+
+interaction
+</td>
+
 </tr>
 
 </tbody>
@@ -7835,35 +6410,35 @@ Yes
 </table>
 
 ``` r
-# Final interrow model used downstream
-weed_interrow_glmm <- if (p_int_interrow < 0.05) interrow_int else interrow_add
-
 cat(
-  "\nSelected model for interrow weed biomass (used in all downstream emmeans/plots):\n  ",
-  chosen_model_name_interrow,
-  sprintf("  [LRT p = %.3f]\n", p_int_interrow)
+  "\nSelected primary model for inter-row weed biomass (used in emmeans/plots):\n  ",
+  primary_model_name_interrow,
+  sprintf(
+    "  [LRT p = %.3f; ΔAIC (add - int) = %.2f; class = %s]\n",
+    p_int_interrow, deltaAIC_interrow, interaction_class_interrow
+  )
 )
 ```
 
     ## 
-    ## Selected model for interrow weed biomass (used in all downstream emmeans/plots):
-    ##    Interaction: weed_trt * site_year   [LRT p = 0.009]
+    ## Selected primary model for inter-row weed biomass (used in emmeans/plots):
+    ##    Interaction: weed_trt * site_year   [LRT p = 0.009; ΔAIC (add - int) = 4.42; class = interaction]
 
 ``` r
-## 4) Diagnostics + Type-III tests for chosen interrow model ------------
+## 4) Diagnostics + Type-III tests for chosen inter-row model -----------
 
 set.seed(123)
 res_interrow <- DHARMa::simulateResiduals(weed_interrow_glmm)
 plot(res_interrow)
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-16-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-13-1.png)<!-- -->
 
 ``` r
 DHARMa::testDispersion(weed_interrow_glmm)
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-16-2.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-13-2.png)<!-- -->
 
     ## 
     ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
@@ -7877,7 +6452,7 @@ DHARMa::testDispersion(weed_interrow_glmm)
 DHARMa::testZeroInflation(weed_interrow_glmm)
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-16-3.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-13-3.png)<!-- -->
 
     ## 
     ##  DHARMa zero-inflation test via comparison to expected zeros with
@@ -7905,60 +6480,53 @@ car::Anova(weed_interrow_glmm, type = 3)
 ##### Post-hoc summary table
 
 ``` r
-### Interrow weed biomass (kg ha⁻¹) with Fisher's LSD CLDs (by site-year)
+#### Post-hoc summary table
 
-# Because weed_trt × site_year is (potentially) important, we summarise treatment
-# effects within each site-year on the response scale (kg ha⁻¹).
+### Inter-row weed biomass (kg ha^-1) with Fisher's LSD CLDs
 
-# Estimated marginal means for weed_trt within site_year (response scale)
-emm_interrow_sy <- emmeans(
+# Estimated marginal means for weed_trt on the response scale (kg ha^-1)
+emm_interrow <- emmeans(
   weed_interrow_glmm,
-  ~ weed_trt | site_year,
-  type = "response"   # back-transform from link scale
+  ~ weed_trt,
+  type = "response"   # back-transform from log link
 )
 
-# Tidy emmeans for reporting (kg ha⁻¹)
-emm_interrow_sy_df <- summary(emm_interrow_sy) |>
-  as_tibble() |>
+# Tidy emmeans for reporting (rename columns to match other RMDs)
+emm_interrow_df <- as_tibble(emm_interrow) |>
   mutate(
-    site_year = factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels)
+    weed_trt = factor(weed_trt, levels = mow_levels)
   ) |>
   rename(
-    emmean = response,   # mean on response scale
-    ci_low = asymp.LCL,  # lower CI
-    ci_high = asymp.UCL  # upper CI
+    emmean  = response,   # mean on response scale
+    ci_low  = asymp.LCL,  # lower CI
+    ci_high = asymp.UCL   # upper CI
   )
 
-# Compact letter display (Fisher's LSD, no adjustment; "a" = highest within each site-year)
-cld_interrow_sy <- cld(
-  emm_interrow_sy,
+# Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
+cld_interrow <- cld(
+  emm_interrow,
   adjust   = "none",
   Letters  = letters,
   sort     = TRUE,
-  reversed = TRUE          # so "a" = highest biomass group(s)
+  reversed = TRUE   # so "a" = highest biomass group(s)
 ) |>
   as_tibble() |>
   mutate(
-    site_year = factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels),
-    .group    = str_trim(.group)
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
   ) |>
-  select(site_year, weed_trt, .group)
+  select(weed_trt, .group)
 
 # Join emmeans + CLDs and format for reporting
-table_interrow_sy <- emm_interrow_sy_df |>
-  left_join(cld_interrow_sy, by = c("site_year", "weed_trt")) |>
-  select(site_year, weed_trt, emmean, SE, ci_low, ci_high, .group) |>
+emm_interrow_df |>
+  left_join(cld_interrow, by = "weed_trt") |>
+  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
   mutate(
     across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))
   ) |>
-  arrange(site_year, weed_trt)
-
-table_interrow_sy |>
   kable(
-    caption   = "Estimated interrow weed biomass (kg ha⁻¹) by treatment within site-year (response scale) with 95% CI and Fisher's LSD group letters",
-    col.names = c("Site-year", "Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
+    caption   = "Estimated inter-row weed biomass (kg ha^-1) with 95% CI and Fisher's LSD group letters",
+    col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -7967,18 +6535,13 @@ table_interrow_sy |>
 
 <caption>
 
-Estimated interrow weed biomass (kg ha⁻¹) by treatment within site-year
-(response scale) with 95% CI and Fisher’s LSD group letters
+Estimated inter-row weed biomass (kg ha^-1) with 95% CI and Fisher’s LSD
+group letters
 </caption>
 
 <thead>
 
 <tr>
-
-<th style="text-align:left;">
-
-Site-year
-</th>
 
 <th style="text-align:left;">
 
@@ -8020,32 +6583,27 @@ Group
 
 <td style="text-align:left;">
 
-2024.field O2 east
-</td>
-
-<td style="text-align:left;">
-
 Rolled, no control
 </td>
 
 <td style="text-align:right;">
 
-105.4
+191.6
 </td>
 
 <td style="text-align:right;">
 
-70.3
+73.1
 </td>
 
 <td style="text-align:right;">
 
-28.5
+90.7
 </td>
 
 <td style="text-align:right;">
 
-389.6
+404.6
 </td>
 
 <td style="text-align:left;">
@@ -8059,71 +6617,27 @@ a
 
 <td style="text-align:left;">
 
-2024.field O2 east
-</td>
-
-<td style="text-align:left;">
-
 Rolled, mowing
 </td>
 
 <td style="text-align:right;">
 
-24.1
+39.8
 </td>
 
 <td style="text-align:right;">
 
-18.4
+16.7
 </td>
 
 <td style="text-align:right;">
 
-5.4
+17.5
 </td>
 
 <td style="text-align:right;">
 
-108.0
-</td>
-
-<td style="text-align:left;">
-
-ab
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 east
-</td>
-
-<td style="text-align:left;">
-
-Rolled, high-residue cultivation
-</td>
-
-<td style="text-align:right;">
-
-1.7
-</td>
-
-<td style="text-align:right;">
-
-2.0
-</td>
-
-<td style="text-align:right;">
-
-0.2
-</td>
-
-<td style="text-align:right;">
-
-17.6
+90.5
 </td>
 
 <td style="text-align:left;">
@@ -8137,149 +6651,27 @@ b
 
 <td style="text-align:left;">
 
-2024.field O2 east
-</td>
-
-<td style="text-align:left;">
-
-Tilled, mowing
+Rolled, high-residue cultivation
 </td>
 
 <td style="text-align:right;">
 
-120.3
+44.8
 </td>
 
 <td style="text-align:right;">
 
-72.2
+21.6
 </td>
 
 <td style="text-align:right;">
 
-37.1
+17.4
 </td>
 
 <td style="text-align:right;">
 
-389.9
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 east
-</td>
-
-<td style="text-align:left;">
-
-Tilled, cultivation
-</td>
-
-<td style="text-align:right;">
-
-25.4
-</td>
-
-<td style="text-align:right;">
-
-20.7
-</td>
-
-<td style="text-align:right;">
-
-5.2
-</td>
-
-<td style="text-align:right;">
-
-125.4
-</td>
-
-<td style="text-align:left;">
-
-ab
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 west
-</td>
-
-<td style="text-align:left;">
-
-Rolled, no control
-</td>
-
-<td style="text-align:right;">
-
-187.0
-</td>
-
-<td style="text-align:right;">
-
-115.2
-</td>
-
-<td style="text-align:right;">
-
-55.9
-</td>
-
-<td style="text-align:right;">
-
-625.5
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 west
-</td>
-
-<td style="text-align:left;">
-
-Rolled, mowing
-</td>
-
-<td style="text-align:right;">
-
-19.8
-</td>
-
-<td style="text-align:right;">
-
-16.1
-</td>
-
-<td style="text-align:right;">
-
-4.1
-</td>
-
-<td style="text-align:right;">
-
-97.3
+115.1
 </td>
 
 <td style="text-align:left;">
@@ -8293,71 +6685,27 @@ b
 
 <td style="text-align:left;">
 
-2024.field O2 west
-</td>
-
-<td style="text-align:left;">
-
-Rolled, high-residue cultivation
-</td>
-
-<td style="text-align:right;">
-
-186.0
-</td>
-
-<td style="text-align:right;">
-
-112.5
-</td>
-
-<td style="text-align:right;">
-
-56.9
-</td>
-
-<td style="text-align:right;">
-
-608.3
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2024.field O2 west
-</td>
-
-<td style="text-align:left;">
-
 Tilled, mowing
 </td>
 
 <td style="text-align:right;">
 
-156.9
+211.8
 </td>
 
 <td style="text-align:right;">
 
-89.8
+67.3
 </td>
 
 <td style="text-align:right;">
 
-51.1
+113.6
 </td>
 
 <td style="text-align:right;">
 
-481.6
+394.9
 </td>
 
 <td style="text-align:left;">
@@ -8368,11 +6716,6 @@ a
 </tr>
 
 <tr>
-
-<td style="text-align:left;">
-
-2024.field O2 west
-</td>
 
 <td style="text-align:left;">
 
@@ -8381,22 +6724,22 @@ Tilled, cultivation
 
 <td style="text-align:right;">
 
-0.4
+3.3
 </td>
 
 <td style="text-align:right;">
 
-0.6
+2.3
 </td>
 
 <td style="text-align:right;">
 
-0.0
+0.8
 </td>
 
 <td style="text-align:right;">
 
-8.2
+12.6
 </td>
 
 <td style="text-align:left;">
@@ -8406,223 +6749,40 @@ c
 
 </tr>
 
-<tr>
-
-<td style="text-align:left;">
-
-2023.field v
-</td>
-
-<td style="text-align:left;">
-
-Rolled, no control
-</td>
-
-<td style="text-align:right;">
-
-356.7
-</td>
-
-<td style="text-align:right;">
-
-182.9
-</td>
-
-<td style="text-align:right;">
-
-130.6
-</td>
-
-<td style="text-align:right;">
-
-974.4
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2023.field v
-</td>
-
-<td style="text-align:left;">
-
-Rolled, mowing
-</td>
-
-<td style="text-align:right;">
-
-131.7
-</td>
-
-<td style="text-align:right;">
-
-76.1
-</td>
-
-<td style="text-align:right;">
-
-42.5
-</td>
-
-<td style="text-align:right;">
-
-408.5
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2023.field v
-</td>
-
-<td style="text-align:left;">
-
-Rolled, high-residue cultivation
-</td>
-
-<td style="text-align:right;">
-
-286.0
-</td>
-
-<td style="text-align:right;">
-
-147.0
-</td>
-
-<td style="text-align:right;">
-
-104.5
-</td>
-
-<td style="text-align:right;">
-
-783.1
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2023.field v
-</td>
-
-<td style="text-align:left;">
-
-Tilled, mowing
-</td>
-
-<td style="text-align:right;">
-
-503.2
-</td>
-
-<td style="text-align:right;">
-
-237.7
-</td>
-
-<td style="text-align:right;">
-
-199.3
-</td>
-
-<td style="text-align:right;">
-
-1270.3
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-2023.field v
-</td>
-
-<td style="text-align:left;">
-
-Tilled, cultivation
-</td>
-
-<td style="text-align:right;">
-
-3.2
-</td>
-
-<td style="text-align:right;">
-
-3.5
-</td>
-
-<td style="text-align:right;">
-
-0.4
-</td>
-
-<td style="text-align:right;">
-
-27.1
-</td>
-
-<td style="text-align:left;">
-
-b
-</td>
-
-</tr>
-
 </tbody>
 
 </table>
 
-##### ANOVA-style summary tables
+``` r
+emm_interrow_out <- emm_interrow_df |>
+  left_join(cld_interrow, by = "weed_trt") |>
+  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
+  mutate(
+    across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))
+  )
+```
+
+#### Global response summary tabl
 
 ``` r
-## 1) P-value summary (Location, Treatment, Interaction) -----------------
+## 0) Directory for all *inter-row* weed-biomass tables -------------------
 
-# Type-III tests for the selected interrow GLMM
+tab_dir_interrow <- here("analysis", "tables", "weed-biomass", "inter-row")
+dir.create(tab_dir_interrow, showWarnings = FALSE, recursive = TRUE)
+
+
+# 1) P-value summary (Location, Treatment, Interaction) ------------------
+
 anova_interrow <- Anova(weed_interrow_glmm, type = 3)
 
 anova_interrow_df <- anova_interrow |>
   as.data.frame() |>
   tibble::rownames_to_column("Effect")
 
-# Extract Wald p-values from the selected model
 p_site_interrow <- anova_interrow_df$`Pr(>Chisq)`[anova_interrow_df$Effect == "site_year"]
 p_trt_interrow  <- anova_interrow_df$`Pr(>Chisq)`[anova_interrow_df$Effect == "weed_trt"]
-p_int_interrow  <- anova_interrow_df$`Pr(>Chisq)`[anova_interrow_df$Effect == "weed_trt:site_year"]
+p_int_interrow3 <- anova_interrow_df$`Pr(>Chisq)`[anova_interrow_df$Effect == "weed_trt:site_year"]
 
-# Always include Location and Treatment rows
 pvals_interrow <- tibble(
   Effect = c(
     "Location (site_year)",
@@ -8631,13 +6791,13 @@ pvals_interrow <- tibble(
   p_raw = c(p_site_interrow, p_trt_interrow)
 )
 
-# Only include the interaction row if the interaction model was selected
-if (chosen_model_name_interrow == "Interaction: weed_trt * site_year") {
+# Only include the interaction row if the *selected* primary model uses the interaction
+if (primary_model_name_interrow == "Interaction: weed_trt * site_year") {
   pvals_interrow <- bind_rows(
     pvals_interrow,
     tibble(
       Effect = "Location × Treatment",
-      p_raw  = p_int_interrow
+      p_raw  = p_int_interrow3
     )
   )
 }
@@ -8652,94 +6812,18 @@ pvals_interrow <- pvals_interrow |>
   ) |>
   select(Effect, `P-value`)
 
-pvals_interrow |>
-  kable(
-    caption   = "Interrow weed biomass (kg ha⁻¹): P-values for location and treatment (and interaction if included in the selected model)",
-    col.names = c("Effect", "P-value")
-  ) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
+# Save ANOVA p-value summary
+readr::write_csv(
+  pvals_interrow,
+  file.path(tab_dir_interrow, "tab_interrow-wbm_Anova_pvals.csv")
+)
 
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 
-<caption>
-
-Interrow weed biomass (kg ha⁻¹): P-values for location and treatment
-(and interaction if included in the selected model)
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-Effect
-</th>
-
-<th style="text-align:left;">
-
-P-value
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-Location (site_year)
-</td>
-
-<td style="text-align:left;">
-
-0.011
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Treatment (weed_trt)
-</td>
-
-<td style="text-align:left;">
-
-\<0.001
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Location × Treatment
-</td>
-
-<td style="text-align:left;">
-
-\<0.01
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-``` r
-## 1b) Likelihood-ratio test: additive vs interaction -------------------
+## 1b) Likelihood-ratio test: additive vs interaction --------------------
 
 lrt_table_interrow <- tibble(
-  Test    = "LRT (additive vs interaction)",
-  p_raw   = lrt_interrow$`Pr(>Chisq)`[2]
+  Test  = "LRT (additive vs interaction)",
+  p_raw = p_int_interrow   # from your inter-row model selection chunk
 ) |>
   mutate(
     `P-value` = case_when(
@@ -8750,9 +6834,15 @@ lrt_table_interrow <- tibble(
   ) |>
   select(Test, `P-value`)
 
+# Save LRT summary
+readr::write_csv(
+  lrt_table_interrow,
+  file.path(tab_dir_interrow, "tab_interrow-wbm_LRT_add-vs-int.csv")
+)
+
 lrt_table_interrow |>
   kable(
-    caption   = "Interrow weed biomass (kg ha⁻¹): Likelihood-ratio test comparing additive vs interaction models",
+    caption   = "Inter-row weed biomass (kg ha^-1): Likelihood-ratio test comparing additive vs interaction models",
     col.names = c("Test", "P-value")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -8762,7 +6852,7 @@ lrt_table_interrow |>
 
 <caption>
 
-Interrow weed biomass (kg ha⁻¹): Likelihood-ratio test comparing
+Inter-row weed biomass (kg ha^-1): Likelihood-ratio test comparing
 additive vs interaction models
 </caption>
 
@@ -8807,22 +6897,19 @@ LRT (additive vs interaction)
 ``` r
 ## 2) Location block: site-year means (model + raw) ----------------------
 
-# Model-based emmeans by site_year (response scale)
 emm_loc_interrow <- emmeans(
   weed_interrow_glmm,
   ~ site_year,
   type = "response"
 )
 
-emm_loc_interrow_df <- summary(emm_loc_interrow) |>
-  as_tibble() |>
+emm_loc_interrow_df <- as_tibble(emm_loc_interrow) |>
   mutate(
     site_year  = as.factor(site_year),
-    model_mean = response
+    model_mean = response   # kg ha^-1
   ) |>
   select(site_year, model_mean)
 
-# CLDs for site_year (a = highest)
 cld_loc_interrow <- cld(
   emm_loc_interrow,
   adjust   = "none",
@@ -8837,7 +6924,6 @@ cld_loc_interrow <- cld(
   ) |>
   select(site_year, loc_CLD)
 
-# Raw means by site_year
 raw_loc_interrow <- weed_biomass_clean |>
   group_by(site_year) |>
   summarise(
@@ -8856,9 +6942,15 @@ loc_summary_interrow <- emm_loc_interrow_df |>
   ) |>
   arrange(site_year)
 
+# Save location summary
+readr::write_csv(
+  loc_summary_interrow,
+  file.path(tab_dir_interrow, "tab_interrow-wbm_location_means_CLD.csv")
+)
+
 loc_summary_interrow |>
   kable(
-    caption   = "Interrow weed biomass (kg ha⁻¹): location (site-year) means with CLDs",
+    caption   = "Inter-row weed biomass (kg ha^-1): location (site-year) means with CLDs",
     col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -8868,7 +6960,7 @@ loc_summary_interrow |>
 
 <caption>
 
-Interrow weed biomass (kg ha⁻¹): location (site-year) means with CLDs
+Inter-row weed biomass (kg ha^-1): location (site-year) means with CLDs
 </caption>
 
 <thead>
@@ -9000,23 +7092,20 @@ a
 ``` r
 ## 3) Treatment block: means (model + raw) -------------------------------
 
-# emmeans for treatment (response scale)
 emm_interrow <- emmeans(
   weed_interrow_glmm,
   ~ weed_trt,
   type = "response"
 )
 
-emm_trt_interrow_df <- summary(emm_interrow) |>
-  as_tibble() |>
+emm_trt_interrow_df <- as_tibble(emm_interrow) |>
   mutate(
     weed_trt   = factor(weed_trt, levels = mow_levels),
-    model_mean = response
+    model_mean = response   # kg ha^-1
   ) |>
   select(weed_trt, model_mean)
 
-# CLDs for treatment (a = highest)
-cld_interrow <- cld(
+cld_interrow_trt <- cld(
   emm_interrow,
   adjust   = "none",
   Letters  = letters,
@@ -9030,7 +7119,6 @@ cld_interrow <- cld(
   ) |>
   select(weed_trt, trt_CLD)
 
-# Raw means by treatment
 raw_trt_interrow <- weed_biomass_clean |>
   group_by(weed_trt) |>
   summarise(
@@ -9040,7 +7128,7 @@ raw_trt_interrow <- weed_biomass_clean |>
   mutate(weed_trt = factor(weed_trt, levels = mow_levels))
 
 trt_summary_interrow <- emm_trt_interrow_df |>
-  left_join(cld_interrow, by = "weed_trt") |>
+  left_join(cld_interrow_trt, by = "weed_trt") |>
   left_join(raw_trt_interrow, by = "weed_trt") |>
   mutate(
     model_mean = round(model_mean, 1),
@@ -9049,9 +7137,15 @@ trt_summary_interrow <- emm_trt_interrow_df |>
   ) |>
   arrange(weed_trt)
 
+# Save treatment summary
+readr::write_csv(
+  trt_summary_interrow,
+  file.path(tab_dir_interrow, "tab_interrow-wbm_treatment_means_CLD.csv")
+)
+
 trt_summary_interrow |>
   kable(
-    caption   = "Interrow weed biomass (kg ha⁻¹): treatment means with CLDs",
+    caption   = "Inter-row weed biomass (kg ha^-1): treatment means with CLDs",
     col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -9061,7 +7155,7 @@ trt_summary_interrow |>
 
 <caption>
 
-Interrow weed biomass (kg ha⁻¹): treatment means with CLDs
+Inter-row weed biomass (kg ha^-1): treatment means with CLDs
 </caption>
 
 <thead>
@@ -9251,23 +7345,20 @@ c
 ``` r
 ## 4) Interaction block: site-year × treatment means ---------------------
 
-# Model emmeans by treatment within site_year (response scale)
 emm_sy_interrow <- emmeans(
   weed_interrow_glmm,
   ~ weed_trt | site_year,
   type = "response"
 )
 
-emm_sy_interrow_df <- summary(emm_sy_interrow) |>
-  as_tibble() |>
+emm_sy_interrow_df <- as_tibble(emm_sy_interrow) |>
   mutate(
     weed_trt   = factor(weed_trt, levels = mow_levels),
     site_year  = as.factor(site_year),
-    model_mean = response
+    model_mean = response   # kg ha^-1
   ) |>
   select(site_year, weed_trt, model_mean)
 
-# CLDs within each site_year (a = highest within that site_year)
 cld_sy_interrow <- cld(
   emm_sy_interrow,
   adjust   = "none",
@@ -9283,7 +7374,6 @@ cld_sy_interrow <- cld(
   ) |>
   select(site_year, weed_trt, int_CLD)
 
-# Raw means by site_year × treatment
 raw_sy_interrow <- weed_biomass_clean |>
   group_by(site_year, weed_trt) |>
   summarise(
@@ -9305,9 +7395,15 @@ int_summary_interrow <- emm_sy_interrow_df |>
   ) |>
   arrange(site_year, weed_trt)
 
+# Save interaction summary
+readr::write_csv(
+  int_summary_interrow,
+  file.path(tab_dir_interrow, "tab_interrow-wbm_site-year_treatment_means_CLD.csv")
+)
+
 int_summary_interrow |>
   kable(
-    caption   = "Interrow weed biomass (kg ha⁻¹): site-year × treatment means with CLDs",
+    caption   = "Inter-row weed biomass (kg ha^-1): site-year × treatment means with CLDs",
     col.names = c(
       "Site-year", "Treatment",
       "Model mean", "Model CLD",
@@ -9321,7 +7417,7 @@ int_summary_interrow |>
 
 <caption>
 
-Interrow weed biomass (kg ha⁻¹): site-year × treatment means with CLDs
+Inter-row weed biomass (kg ha^-1): site-year × treatment means with CLDs
 </caption>
 
 <thead>
@@ -9878,297 +7974,65 @@ b
 
 </table>
 
-#### 2023
-
 ``` r
-#### 2023 Field V — interrow weed biomass: model testing / selection
+## 5) Model-info row for global response summary -------------------------
 
-options(contrasts = c("contr.sum", "contr.poly"))
-
-# Model formula: interrow instead of total (single site-year, so no site_year term)
-form_v23_interrow <- interrow_weed_biomass_kg_ha ~ weed_trt + (1 | block)
-
-## 1) Candidate families / structures -----------------------------------
-
-m_v23_interrow_tw <- glmmTMB(
-  formula = form_v23_interrow,
-  family  = tweedie(link = "log"),
-  data    = weed_biomass_field_v_2023
-)
-
-m_v23_interrow_nb <- glmmTMB(
-  formula = form_v23_interrow,
-  family  = nbinom2(link = "log"),
-  data    = weed_biomass_field_v_2023
-)
-
-m_v23_interrow_tw_zi <- glmmTMB(
-  formula   = form_v23_interrow,
-  family    = tweedie(link = "log"),
-  ziformula = ~ 1,
-  data      = weed_biomass_field_v_2023
-)
-
-## 2) NA-safe AIC helper -------------------------------------------------
-
-safe_aic <- function(mod) {
-  out <- try(AIC(mod), silent = TRUE)
-  if (inherits(out, "try-error")) return(NA_real_)
-  out
-}
-
-aic_v23_interrow <- tibble(
-  model = c(
-    "V23 INTERROW: Tweedie",
-    "V23 INTERROW: NB2",
-    "V23 INTERROW: Tweedie + ZI"
+model_info_interrow <- tibble::tibble(
+  response_label    = "Inter-row weed biomass (kg ha^-1), model-predicted means*",
+  family_structure  = best_all_interrow_n,
+  fixed_effects     = primary_model_name_interrow,
+  random_effects    = "(1 | site_year:block)",
+  AIC_additive      = round(AIC_add_interrow, 2),
+  AIC_interaction   = round(AIC_int_interrow, 2),
+  deltaAIC_add_int  = round(deltaAIC_interrow, 2),
+  LRT_p_int_raw     = p_int_interrow,
+  LRT_p_int_label   = dplyr::case_when(
+    p_int_interrow < 0.001 ~ "<0.001",
+    p_int_interrow < 0.01  ~ "<0.01",
+    TRUE                   ~ sprintf("%.3f", p_int_interrow)
   ),
-  AIC = c(
-    safe_aic(m_v23_interrow_tw),
-    safe_aic(m_v23_interrow_nb),
-    safe_aic(m_v23_interrow_tw_zi)
-  )
+  interaction_class = interaction_class_interrow
 )
 
-## 3) Pick best family (require > 2 AIC units better) -------------------
-
-best_v23_interrow      <- m_v23_interrow_tw
-best_v23_interrow_name <- "V23 INTERROW: Tweedie"
-best_aic_v23_interrow  <- safe_aic(m_v23_interrow_tw)
-
-# Start from Tweedie and only move if clearly better (> 2 AIC units)
-cands_v23_interrow <- list(
-  "V23 INTERROW: NB2"          = m_v23_interrow_nb,
-  "V23 INTERROW: Tweedie + ZI" = m_v23_interrow_tw_zi
-)
-
-for (nm in names(cands_v23_interrow)) {
-  this_aic <- safe_aic(cands_v23_interrow[[nm]])
-  if (is.finite(this_aic) && (this_aic + 2 < best_aic_v23_interrow)) {
-    best_v23_interrow      <- cands_v23_interrow[[nm]]
-    best_v23_interrow_name <- nm
-    best_aic_v23_interrow  <- this_aic
-  }
-}
-
-aic_v23_interrow_out <- aic_v23_interrow |>
-  mutate(
-    deltaAIC = AIC - min(AIC, na.rm = TRUE),
-    Selected = if_else(model == best_v23_interrow_name, "Yes", "")
-  )
-
-kable(
-  aic_v23_interrow_out,
-  digits  = 2,
-  caption = "Interrow weed biomass (kg ha⁻¹), 2023 Field V: model comparison (Tweedie vs NB2 vs Tweedie + ZI)"
-) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
-
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
-
-<caption>
-
-Interrow weed biomass (kg ha⁻¹), 2023 Field V: model comparison (Tweedie
-vs NB2 vs Tweedie + ZI)
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-model
-</th>
-
-<th style="text-align:right;">
-
-AIC
-</th>
-
-<th style="text-align:right;">
-
-deltaAIC
-</th>
-
-<th style="text-align:left;">
-
-Selected
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-V23 INTERROW: Tweedie
-</td>
-
-<td style="text-align:right;">
-
-240.72
-</td>
-
-<td style="text-align:right;">
-
-0.00
-</td>
-
-<td style="text-align:left;">
-
-Yes
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-V23 INTERROW: NB2
-</td>
-
-<td style="text-align:right;">
-
-244.56
-</td>
-
-<td style="text-align:right;">
-
-3.85
-</td>
-
-<td style="text-align:left;">
-
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-V23 INTERROW: Tweedie + ZI
-</td>
-
-<td style="text-align:right;">
-
-242.72
-</td>
-
-<td style="text-align:right;">
-
-2.00
-</td>
-
-<td style="text-align:left;">
-
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-``` r
-cat(
-  "\nSelected model for 2023 Field V interrow weed biomass (used in downstream emmeans/plots):\n  ",
-  best_v23_interrow_name,
-  sprintf("  [AIC = %.2f]\n", best_aic_v23_interrow)
+readr::write_csv(
+  model_info_interrow,
+  file.path(tab_dir_interrow, "tab_interrow-wbm_model-info.csv")
 )
 ```
 
-    ## 
-    ## Selected model for 2023 Field V interrow weed biomass (used in downstream emmeans/plots):
-    ##    V23 INTERROW: Tweedie   [AIC = 240.72]
+# Figures
+
+## Total weed biomass
+
+### Model-prediected means (kg ha⁻¹)
 
 ``` r
-# Store final model object for later use
-weed_interrow_glmm_v23 <- best_v23_interrow
+## 0) Directory for total weed-biomass figures ---------------------------
+fig_dir_total <- here("analysis", "figs", "weed-biomass", "total")
+dir.create(fig_dir_total, showWarnings = FALSE, recursive = TRUE)
 
-## 4) Diagnostics + Type-III tests --------------------------------------
+## Figure: Weed biomass by weed management treatment 
+## (model-predicted means ± SE, model CLDs)
 
-set.seed(123)
-res_v23_interrow <- DHARMa::simulateResiduals(weed_interrow_glmm_v23)
-plot(res_v23_interrow)
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-19-1.png)<!-- -->
-
-``` r
-DHARMa::testDispersion(weed_interrow_glmm_v23)
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-19-2.png)<!-- -->
-
-    ## 
-    ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
-    ##  simulated
-    ## 
-    ## data:  simulationOutput
-    ## dispersion = 0.92808, p-value = 0.736
-    ## alternative hypothesis: two.sided
-
-``` r
-DHARMa::testZeroInflation(weed_interrow_glmm_v23)
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-19-3.png)<!-- -->
-
-    ## 
-    ##  DHARMa zero-inflation test via comparison to expected zeros with
-    ##  simulation under H0 = fitted model
-    ## 
-    ## data:  simulationOutput
-    ## ratioObsSim = 0.97466, p-value = 1
-    ## alternative hypothesis: two.sided
-
-``` r
-car::Anova(weed_interrow_glmm_v23, type = 3)
-```
-
-    ## Analysis of Deviance Table (Type III Wald chisquare tests)
-    ## 
-    ## Response: interrow_weed_biomass_kg_ha
-    ##               Chisq Df Pr(>Chisq)    
-    ## (Intercept) 250.718  1  < 2.2e-16 ***
-    ## weed_trt     41.905  4  1.746e-08 ***
-    ## ---
-    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-##### Post-hoc summary table
-
-``` r
-### Interrow weed biomass (kg ha⁻¹), 2023 Field V — Fisher's LSD CLDs
-
-# Estimated marginal means for weed_trt on the response scale (kg/ha)
-emm_interrow_v23 <- emmeans(
-  weed_interrow_glmm_v23,
+# 1) Model-based emmeans by treatment -----------------------------------
+emm_wbm <- emmeans(
+  weed_glmm,
   ~ weed_trt,
-  type = "response"   # back-transform from link scale
+  type = "response"   # back-transform from link scale (kg ha^-1)
 )
 
-# Tidy emmeans for reporting (rename columns to match other RMDs)
-emm_interrow_v23_df <- as_tibble(emm_interrow_v23) |>
+# Tidy emmeans and prepare SE-based error bars
+emm_wbm_df <- as_tibble(emm_wbm) |>
   mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels)
-  ) |>
-  rename(
-    emmean = response,     # mean on response scale (kg/ha)
-    ci_low = asymp.LCL,    # lower CI
-    ci_high = asymp.UCL    # upper CI
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    mean     = response,
+    ymin     = pmax(mean - SE, 0),
+    ymax     = mean + SE
   )
 
-# Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
-cld_interrow_v23 <- cld(
-  emm_interrow_v23,
+# 2) Model-based CLDs for treatment main effect -------------------------
+cld_wbm <- cld(
+  emm_wbm,
   adjust   = "none",
   Letters  = letters,
   sort     = TRUE,
@@ -10181,290 +8045,15 @@ cld_interrow_v23 <- cld(
   ) |>
   select(weed_trt, .group)
 
-# Join emmeans + CLDs and format for reporting
-emm_interrow_v23_df |>
-  left_join(cld_interrow_v23, by = "weed_trt") |>
-  select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
-  mutate(
-    across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))
-  ) |>
-  kable(
-    caption   = "Estimated interrow weed biomass (kg ha⁻¹) in 2023 Field V with 95% CI and Fisher's LSD group letters",
-    col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
-  ) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
-
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
-
-<caption>
-
-Estimated interrow weed biomass (kg ha⁻¹) in 2023 Field V with 95% CI
-and Fisher’s LSD group letters
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-Treatment
-</th>
-
-<th style="text-align:right;">
-
-Mean
-</th>
-
-<th style="text-align:right;">
-
-SE
-</th>
-
-<th style="text-align:right;">
-
-Lower CI
-</th>
-
-<th style="text-align:right;">
-
-Upper CI
-</th>
-
-<th style="text-align:left;">
-
-Group
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-Rolled, no control
-</td>
-
-<td style="text-align:right;">
-
-336.2
-</td>
-
-<td style="text-align:right;">
-
-112.8
-</td>
-
-<td style="text-align:right;">
-
-174.2
-</td>
-
-<td style="text-align:right;">
-
-648.9
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Rolled, mowing
-</td>
-
-<td style="text-align:right;">
-
-127.5
-</td>
-
-<td style="text-align:right;">
-
-49.1
-</td>
-
-<td style="text-align:right;">
-
-59.9
-</td>
-
-<td style="text-align:right;">
-
-271.4
-</td>
-
-<td style="text-align:left;">
-
-b
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Rolled, high-residue cultivation
-</td>
-
-<td style="text-align:right;">
-
-276.0
-</td>
-
-<td style="text-align:right;">
-
-93.8
-</td>
-
-<td style="text-align:right;">
-
-141.8
-</td>
-
-<td style="text-align:right;">
-
-537.4
-</td>
-
-<td style="text-align:left;">
-
-ab
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Tilled, mowing
-</td>
-
-<td style="text-align:right;">
-
-484.3
-</td>
-
-<td style="text-align:right;">
-
-151.9
-</td>
-
-<td style="text-align:right;">
-
-261.9
-</td>
-
-<td style="text-align:right;">
-
-895.4
-</td>
-
-<td style="text-align:left;">
-
-a
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Tilled, cultivation
-</td>
-
-<td style="text-align:right;">
-
-3.0
-</td>
-
-<td style="text-align:right;">
-
-2.6
-</td>
-
-<td style="text-align:right;">
-
-0.5
-</td>
-
-<td style="text-align:right;">
-
-16.5
-</td>
-
-<td style="text-align:left;">
-
-c
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-# Figures
-
-## Total weed biomass
-
-### Pooled
-
-#### Model means
-
-``` r
-### Figure: Weed biomass by weed management treatment (pooled across site-years)
-
-# Estimated marginal means for treatments on the response scale (kg/ha)
-emm_wbm <- emmeans(
-  weed_glmm,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale
-)
-
-# Tidy emmeans for plotting
-emm_wbm_df <- as_tibble(emm_wbm) |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    response = response,
-    ymin     = pmax(response - SE, 0),
-    ymax     = response + SE
-  )
-
-# CLDs for treatments (Fisher-style, "a" = highest)
-cld_wbm <- cld(
-  emm_wbm,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# Merge means and CLDs
-plot_df_wbm <- emm_wbm_df |>
+# 3) Join model-predicted means + CLDs ----------------------------------
+plot_df_wbm_model <- emm_wbm_df |>
   left_join(cld_wbm, by = "weed_trt")
 
-# Plot
-ggplot(plot_df_wbm, aes(x = weed_trt, y = response, fill = weed_trt)) +
+# 4) Plot ---------------------------------------------------------------
+fig_wbm_total_model <- ggplot(
+  plot_df_wbm_model,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
   geom_text(
@@ -10480,7 +8069,7 @@ ggplot(plot_df_wbm, aes(x = weed_trt, y = response, fill = weed_trt)) +
     x       = NULL,
     y       = expression(Weed~biomass~"(kg"~ha^{-1}*")"),
     title   = "Weed biomass by weed management",
-    caption = "Bars show model-based means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
+    caption = "Bars show GLMM-predicted marginal means (kg"~ha^{-1}*") ± SE; letters denote Fisher’s LSD groups (α = 0.05)."
   ) +
   theme_classic(base_size = 18) +
   theme(
@@ -10489,24 +8078,130 @@ ggplot(plot_df_wbm, aes(x = weed_trt, y = response, fill = weed_trt)) +
     plot.title   = element_text(face = "bold"),
     plot.caption = element_text(size = 9, hjust = 0)
   )
+
+fig_wbm_total_model  # print in the Rmd
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-21-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-16-1.png)<!-- -->
 
 ``` r
-# Save figure
+# 5) Save figure --------------------------------------------------------
 ggsave(
-  filename = here("figs", "analysis", "fig_weed_biomass_mowing_pooled.png"),
+  filename = file.path(fig_dir_total, "fig_weed_biomass_total_model_kg_ha.png"),
+  plot     = fig_wbm_total_model,
   width    = 9,
   height   = 5.5,
   dpi      = 300
 )
 ```
 
-#### Raw means (kg ha⁻¹)
+### Model-prediected means (lb ac⁻¹)
 
 ``` r
-### Figure: Weed biomass by weed management treatment (raw means ± SE, model CLDs)
+### Model-predicted means (lb ac^-1)
+## 0) Directory for total weed-biomass figures ---------------------------
+fig_dir_total <- here("analysis", "figs", "weed-biomass", "total")
+dir.create(fig_dir_total, showWarnings = FALSE, recursive = TRUE)
+
+# kg/ha → lb/ac conversion factor
+kg_ha_to_lb_ac <- 0.892179
+
+## Figure: Weed biomass by weed management treatment 
+## (model-predicted means ± SE, model CLDs; lb ac^-1)
+
+# 1) Model-based emmeans by treatment (still on kg ha^-1 scale) ---------
+emm_wbm <- emmeans(
+  weed_glmm,
+  ~ weed_trt,
+  type = "response"   # back-transform from link scale (kg ha^-1)
+)
+
+# 2) Tidy emmeans and convert to lb ac^-1 -------------------------------
+emm_wbm_df <- as_tibble(emm_wbm) |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    mean_kg  = response,
+    se_kg    = SE,
+    # convert to lb ac^-1
+    mean     = mean_kg * kg_ha_to_lb_ac,
+    SE       = se_kg   * kg_ha_to_lb_ac,
+    ymin     = pmax(mean - SE, 0),
+    ymax     = mean + SE
+  )
+
+# 3) Model-based CLDs for treatment main effect -------------------------
+cld_wbm <- cld(
+  emm_wbm,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE   # so "a" = highest biomass group(s)
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# 4) Join model-predicted means (lb ac^-1) + CLDs -----------------------
+plot_df_wbm_model_lb <- emm_wbm_df |>
+  left_join(cld_wbm, by = "weed_trt")
+
+# 5) Plot ---------------------------------------------------------------
+fig_wbm_total_model_lb <- ggplot(
+  plot_df_wbm_model_lb,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x       = NULL,
+    y       = expression(Weed~biomass~"(lb"~ac^{-1}*")"),
+    title   = "Weed biomass by weed management",
+    caption = "Bars show GLMM-predicted marginal means (lb"~ac^{-1}*") ± SE; letters denote Fisher’s LSD groups (α = 0.05)."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_wbm_total_model_lb  # print in the Rmd
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-17-1.png)<!-- -->
+
+``` r
+# 6) Save figure --------------------------------------------------------
+ggsave(
+  filename = file.path(fig_dir_total, "fig_weed_biomass_total_model_lb_ac.png"),
+  plot     = fig_wbm_total_model_lb,
+  width    = 9,
+  height   = 5.5,
+  dpi      = 300
+)
+```
+
+### Raw means (kg ha⁻¹)
+
+``` r
+## 0) Directory for total weed-biomass figures ---------------------------
+fig_dir_total <- here("analysis", "figs", "weed-biomass", "total")
+dir.create(fig_dir_total, showWarnings = FALSE, recursive = TRUE)
+
+## Figure: Weed biomass by weed management treatment (raw means ± SE, model CLDs)
 
 # 1) Raw means and SE by treatment --------------------------------------
 raw_wbm_summary <- weed_biomass_clean |>
@@ -10550,7 +8245,7 @@ plot_df_wbm_raw <- raw_wbm_summary |>
   left_join(cld_wbm, by = "weed_trt")
 
 # 4) Plot ---------------------------------------------------------------
-ggplot(plot_df_wbm_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+fig_wbm_total_raw <- ggplot(plot_df_wbm_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
   geom_text(
@@ -10566,7 +8261,7 @@ ggplot(plot_df_wbm_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
     x       = NULL,
     y       = expression(Weed~biomass~"(kg"~ha^{-1}*")"),
     title   = "Weed biomass by weed management",
-    caption = "Bars show raw means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
+    caption = "Bars show raw means (kg ha⁻¹) ± SE; similar letters indicate no significant difference (Fisher’s LSD test, α = 0.05)."
   ) +
   theme_classic(base_size = 18) +
   theme(
@@ -10575,21 +8270,24 @@ ggplot(plot_df_wbm_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
     plot.title   = element_text(face = "bold"),
     plot.caption = element_text(size = 9, hjust = 0)
   )
+
+fig_wbm_total_raw  # print in the Rmd
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-22-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-18-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
 ggsave(
-  filename = here("figs", "analysis", "fig_weed_biomass_mowing_pooled_raw.png"),
+  filename = file.path(fig_dir_total, "fig_weed_biomass_total_raw_kg_ha.png"),
+  plot     = fig_wbm_total_raw,
   width    = 9,
   height   = 5.5,
   dpi      = 300
 )
 ```
 
-#### Raw means (lb ha⁻¹)
+### Raw means (lb ha⁻¹)
 
 ``` r
 ### Figure: Weed biomass by weed management treatment (raw means ± SE, model CLDs)
@@ -10599,7 +8297,7 @@ ggsave(
 kg_ha_to_lb_ac <- 0.892179
 
 # 1) Raw means and SE by treatment (in lb ac^-1) -------------------------
-raw_wbm_summary <- weed_biomass_clean |>
+raw_wbm_summary_lb <- weed_biomass_clean |>
   group_by(weed_trt) |>
   summarise(
     n    = n(),
@@ -10640,11 +8338,11 @@ cld_wbm <- cld(
   select(weed_trt, .group)
 
 # 3) Join raw means + model CLDs ----------------------------------------
-plot_df_wbm_raw <- raw_wbm_summary |>
+plot_df_wbm_raw_lb <- raw_wbm_summary_lb |>
   left_join(cld_wbm, by = "weed_trt")
 
 # 4) Plot ---------------------------------------------------------------
-ggplot(plot_df_wbm_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+fig_wbm_total_raw_lb <- ggplot(plot_df_wbm_raw_lb, aes(x = weed_trt, y = mean, fill = weed_trt)) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
   geom_text(
@@ -10660,7 +8358,7 @@ ggplot(plot_df_wbm_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
     x       = NULL,
     y       = expression(Weed~biomass~"(lb"~ac^{-1}*")"),
     title   = "Weed biomass by weed management",
-    caption = "Bars show raw means (lb"~ac^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test, P > 0.05)."
+    caption = "Bars show raw means (lb ac⁻¹) ± SE; similar letters indicate no significant difference (Fisher’s LSD test, α = 0.05)."
   ) +
   theme_classic(base_size = 18) +
   theme(
@@ -10669,275 +8367,17 @@ ggplot(plot_df_wbm_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
     plot.title   = element_text(face = "bold"),
     plot.caption = element_text(size = 9, hjust = 0)
   )
+
+fig_wbm_total_raw_lb  # print in the Rmd
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-23-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-19-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
 ggsave(
-  filename = here("figs", "analysis", "fig_weed_biomass_mowing_pooled_raw_lb_ac.png"),
-  width    = 9,
-  height   = 5.5,
-  dpi      = 300
-)
-```
-
-### 2023
-
-#### Model means
-
-``` r
-### Figure: Weed biomass by weed management treatment (2023)
-
-# Estimated marginal means for treatments on the response scale (kg/ha)
-emm_wbm_v23 <- emmeans(
-  weed_glmm_v23,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale
-)
-
-# Tidy emmeans for plotting
-emm_wbm_v23_df <- as_tibble(emm_wbm_v23) |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    response = response,
-    ymin     = pmax(response - SE, 0),
-    ymax     = response + SE
-  )
-
-# CLDs for treatments (Fisher-style, "a" = highest)
-cld_wbm_v23 <- cld(
-  emm_wbm_v23,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# Merge means and CLDs
-plot_df_wbm_v23 <- emm_wbm_v23_df |>
-  left_join(cld_wbm_v23, by = "weed_trt")
-
-# Plot
-ggplot(plot_df_wbm_v23, aes(x = weed_trt, y = response, fill = weed_trt)) +
-  geom_col(width = 0.7, color = "black") +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x       = NULL,
-    y       = expression(Weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "Weed biomass by weed management (2023)",
-    caption = "Bars show model-based means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
-  ) +
-  theme_classic(base_size = 18) +
-  theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold"),
-    plot.caption = element_text(size = 9, hjust = 0)
-  )
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-24-1.png)<!-- -->
-
-``` r
-# Save figure
-ggsave(
-  filename = here("figs", "analysis", "fig_weed_biomass_mowing_fieldV_2023.png"),
-  width    = 9,
-  height   = 5.5,
-  dpi      = 300
-)
-```
-
-#### Raw means (kg ha⁻¹)
-
-``` r
-### Figure: Weed biomass by weed management treatment (2023 Field V, raw means + SE)
-
-# 1) Model-based CLDs for 2023 Field V on the response scale (kg/ha)
-emm_wbm_v23 <- emmeans(
-  weed_glmm_v23,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale
-)
-
-cld_wbm_v23 <- cld(
-  emm_wbm_v23,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# 2) Raw means + SE for 2023 Field V (kg/ha)
-raw_wbm_v23 <- weed_biomass_field_v_2023 |>
-  group_by(weed_trt) |>
-  summarise(
-    raw_mean = mean(weed_biomass_kg_ha, na.rm = TRUE),
-    sd       = sd(weed_biomass_kg_ha, na.rm = TRUE),
-    n        = dplyr::n(),
-    .groups  = "drop"
-  ) |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    SE       = sd / sqrt(n),
-    ymin     = pmax(raw_mean - SE, 0),
-    ymax     = raw_mean + SE
-  )
-
-# 3) Merge raw means + model CLDs
-plot_df_wbm_v23 <- raw_wbm_v23 |>
-  left_join(cld_wbm_v23, by = "weed_trt")
-
-# 4) Plot (raw means + raw SE, model CLDs)
-ggplot(plot_df_wbm_v23, aes(x = weed_trt, y = raw_mean, fill = weed_trt)) +
-  geom_col(width = 0.7, color = "black") +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x       = NULL,
-    y       = expression(Weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "Weed biomass by weed management (2023)",
-    caption = "Bars show raw means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
-  ) +
-  theme_classic(base_size = 18) +
-  theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold"),
-    plot.caption = element_text(size = 9, hjust = 0.5)
-  )
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-25-1.png)<!-- -->
-
-``` r
-# 5) Save figure
-ggsave(
-  filename = here("figs", "analysis", "fig_weed_biomass_mowing_fieldV_2023.png"),
-  width    = 9,
-  height   = 5.5,
-  dpi      = 300
-)
-```
-
-#### Raw means (lb ac⁻¹)
-
-``` r
-### Figure: Weed biomass by weed management treatment (2023 Field V, raw means + SE)
-### Units converted from kg ha^-1 to lb ac^-1
-
-# kg/ha → lb/ac conversion factor
-kg_ha_to_lb_ac <- 0.892179
-
-# 1) Model-based CLDs for 2023 Field V on the response scale (kg/ha)
-emm_wbm_v23 <- emmeans(
-  weed_glmm_v23,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale
-)
-
-cld_wbm_v23 <- cld(
-  emm_wbm_v23,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# 2) Raw means + SE for 2023 Field V (convert to lb/ac)
-raw_wbm_v23 <- weed_biomass_field_v_2023 |>
-  group_by(weed_trt) |>
-  summarise(
-    raw_mean = mean(weed_biomass_kg_ha, na.rm = TRUE),
-    sd       = sd(weed_biomass_kg_ha, na.rm = TRUE),
-    n        = dplyr::n(),
-    .groups  = "drop"
-  ) |>
-  mutate(
-    # convert to lb ac^-1
-    raw_mean = raw_mean * kg_ha_to_lb_ac,
-    sd       = sd       * kg_ha_to_lb_ac,
-    SE       = sd / sqrt(n),
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    ymin     = pmax(raw_mean - SE, 0),
-    ymax     = raw_mean + SE
-  )
-
-# 3) Merge raw means + model CLDs
-plot_df_wbm_v23 <- raw_wbm_v23 |>
-  left_join(cld_wbm_v23, by = "weed_trt")
-
-# 4) Plot (raw means + raw SE, model CLDs)
-ggplot(plot_df_wbm_v23, aes(x = weed_trt, y = raw_mean, fill = weed_trt)) +
-  geom_col(width = 0.7, color = "black") +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x       = NULL,
-    y       = expression(Weed~biomass~"(lb"~ac^{-1}*")"),
-    title   = "Weed biomass by weed management (2023)",
-    caption = "Bars show raw means (lb"~ac^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
-  ) +
-  theme_classic(base_size = 18) +
-  theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold"),
-    plot.caption = element_text(size = 9, hjust = 0.5)
-  )
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-26-1.png)<!-- -->
-
-``` r
-# 5) Save figure
-ggsave(
-  filename = here("figs", "analysis", "fig_weed_biomass_mowing_fieldV_2023_lb_ac.png"),
+  filename = file.path(fig_dir_total, "fig_weed_biomass_total_raw_lb_ac.png"),
+  plot     = fig_wbm_total_raw_lb,
   width    = 9,
   height   = 5.5,
   dpi      = 300
@@ -10946,219 +8386,41 @@ ggsave(
 
 ## In-row weed biomass
 
-### Pooled
-
-#### Model means
+### Model-prediected means (kg ha⁻¹)
 
 ``` r
-### Figure: In-row weed biomass by weed management and site-year
-### (model-based means ± SE, Fisher-style CLDs)
+#### In-row weed biomass (kg ha^-1): model-predicted means ± SE with model CLDs
 
-# 1) Model-based emmeans by site_year × treatment (response scale) ------
-emm_inrow_sy <- emmeans(
+## 0) Directory for in-row weed-biomass figures --------------------------
+fig_dir_inrow <- here("analysis", "figs", "weed-biomass", "in-row")
+dir.create(fig_dir_inrow, showWarnings = FALSE, recursive = TRUE)
+
+## Figure: In-row weed biomass by weed management treatment 
+## (GLMM-predicted marginal means ± SE, model CLDs)
+
+# 1) Model-based emmeans by treatment -----------------------------------
+emm_inrow <- emmeans(
   weed_inrow_glmm,
-  ~ weed_trt | site_year,
-  type = "response"   # back-transform from link scale to kg/ha
-)
-
-emm_inrow_sy_df <- summary(emm_inrow_sy) |>
-  as_tibble() |>
-  mutate(
-    site_year = factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels),
-    emmean    = response,    # mean on response scale
-    ymin      = pmax(response - SE, 0),
-    ymax      = response + SE
-  ) |>
-  select(site_year, weed_trt, emmean, SE, ymin, ymax)
-
-# 2) CLDs within each site_year (Fisher-style, "a" = highest) ----------
-cld_inrow_sy <- cld(
-  emm_inrow_sy,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE           # so "a" = highest biomass group(s)
-) |>
-  as_tibble() |>
-  mutate(
-    site_year = factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels),
-    .group    = str_trim(.group)
-  ) |>
-  select(site_year, weed_trt, .group)
-
-# 3) Join model means + CLDs --------------------------------------------
-plot_df_inrow_sy_mod <- emm_inrow_sy_df |>
-  left_join(cld_inrow_sy, by = c("site_year", "weed_trt"))
-
-# 4) Plot ---------------------------------------------------------------
-ggplot(plot_df_inrow_sy_mod,
-       aes(x = weed_trt, y = emmean, fill = weed_trt)) +
-  geom_col(width = 0.7, color = "black") +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 5
-  ) +
-  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x       = NULL,
-    y       = expression(In-row~weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "In-row weed biomass by weed management and site-year",
-    caption = "Bars show model-based means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
-  ) +
-  theme_classic(base_size = 18) +
-  theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    strip.text   = element_text(face = "bold"),
-    plot.title   = element_text(face = "bold"),
-    plot.caption       = element_text(size = 9, hjust = 0.5),  # center caption
-    plot.caption.position = "plot"
-  )
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-27-1.png)<!-- -->
-
-``` r
-# 5) Save figure --------------------------------------------------------
-ggsave(
-  filename = here("figs", "analysis", "fig_inrow_weed_biomass_mowing_by_site_year_model.png"),
-  width    = 18,
-  height   = 5.5,
-  dpi      = 300
-)
-```
-
-#### Raw means
-
-``` r
-### Figure: In-row weed biomass by weed management and site-year
-### (raw means ± SE, model-based CLDs)
-
-# 1) Raw means and SE by site_year × treatment ---------------------------
-raw_inrow_sy <- weed_biomass_clean |>
-  group_by(site_year, weed_trt) |>
-  summarise(
-    n    = n(),
-    mean = mean(inrow_weed_biomass_kg_ha, na.rm = TRUE),
-    sd   = sd(inrow_weed_biomass_kg_ha, na.rm = TRUE),
-    se   = sd / sqrt(n),
-    .groups = "drop"
-  ) |>
-  mutate(
-    site_year = factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels),
-    ymin      = pmax(mean - se, 0),
-    ymax      = mean + se
-  )
-
-# 2) Model-based CLDs within each site-year -----------------------------
-emm_inrow_sy <- emmeans(
-  weed_inrow_glmm,
-  ~ weed_trt | site_year,
-  type = "response"   # back-transform from link scale
-)
-
-cld_inrow_sy <- cld(
-  emm_inrow_sy,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE      # "a" = highest biomass within each site-year
-) |>
-  as_tibble() |>
-  mutate(
-    site_year = factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels),
-    .group    = str_trim(.group)
-  ) |>
-  select(site_year, weed_trt, .group)
-
-# 3) Join raw means + model CLDs ----------------------------------------
-plot_df_inrow_sy <- raw_inrow_sy |>
-  left_join(cld_inrow_sy, by = c("site_year", "weed_trt"))
-
-# 4) Plot ---------------------------------------------------------------
-ggplot(plot_df_inrow_sy,
-       aes(x = weed_trt, y = mean, fill = weed_trt)) +
-  geom_col(width = 0.7, color = "black") +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 5
-  ) +
-  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x       = NULL,
-    y       = expression(In-row~weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "In-row weed biomass by weed management and site-year",
-    caption = "Bars show raw means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
-  ) +
-  theme_classic(base_size = 18) +
-  theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    strip.text   = element_text(face = "bold"),
-    plot.title   = element_text(face = "bold"),
-    plot.caption       = element_text(size = 9, hjust = 0.5),  # center caption
-    plot.caption.position = "plot"
-  )
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-28-1.png)<!-- -->
-
-``` r
-# 5) Save figure --------------------------------------------------------
-ggsave(
-  filename = here("figs", "analysis", "fig_inrow_weed_biomass_mowing_by_site_year_raw.png"),
-  width    = 18,
-  height   = 5.5,
-  dpi      = 300
-)
-```
-
-### 2023
-
-#### Model means
-
-``` r
-### Figure: In-row weed biomass by weed management treatment (2023 Field V)
-
-# Estimated marginal means for treatments on the response scale (kg/ha)
-emm_inrow_v23 <- emmeans(
-  weed_inrow_glmm_v23,
   ~ weed_trt,
-  type = "response"   # back-transform from link scale
+  type = "response"   # back-transform from link scale (kg ha^-1)
 )
 
-# Tidy emmeans for plotting
-emm_inrow_v23_df <- as_tibble(emm_inrow_v23) |>
+# Tidy emmeans and prepare SE-based error bars
+emm_inrow_df <- as_tibble(emm_inrow) |>
   mutate(
     weed_trt = factor(weed_trt, levels = mow_levels),
-    response = response,
-    ymin     = pmax(response - SE, 0),
-    ymax     = response + SE
+    mean     = response,
+    ymin     = pmax(mean - SE, 0),
+    ymax     = mean + SE
   )
 
-# CLDs for treatments (Fisher-style, "a" = highest)
-cld_inrow_v23 <- cld(
-  emm_inrow_v23,
+# 2) Model-based CLDs for treatment main effect -------------------------
+cld_inrow <- cld(
+  emm_inrow,
   adjust   = "none",
   Letters  = letters,
   sort     = TRUE,
-  reversed = TRUE
+  reversed = TRUE   # so "a" = highest biomass group(s)
 ) |>
   as_tibble() |>
   mutate(
@@ -11167,12 +8429,15 @@ cld_inrow_v23 <- cld(
   ) |>
   select(weed_trt, .group)
 
-# Merge means and CLDs
-plot_df_inrow_v23 <- emm_inrow_v23_df |>
-  left_join(cld_inrow_v23, by = "weed_trt")
+# 3) Join model-predicted means + CLDs ----------------------------------
+plot_df_inrow_model <- emm_inrow_df |>
+  left_join(cld_inrow, by = "weed_trt")
 
-# Plot
-ggplot(plot_df_inrow_v23, aes(x = weed_trt, y = response, fill = weed_trt)) +
+# 4) Plot ---------------------------------------------------------------
+fig_inrow_model <- ggplot(
+  plot_df_inrow_model,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
   geom_text(
@@ -11187,8 +8452,8 @@ ggplot(plot_df_inrow_v23, aes(x = weed_trt, y = response, fill = weed_trt)) +
   labs(
     x       = NULL,
     y       = expression(In-row~weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "In-row weed biomass by weed management (2023)",
-    caption = "Bars show model-based means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
+    title   = "In-row weed biomass by weed management",
+    caption = "Bars show GLMM-predicted marginal means (kg"~ha^{-1}*") ± SE; letters denote Fisher’s LSD groups (α = 0.05)."
   ) +
   theme_classic(base_size = 18) +
   theme(
@@ -11197,146 +8462,56 @@ ggplot(plot_df_inrow_v23, aes(x = weed_trt, y = response, fill = weed_trt)) +
     plot.title   = element_text(face = "bold"),
     plot.caption = element_text(size = 9, hjust = 0)
   )
+
+fig_inrow_model  # print in the Rmd
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-29-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-20-1.png)<!-- -->
 
 ``` r
-# Save figure
+# 5) Save figure --------------------------------------------------------
 ggsave(
-  filename = here("figs", "analysis", "fig_inrow_weed_biomass_mowing_fieldV_2023.png"),
+  filename = file.path(fig_dir_inrow, "fig_inrow-weed_biomass_model_kg_ha.png"),
+  plot     = fig_inrow_model,
   width    = 9,
   height   = 5.5,
   dpi      = 300
 )
 ```
 
-#### Raw means (kg ha⁻¹)
+### Model-prediected means (lb ac⁻¹)
 
 ``` r
-### Figure: In-row weed biomass by weed management treatment (2023 Field V; raw means with model CLDs)
-
-# 1) Model-based emmeans on the response scale (kg/ha)
-emm_inrow_v23 <- emmeans(
-  weed_inrow_glmm_v23,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale
-)
-
-emm_inrow_v23_df <- as_tibble(emm_inrow_v23) |>
-  mutate(
-    weed_trt   = factor(weed_trt, levels = mow_levels),
-    model_mean = response,
-    ymin       = pmax(model_mean - SE, 0),
-    ymax       = model_mean + SE
-  )
-
-# 2) CLDs for treatments (Fisher-style, "a" = highest)
-cld_inrow_v23 <- cld(
-  emm_inrow_v23,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# 3) Raw means for in-row weed biomass (2023 Field V)
-raw_inrow_v23 <- weed_biomass_field_v_2023 |>
-  group_by(weed_trt) |>
-  summarise(
-    raw_mean = mean(inrow_weed_biomass_kg_ha, na.rm = TRUE),
-    .groups  = "drop"
-  ) |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels)
-  )
-
-# 4) Merge raw means, model SE, and CLDs
-plot_df_inrow_v23 <- emm_inrow_v23_df |>
-  select(weed_trt, model_mean, ymin, ymax) |>
-  left_join(raw_inrow_v23, by = "weed_trt") |>
-  left_join(cld_inrow_v23, by = "weed_trt")
-
-# 5) Plot: bars = raw means, error bars = model-based SE, letters = model CLDs
-ggplot(plot_df_inrow_v23, aes(x = weed_trt, y = raw_mean, fill = weed_trt)) +
-  geom_col(width = 0.7, color = "black") +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x       = NULL,
-    y       = expression(In-row~weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "In-row weed biomass by weed management (2023)",
-    caption = "Bars show raw means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
-  ) +
-  theme_classic(base_size = 18) +
-  theme(
-    axis.text.x        = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y       = element_text(margin = margin(r = 8)),
-    plot.title         = element_text(face = "bold"),
-    plot.caption       = element_text(size = 9, hjust = 0.5),
-    plot.caption.position = "plot"
-  )
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-30-1.png)<!-- -->
-
-``` r
-# Save figure
-ggsave(
-  filename = here("figs", "analysis", "fig_inrow_weed_biomass_mowing_fieldV_2023_raw.png"),
-  width    = 9,
-  height   = 5.5,
-  dpi      = 300
-)
-```
-
-#### Raw means (lb ac⁻¹)
-
-``` r
-### Figure: In-row weed biomass by weed management treatment (2023 Field V; raw means with model CLDs)
-### Units converted from kg ha^-1 to lb ac^-1
+### Figure: In-row weed biomass by weed management 
+### (GLMM-predicted marginal means ± SE, model CLDs, lb ac^-1)
 
 # kg/ha → lb/ac conversion factor
 kg_ha_to_lb_ac <- 0.892179
 
-# 1) Model-based emmeans on the response scale (kg/ha)
-emm_inrow_v23 <- emmeans(
-  weed_inrow_glmm_v23,
+# 1) Model-based emmeans by treatment (still fit in kg ha^-1) -----------
+emm_inrow <- emmeans(
+  weed_inrow_glmm,
   ~ weed_trt,
-  type = "response"   # back-transform from link scale
+  type = "response"   # back-transform from link scale (kg ha^-1)
 )
 
-emm_inrow_v23_df <- as_tibble(emm_inrow_v23) |>
+# Tidy emmeans and convert to lb ac^-1
+emm_inrow_lb_df <- as_tibble(emm_inrow) |>
   mutate(
     weed_trt   = factor(weed_trt, levels = mow_levels),
-    # convert model mean and SE to lb/ac
-    model_mean = response * kg_ha_to_lb_ac,
-    SE         = SE       * kg_ha_to_lb_ac,
-    ymin       = pmax(model_mean - SE, 0),
-    ymax       = model_mean + SE
+    mean_lb    = response * kg_ha_to_lb_ac,
+    SE_lb      = SE       * kg_ha_to_lb_ac,
+    ymin       = pmax(mean_lb - SE_lb, 0),
+    ymax       = mean_lb + SE_lb
   )
 
-# 2) CLDs for treatments (Fisher-style, "a" = highest)
-cld_inrow_v23 <- cld(
-  emm_inrow_v23,
+# 2) Model-based CLDs for treatment main effect -------------------------
+cld_inrow <- cld(
+  emm_inrow,
   adjust   = "none",
   Letters  = letters,
   sort     = TRUE,
-  reversed = TRUE
+  reversed = TRUE   # so "a" = highest biomass group(s)
 ) |>
   as_tibble() |>
   mutate(
@@ -11345,26 +8520,15 @@ cld_inrow_v23 <- cld(
   ) |>
   select(weed_trt, .group)
 
-# 3) Raw means for in-row weed biomass (2023 Field V), converted to lb/ac
-raw_inrow_v23 <- weed_biomass_field_v_2023 |>
-  group_by(weed_trt) |>
-  summarise(
-    raw_mean = mean(inrow_weed_biomass_kg_ha, na.rm = TRUE),
-    .groups  = "drop"
-  ) |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    raw_mean = raw_mean * kg_ha_to_lb_ac
-  )
+# 3) Join model-predicted means (lb/ac) + CLDs --------------------------
+plot_df_inrow_model_lb <- emm_inrow_lb_df |>
+  left_join(cld_inrow, by = "weed_trt")
 
-# 4) Merge raw means, model SE, and CLDs
-plot_df_inrow_v23 <- emm_inrow_v23_df |>
-  select(weed_trt, model_mean, ymin, ymax) |>
-  left_join(raw_inrow_v23, by = "weed_trt") |>
-  left_join(cld_inrow_v23, by = "weed_trt")
-
-# 5) Plot: bars = raw means (lb/ac), error bars = model-based SE (lb/ac), letters = model CLDs
-ggplot(plot_df_inrow_v23, aes(x = weed_trt, y = raw_mean, fill = weed_trt)) +
+# 4) Plot ---------------------------------------------------------------
+fig_inrow_model_lb <- ggplot(
+  plot_df_inrow_model_lb,
+  aes(x = weed_trt, y = mean_lb, fill = weed_trt)
+) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
   geom_text(
@@ -11379,25 +8543,219 @@ ggplot(plot_df_inrow_v23, aes(x = weed_trt, y = raw_mean, fill = weed_trt)) +
   labs(
     x       = NULL,
     y       = expression(In-row~weed~biomass~"(lb"~ac^{-1}*")"),
-    title   = "In-row weed biomass by weed management (2023)",
-    caption = "Bars show raw means (lb"~ac^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
+    title   = "In-row weed biomass by weed management",
+    caption = "Bars show GLMM-predicted marginal means (lb"~ac^{-1}*") ± SE; letters denote Fisher’s LSD groups (α = 0.05)."
   ) +
   theme_classic(base_size = 18) +
   theme(
-    axis.text.x          = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y         = element_text(margin = margin(r = 8)),
-    plot.title           = element_text(face = "bold"),
-    plot.caption         = element_text(size = 9, hjust = 0.5),
-    plot.caption.position = "plot"
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
   )
+
+fig_inrow_model_lb  # print in the Rmd
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-31-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-21-1.png)<!-- -->
 
 ``` r
-# Save figure
+# 5) Save figure --------------------------------------------------------
 ggsave(
-  filename = here("figs", "analysis", "fig_inrow_weed_biomass_mowing_fieldV_2023_raw_lb_ac.png"),
+  filename = file.path(fig_dir_inrow, "fig_inrow-weed_biomass_model_lb_ac.png"),
+  plot     = fig_inrow_model_lb,
+  width    = 9,
+  height   = 5.5,
+  dpi      = 300
+)
+```
+
+### Raw means (kg ha⁻¹)
+
+``` r
+#### In-row weed biomass (kg ha^-1): raw means ± SE with model CLDs
+
+## 0) Directory for in-row weed-biomass figures --------------------------
+fig_dir_inrow <- here("analysis", "figs", "weed-biomass", "in-row")
+dir.create(fig_dir_inrow, showWarnings = FALSE, recursive = TRUE)
+
+## Figure: In-row weed biomass by weed management treatment (raw means ± SE, model CLDs)
+
+# 1) Raw means and SE by treatment --------------------------------------
+raw_inrow_summary <- weed_biomass_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    n    = n(),
+    mean = mean(inrow_weed_biomass_kg_ha, na.rm = TRUE),
+    sd   = sd(inrow_weed_biomass_kg_ha, na.rm = TRUE),
+    se   = sd / sqrt(n),
+    .groups = "drop"
+  ) |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    ymin     = pmax(mean - se, 0),
+    ymax     = mean + se
+  )
+
+# 2) Model-based CLDs for treatment main effect -------------------------
+emm_inrow <- emmeans(
+  weed_inrow_glmm,
+  ~ weed_trt,
+  type = "response"   # back-transform from link scale
+)
+
+cld_inrow <- cld(
+  emm_inrow,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE   # so "a" = highest biomass group(s)
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# 3) Join raw means + model CLDs ----------------------------------------
+plot_df_inrow_raw <- raw_inrow_summary |>
+  left_join(cld_inrow, by = "weed_trt")
+
+# 4) Plot ---------------------------------------------------------------
+fig_inrow_raw <- ggplot(plot_df_inrow_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x       = NULL,
+    y       = expression(In-row~weed~biomass~"(kg"~ha^{-1}*")"),
+    title   = "In-row weed biomass by weed management",
+     caption = "Bars show raw means (kg ha⁻¹) ± SE; similar letters indicate no significant difference (Fisher’s LSD test, α = 0.05)."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_inrow_raw  # print in the Rmd
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-22-1.png)<!-- -->
+
+``` r
+# 5) Save figure --------------------------------------------------------
+ggsave(
+  filename = file.path(fig_dir_inrow, "fig_inrow-weed_biomass_raw_kg_ha.png"),
+  plot     = fig_inrow_raw,
+  width    = 9,
+  height   = 5.5,
+  dpi      = 300
+)
+```
+
+### Raw means (lb ha⁻¹)
+
+``` r
+### Figure: In-row weed biomass by weed management (raw means ± SE, model CLDs)
+### Units converted from kg ha^-1 to lb ac^-1 for farmer meetings
+
+# kg/ha → lb/ac conversion factor
+kg_ha_to_lb_ac <- 0.892179
+
+# 1) Raw means and SE by treatment (in lb ac^-1) -------------------------
+raw_inrow_summary_lb <- weed_biomass_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    n    = n(),
+    mean = mean(inrow_weed_biomass_kg_ha, na.rm = TRUE),
+    sd   = sd(inrow_weed_biomass_kg_ha, na.rm = TRUE),
+    se   = sd / sqrt(n),
+    .groups = "drop"
+  ) |>
+  mutate(
+    # convert to lb ac^-1
+    mean = mean * kg_ha_to_lb_ac,
+    sd   = sd   * kg_ha_to_lb_ac,
+    se   = se   * kg_ha_to_lb_ac,
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    ymin     = pmax(mean - se, 0),
+    ymax     = mean + se
+  )
+
+# 2) Model-based CLDs for treatment main effect (still on kg/ha scale) ---
+emm_inrow <- emmeans(
+  weed_inrow_glmm,
+  ~ weed_trt,
+  type = "response"   # back-transform from link scale
+)
+
+cld_inrow <- cld(
+  emm_inrow,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE   # so "a" = highest biomass group(s)
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# 3) Join raw means + model CLDs ----------------------------------------
+plot_df_inrow_raw_lb <- raw_inrow_summary_lb |>
+  left_join(cld_inrow, by = "weed_trt")
+
+# 4) Plot ---------------------------------------------------------------
+fig_inrow_raw_lb <- ggplot(plot_df_inrow_raw_lb, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x       = NULL,
+    y       = expression(In-row~weed~biomass~"(lb"~ac^{-1}*")"),
+    title   = "In-row weed biomass by weed management",
+    caption = "Bars show raw means (lb ac^-1) ± SE; similar letters indicate no significant difference (Fisher’s LSD test, P > 0.05)."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_inrow_raw_lb  # print in the Rmd
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-23-1.png)<!-- -->
+
+``` r
+# 5) Save figure --------------------------------------------------------
+ggsave(
+  filename = file.path(fig_dir_inrow, "fig_inrow-weed_biomass_raw_lb_ac.png"),
+  plot     = fig_inrow_raw_lb,
   width    = 9,
   height   = 5.5,
   dpi      = 300
@@ -11406,103 +8764,238 @@ ggsave(
 
 ## Interrow weed biomass
 
-### Pooled
-
-#### Model means
+### Model-prediected means (kg ha⁻¹)
 
 ``` r
-### Figure: Interrow weed biomass by weed management and site-year
-### (model-based means ± SE, Fisher-style CLDs)
+## 0) Directory for inter-row weed-biomass figures -----------------------
+fig_dir_interrow <- here("analysis", "figs", "weed-biomass", "inter-row")
+dir.create(fig_dir_interrow, showWarnings = FALSE, recursive = TRUE)
 
-# 1) Model-based emmeans by site_year × treatment (response scale) ------
+## Optional: nice facet labels for site_year (reuse if already defined) --
+site_year_labs <- c(
+  "2024.field O2 east" = "2024 \u2013 Field O2 East",
+  "2024.field O2 west" = "2024 \u2013 Field O2 West",
+  "2023.field v"       = "2023 \u2013 Field V"
+)
+
+## Figure: Inter-row weed biomass by weed management 
+## (GLMM-predicted means ± SE, site-year CLDs)
+
+# 1) Model-based emmeans by site-year × treatment -----------------------
 emm_interrow_sy <- emmeans(
   weed_interrow_glmm,
   ~ weed_trt | site_year,
-  type = "response"   # back-transform from link scale to kg/ha
+  type = "response"   # back-transform from link scale (kg ha^-1)
 )
 
-emm_interrow_sy_df <- summary(emm_interrow_sy) |>
-  as_tibble() |>
+emm_interrow_sy_df <- as_tibble(emm_interrow_sy) |>
   mutate(
-    site_year = factor(site_year),
+    site_year = as.factor(site_year),
     weed_trt  = factor(weed_trt, levels = mow_levels),
-    emmean    = response,          # mean on response scale
-    ymin      = pmax(response - SE, 0),
-    ymax      = response + SE
-  ) |>
-  select(site_year, weed_trt, emmean, SE, ymin, ymax)
+    mean      = response,
+    ymin      = pmax(mean - SE, 0),
+    ymax      = mean + SE
+  )
 
-# 2) CLDs within each site_year (Fisher-style, "a" = highest) ----------
+# 2) Model-based CLDs for treatment *within each site-year* --------------
 cld_interrow_sy <- cld(
   emm_interrow_sy,
   adjust   = "none",
   Letters  = letters,
   sort     = TRUE,
-  reversed = TRUE                 # so "a" = highest biomass group(s)
+  reversed = TRUE      # so "a" = highest biomass group(s) within each site-year
 ) |>
   as_tibble() |>
   mutate(
-    site_year = factor(site_year),
+    site_year = as.factor(site_year),
     weed_trt  = factor(weed_trt, levels = mow_levels),
     .group    = str_trim(.group)
   ) |>
   select(site_year, weed_trt, .group)
 
-# 3) Join model means + CLDs --------------------------------------------
-plot_df_interrow_sy_mod <- emm_interrow_sy_df |>
+# 3) Join model means + site-year CLDs ----------------------------------
+plot_df_interrow_sy_model <- emm_interrow_sy_df |>
   left_join(cld_interrow_sy, by = c("site_year", "weed_trt"))
 
 # 4) Plot ---------------------------------------------------------------
-ggplot(plot_df_interrow_sy_mod,
-       aes(x = weed_trt, y = emmean, fill = weed_trt)) +
+fig_interrow_model_kg_sy <- ggplot(
+  plot_df_interrow_sy_model,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
   geom_text(
     aes(y = ymax * 1.08, label = .group),
     vjust    = 0,
     fontface = "bold",
-    size     = 5
+    size     = 4
   ) +
-  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  facet_wrap(
+    ~ site_year,
+    nrow     = 1,
+    labeller = labeller(site_year = site_year_labs)
+  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
   scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x       = NULL,
-    y       = expression(Interrow~weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "Interrow weed biomass by weed management and site-year",
-    caption = "Bars show model-based means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
+    x     = NULL,
+    y     = expression(Inter-row~weed~biomass~"(kg"~ha^{-1}*")"),
+    title = "Inter-row weed biomass by weed management across site-years",
+    caption = "Bars show GLMM-predicted marginal means (kg"~ha^{-1}*") ± SE; letters denote Fisher’s LSD groups within each site-year (α = 0.05)."
   ) +
-  theme_classic(base_size = 18) +
+  theme_classic(base_size = 16) +
   theme(
     axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
     axis.title.y = element_text(margin = margin(r = 8)),
     strip.text   = element_text(face = "bold"),
     plot.title   = element_text(face = "bold"),
-    plot.caption       = element_text(size = 9, hjust = 0.5),  # center caption
-    plot.caption.position = "plot"
+    plot.caption = element_text(size = 9, hjust = 0)
   )
+
+fig_interrow_model_kg_sy  # print in the Rmd
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-32-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-24-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
 ggsave(
-  filename = here("figs", "analysis", "fig_interrow_weed_biomass_mowing_by_site_year_model.png"),
-  width    = 18,
+  filename = file.path(fig_dir_interrow, "fig_interrow-weed_biomass_model_by-site-year_kg_ha.png"),
+  plot     = fig_interrow_model_kg_sy,
+  width    = 12,
   height   = 5.5,
   dpi      = 300
 )
 ```
 
-#### Raw means (kg ha⁻¹)
+### Model-prediected means (lb ac⁻¹)
 
 ``` r
-### Figure: Interrow weed biomass by weed management and site-year
-### (raw means ± SE, model-based Fisher-style CLDs)
+## 0) Directory for inter-row weed-biomass figures -----------------------
+fig_dir_interrow <- here("analysis", "figs", "weed-biomass", "inter-row")
+dir.create(fig_dir_interrow, showWarnings = FALSE, recursive = TRUE)
 
-# 1) Raw summary by site_year × treatment -------------------------------
+## Optional: nice facet labels for site_year (reuse if already defined) --
+site_year_labs <- c(
+  "2024.field O2 east" = "2024 \u2013 Field O2 East",
+  "2024.field O2 west" = "2024 \u2013 Field O2 West",
+  "2023.field v"       = "2023 \u2013 Field V"
+)
+
+## kg/ha -> lb/ac conversion factor --------------------------------------
+kg_ha_to_lb_ac <- 0.892179
+
+## Figure: Inter-row weed biomass by weed management 
+## (GLMM-predicted means ± SE, site-year CLDs; lb ac^-1)
+
+# 1) Model-based emmeans by site-year × treatment -----------------------
+emm_interrow_sy <- emmeans(
+  weed_interrow_glmm,
+  ~ weed_trt | site_year,
+  type = "response"   # back-transform from link scale (kg ha^-1)
+)
+
+emm_interrow_sy_lb <- as_tibble(emm_interrow_sy) |>
+  mutate(
+    site_year = as.factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels),
+    mean      = response * kg_ha_to_lb_ac,
+    SE_lb     = SE       * kg_ha_to_lb_ac,
+    ymin      = pmax(mean - SE_lb, 0),
+    ymax      = mean + SE_lb
+  )
+
+# 2) Model-based CLDs for treatment *within each site-year* --------------
+cld_interrow_sy <- cld(
+  emm_interrow_sy,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE      # "a" = highest biomass group(s) within each site-year
+) |>
+  as_tibble() |>
+  mutate(
+    site_year = as.factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels),
+    .group    = str_trim(.group)
+  ) |>
+  select(site_year, weed_trt, .group)
+
+# 3) Join model means (lb/ac) + site-year CLDs --------------------------
+plot_df_interrow_sy_lb <- emm_interrow_sy_lb |>
+  left_join(cld_interrow_sy, by = c("site_year", "weed_trt"))
+
+# 4) Plot ---------------------------------------------------------------
+fig_interrow_model_lb_sy <- ggplot(
+  plot_df_interrow_sy_lb,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 4
+  ) +
+  facet_wrap(
+    ~ site_year,
+    nrow     = 1,
+    labeller = labeller(site_year = site_year_labs)
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x       = NULL,
+    y       = expression(Inter-row~weed~biomass~"(lb"~ac^{-1}*")"),
+    title   = "Inter-row weed biomass by weed management across site-years",
+    caption = "Bars show GLMM-predicted marginal means (lb"~ac^{-1}*") ± SE; letters denote Fisher’s LSD groups within each site-year (α = 0.05)."
+  ) +
+  theme_classic(base_size = 16) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    strip.text   = element_text(face = "bold"),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_interrow_model_lb_sy  # print in the Rmd
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-25-1.png)<!-- -->
+
+``` r
+# 5) Save figure --------------------------------------------------------
+ggsave(
+  filename = file.path(fig_dir_interrow,
+                       "fig_interrow-weed_biomass_model_by-site-year_lb_ac.png"),
+  plot     = fig_interrow_model_lb_sy,
+  width    = 12,
+  height   = 5.5,
+  dpi      = 300
+)
+```
+
+### Raw means (kg ha⁻¹)
+
+``` r
+## 0) Directory for inter-row weed-biomass figures -----------------------
+fig_dir_interrow <- here("analysis", "figs", "weed-biomass", "inter-row")
+dir.create(fig_dir_interrow, showWarnings = FALSE, recursive = TRUE)
+
+## Optional: nice facet labels for site_year (reuse if already defined) --
+site_year_labs <- c(
+  "2024.field O2 east" = "2024 \u2013 Field O2 East",
+  "2024.field O2 west" = "2024 \u2013 Field O2 West",
+  "2023.field v"       = "2023 \u2013 Field V"
+)
+
+## Figure: Inter-row weed biomass by weed management (raw means ± SE, site-year CLDs)
+
+# 1) Raw means and SE by site-year × treatment ---------------------------
 raw_interrow_summary <- weed_biomass_clean |>
   group_by(site_year, weed_trt) |>
   summarise(
@@ -11513,17 +9006,17 @@ raw_interrow_summary <- weed_biomass_clean |>
     .groups = "drop"
   ) |>
   mutate(
-    site_year = factor(site_year),
+    site_year = as.factor(site_year),
     weed_trt  = factor(weed_trt, levels = mow_levels),
     ymin      = pmax(mean - se, 0),
     ymax      = mean + se
   )
 
-# 2) Model-based CLDs within each site_year (for letters) ---------------
+# 2) Model-based CLDs for treatment *within each site-year* --------------
 emm_interrow_sy <- emmeans(
   weed_interrow_glmm,
   ~ weed_trt | site_year,
-  type = "response"   # for CLDs on the response scale
+  type = "response"   # back-transform from link scale
 )
 
 cld_interrow_sy <- cld(
@@ -11531,333 +9024,185 @@ cld_interrow_sy <- cld(
   adjust   = "none",
   Letters  = letters,
   sort     = TRUE,
-  reversed = TRUE      # "a" = highest within each site-year
+  reversed = TRUE      # so "a" = highest biomass group(s) within each site-year
 ) |>
   as_tibble() |>
   mutate(
-    site_year = factor(site_year),
+    site_year = as.factor(site_year),
     weed_trt  = factor(weed_trt, levels = mow_levels),
     .group    = str_trim(.group)
   ) |>
   select(site_year, weed_trt, .group)
 
-# 3) Join raw means + CLDs ----------------------------------------------
-plot_df_interrow_raw <- raw_interrow_summary |>
+# 3) Join raw means + site-year CLDs ------------------------------------
+plot_df_interrow_sy <- raw_interrow_summary |>
   left_join(cld_interrow_sy, by = c("site_year", "weed_trt"))
 
 # 4) Plot ---------------------------------------------------------------
-ggplot(plot_df_interrow_raw,
-       aes(x = weed_trt, y = mean, fill = weed_trt)) +
+fig_interrow_raw_kg_sy <- ggplot(
+  plot_df_interrow_sy,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
   geom_text(
     aes(y = ymax * 1.08, label = .group),
     vjust    = 0,
     fontface = "bold",
-    size     = 5
+    size     = 4
   ) +
-  facet_wrap(~ site_year, nrow = 1, scales = "free_y") +
+  facet_wrap(
+    ~ site_year,
+    nrow     = 1,
+    labeller = labeller(site_year = site_year_labs)
+  ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
   scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x       = NULL,
-    y       = expression(Interrow~weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "Interrow weed biomass by weed management and site-year",
-    caption = "Bars show raw means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
+    x     = NULL,
+    y     = expression(Inter-row~weed~biomass~"(kg"~ha^{-1}*")"),
+    title = "Inter-row weed biomass by weed management across site-years",
+     caption = "Bars show raw means (kg ha⁻¹) ± SE; letters denote model-based CLDs within each site-year (Fisher’s LSD, α = 0.05)."
   ) +
-  theme_classic(base_size = 18) +
+  theme_classic(base_size = 16) +
   theme(
-    axis.text.x        = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y       = element_text(margin = margin(r = 8)),
-    strip.text         = element_text(face = "bold"),
-    plot.title         = element_text(face = "bold"),
-    plot.caption       = element_text(size = 9, hjust = 0.5),  # center caption
-    plot.caption.position = "plot"
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    strip.text   = element_text(face = "bold"),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
   )
+
+fig_interrow_raw_kg_sy  # print in the Rmd
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-33-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-26-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
 ggsave(
-  filename = here("figs", "analysis", "fig_interrow_weed_biomass_mowing_by_site_year_raw.png"),
-  width    = 18,
+  filename = file.path(fig_dir_interrow, "fig_interrow-weed_biomass_raw_by-site-year_kg_ha.png"),
+  plot     = fig_interrow_raw_kg_sy,
+  width    = 12,
   height   = 5.5,
   dpi      = 300
 )
 ```
 
-### 2023
-
-#### Model means
+### Raw means (lb ha⁻¹)
 
 ``` r
-### Figure: Interrow weed biomass by weed management treatment (2023 Field V)
+## 0) Directory for inter-row weed-biomass figures -----------------------
+fig_dir_interrow <- here("analysis", "figs", "weed-biomass", "inter-row")
+dir.create(fig_dir_interrow, showWarnings = FALSE, recursive = TRUE)
 
-# Estimated marginal means for treatments on the response scale (kg/ha)
-emm_inter_v23 <- emmeans(
-  weed_interrow_glmm_v23,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale
+## Optional: nice facet labels for site_year (reuse if already defined) --
+site_year_labs <- c(
+  "2024.field O2 east" = "2024 \u2013 Field O2 East",
+  "2024.field O2 west" = "2024 \u2013 Field O2 West",
+  "2023.field v"       = "2023 \u2013 Field V"
 )
 
-# Tidy emmeans for plotting
-emm_inter_v23_df <- as_tibble(emm_inter_v23) |>
+## kg/ha -> lb/ac conversion factor --------------------------------------
+kg_ha_to_lb_ac <- 0.892179
+
+## Figure: Inter-row weed biomass by weed management (raw means ± SE, site-year CLDs)
+
+# 1) Raw means and SE by site-year × treatment (now in lb ac^-1) --------
+raw_interrow_summary <- weed_biomass_clean |>
+  group_by(site_year, weed_trt) |>
+  summarise(
+    n    = n(),
+    mean = mean(interrow_weed_biomass_kg_ha, na.rm = TRUE),
+    sd   = sd(interrow_weed_biomass_kg_ha, na.rm = TRUE),
+    se   = sd / sqrt(n),
+    .groups = "drop"
+  ) |>
   mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    response = response,
-    ymin     = pmax(response - SE, 0),
-    ymax     = response + SE
+    # convert to lb ac^-1
+    mean = mean * kg_ha_to_lb_ac,
+    sd   = sd   * kg_ha_to_lb_ac,
+    se   = se   * kg_ha_to_lb_ac,
+    site_year = as.factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels),
+    ymin      = pmax(mean - se, 0),
+    ymax      = mean + se
   )
 
-# CLDs for treatments (Fisher-style, "a" = highest)
-cld_inter_v23 <- cld(
-  emm_inter_v23,
+# 2) Model-based CLDs for treatment *within each site-year* --------------
+emm_interrow_sy <- emmeans(
+  weed_interrow_glmm,
+  ~ weed_trt | site_year,
+  type = "response"   # back-transform from link scale (still kg/ha internally)
+)
+
+cld_interrow_sy <- cld(
+  emm_interrow_sy,
   adjust   = "none",
   Letters  = letters,
   sort     = TRUE,
-  reversed = TRUE
+  reversed = TRUE      # so "a" = highest biomass group(s) within each site-year
 ) |>
   as_tibble() |>
   mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
+    site_year = as.factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels),
+    .group    = str_trim(.group)
   ) |>
-  select(weed_trt, .group)
+  select(site_year, weed_trt, .group)
 
-# Merge means and CLDs
-plot_df_inter_v23 <- emm_inter_v23_df |>
-  left_join(cld_inter_v23, by = "weed_trt")
+# 3) Join raw means + site-year CLDs ------------------------------------
+plot_df_interrow_sy <- raw_interrow_summary |>
+  left_join(cld_interrow_sy, by = c("site_year", "weed_trt"))
 
-# Plot
-ggplot(plot_df_inter_v23, aes(x = weed_trt, y = response, fill = weed_trt)) +
+# 4) Plot ---------------------------------------------------------------
+fig_interrow_raw_lb_sy <- ggplot(
+  plot_df_interrow_sy,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
   geom_col(width = 0.7, color = "black") +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
   geom_text(
     aes(y = ymax * 1.08, label = .group),
     vjust    = 0,
     fontface = "bold",
-    size     = 6
+    size     = 4
+  ) +
+  facet_wrap(
+    ~ site_year,
+    nrow     = 1,
+    labeller = labeller(site_year = site_year_labs)
   ) +
   scale_fill_manual(values = fill_cols, guide = "none") +
   scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
-    x       = NULL,
-    y       = expression(Interrow~weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "Interrow weed biomass by weed management (2023)",
-    caption = "Bars show model-based means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
+    x     = NULL,
+    y     = expression(Inter-row~weed~biomass~"(lb"~ac^{-1}*")"),
+    title = "Inter-row weed biomass by weed management across site-years",
+     caption = "Bars show raw means (lb ac^-1) ± SE; letters denote model-based CLDs within each site-year (Fisher’s LSD, P > 0.05)."
   ) +
-  theme_classic(base_size = 18) +
+  theme_classic(base_size = 16) +
   theme(
     axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
     axis.title.y = element_text(margin = margin(r = 8)),
+    strip.text   = element_text(face = "bold"),
     plot.title   = element_text(face = "bold"),
     plot.caption = element_text(size = 9, hjust = 0)
   )
+
+fig_interrow_raw_lb_sy  # print in the Rmd
 ```
 
-![](figs/analysis/weed_biomass-unnamed-chunk-34-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-27-1.png)<!-- -->
 
 ``` r
-# Save figure
+# 5) Save figure --------------------------------------------------------
 ggsave(
-  filename = here("figs", "analysis", "fig_interrow_weed_biomass_mowing_fieldV_2023.png"),
-  width    = 9,
-  height   = 5.5,
-  dpi      = 300
-)
-```
-
-#### Raw means (kg ha⁻¹)
-
-##### Exploratory
-
-``` r
-### Figure: Interrow weed biomass by weed management treatment (2023 Field V; raw means with model CLDs)
-
-# 1) Model-based emmeans on the response scale (kg/ha)
-emm_inter_v23 <- emmeans(
-  weed_interrow_glmm_v23,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale
-)
-
-emm_inter_v23_df <- as_tibble(emm_inter_v23) |>
-  mutate(
-    weed_trt   = factor(weed_trt, levels = mow_levels),
-    model_mean = response,
-    ymin       = pmax(model_mean - SE, 0),
-    ymax       = model_mean + SE
-  )
-
-# 2) CLDs for treatments (Fisher-style, "a" = highest)
-cld_inter_v23 <- cld(
-  emm_inter_v23,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# 3) Raw means for interrow weed biomass (2023 Field V)
-raw_inter_v23 <- weed_biomass_field_v_2023 |>
-  group_by(weed_trt) |>
-  summarise(
-    raw_mean = mean(interrow_weed_biomass_kg_ha, na.rm = TRUE),
-    .groups  = "drop"
-  ) |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels)
-  )
-
-# 4) Merge raw means, model SE, and CLDs
-plot_df_inter_v23 <- emm_inter_v23_df |>
-  select(weed_trt, model_mean, ymin, ymax) |>
-  left_join(raw_inter_v23,  by = "weed_trt") |>
-  left_join(cld_inter_v23,  by = "weed_trt")
-
-# 5) Plot: bars = raw means, error bars = model-based SE, letters = model CLDs
-ggplot(plot_df_inter_v23, aes(x = weed_trt, y = raw_mean, fill = weed_trt)) +
-  geom_col(width = 0.7, color = "black") +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x       = NULL,
-    y       = expression(Interrow~weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "Interrow weed biomass by weed management (2023)",
-    caption = "Bars show raw means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test (P > 0.05))."
-  ) +
-  theme_classic(base_size = 18) +
-  theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold"),
-    plot.caption = element_text(size = 9, hjust = 0.5)
-  )
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-35-1.png)<!-- -->
-
-``` r
-# Save figure
-ggsave(
-  filename = here("figs", "analysis", "fig_interrow_weed_biomass_mowing_fieldV_2023_raw.png"),
-  width    = 9,
-  height   = 5.5,
-  dpi      = 300
-)
-```
-
-#### Final Raw means (lb ac⁻¹)
-
-``` r
-### Figure: Interrow weed biomass by weed management treatment (2023 Field V; raw means with model CLDs)
-### Units converted from kg ha^-1 to lb ac^-1
-
-# kg/ha → lb/ac conversion factor
-kg_ha_to_lb_ac <- 0.892179
-
-# 1) Model-based emmeans on the response scale (kg/ha)
-emm_inter_v23 <- emmeans(
-  weed_interrow_glmm_v23,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale
-)
-
-emm_inter_v23_df <- as_tibble(emm_inter_v23) |>
-  mutate(
-    weed_trt   = factor(weed_trt, levels = mow_levels),
-    # convert model mean and SE to lb/ac
-    model_mean = response * kg_ha_to_lb_ac,
-    SE         = SE       * kg_ha_to_lb_ac,
-    ymin       = pmax(model_mean - SE, 0),
-    ymax       = model_mean + SE
-  )
-
-# 2) CLDs for treatments (Fisher-style, "a" = highest)
-cld_inter_v23 <- cld(
-  emm_inter_v23,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# 3) Raw means for interrow weed biomass (2023 Field V), converted to lb/ac
-raw_inter_v23 <- weed_biomass_field_v_2023 |>
-  group_by(weed_trt) |>
-  summarise(
-    raw_mean = mean(interrow_weed_biomass_kg_ha, na.rm = TRUE),
-    .groups  = "drop"
-  ) |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    raw_mean = raw_mean * kg_ha_to_lb_ac
-  )
-
-# 4) Merge raw means, model SE, and CLDs
-plot_df_inter_v23 <- emm_inter_v23_df |>
-  select(weed_trt, model_mean, ymin, ymax) |>
-  left_join(raw_inter_v23,  by = "weed_trt") |>
-  left_join(cld_inter_v23,  by = "weed_trt")
-
-# 5) Plot: bars = raw means (lb/ac), error bars = model-based SE (lb/ac), letters = model CLDs
-ggplot(plot_df_inter_v23, aes(x = weed_trt, y = raw_mean, fill = weed_trt)) +
-  geom_col(width = 0.7, color = "black") +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x       = NULL,
-    y       = expression(Interrow~weed~biomass~"(lb"~ac^{-1}*")"),
-    title   = "Interrow weed biomass by weed management (2023)"
-  ) +
-  theme_classic(base_size = 18) +
-  theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold"),
-    plot.caption = element_text(size = 9, hjust = 0.5)
-  )
-```
-
-![](figs/analysis/weed_biomass-unnamed-chunk-36-1.png)<!-- -->
-
-``` r
-# Save figure
-ggsave(
-  filename = here("figs", "analysis", "fig_interrow_weed_biomass_mowing_fieldV_2023_raw_lb_ac.png"),
-  width    = 7.5,
+  filename = file.path(fig_dir_interrow, "fig_interrow-weed_biomass_raw_by-site-year_lb_ac.png"),
+  plot     = fig_interrow_raw_lb_sy,
+  width    = 12,
   height   = 5.5,
   dpi      = 300
 )
