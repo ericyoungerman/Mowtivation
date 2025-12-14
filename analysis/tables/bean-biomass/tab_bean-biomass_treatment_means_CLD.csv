@@ -1,0 +1,6 @@
+weed_trt,model_mean,trt_CLD,raw_mean,raw_CLD
+"Rolled, no control",7024.2,b,7024.2,b
+"Rolled, mowing",6735.7,b,6735.7,b
+"Rolled, high-residue cultivation",7027.1,b,7027.1,b
+"Tilled, mowing",7806.9,a,7806.9,a
+"Tilled, cultivation",8020.2,a,8020.2,a

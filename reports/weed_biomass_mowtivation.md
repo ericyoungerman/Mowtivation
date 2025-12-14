@@ -1,39 +1,49 @@
 Weed biomass
 ================
 
-- [Data import & prep](#data-import--prep)
-- [Model testing](#model-testing)
-  - [Exploratory data visualisation](#exploratory-data-visualisation)
+- [Data import and preparation](#data-import-and-preparation)
+- [Model testing and diagnostics](#model-testing-and-diagnostics)
+  - [Exploratory checks](#exploratory-checks)
     - [Total weed biomass (kg ha⁻¹) by site-year ×
       treatment](#total-weed-biomass-kg-ha¹-by-site-year--treatment)
     - [In-row weed biomass (kg ha⁻¹) by site-year ×
       treatment](#in-row-weed-biomass-kg-ha¹-by-site-year--treatment)
     - [Inter-row weed biomass (kg ha⁻¹) by site-year ×
       treatment](#inter-row-weed-biomass-kg-ha¹-by-site-year--treatment)
-  - [Selection](#selection)
+  - [Model selection](#model-selection)
     - [Total weed biomass](#total-weed-biomass)
     - [In-row weed biomass](#in-row-weed-biomass)
     - [Inter-row weed biomass](#inter-row-weed-biomass)
-- [Figures](#figures)
+- [Summary tables](#summary-tables)
   - [Total weed biomass](#total-weed-biomass-1)
-    - [Model-prediected means (kg ha⁻¹)](#model-prediected-means-kg-ha¹)
-    - [Model-prediected means (lb ac⁻¹)](#model-prediected-means-lb-ac¹)
-    - [Raw means (kg ha⁻¹)](#raw-means-kg-ha¹)
-    - [Raw means (lb ha⁻¹)](#raw-means-lb-ha¹)
+    - [Post-hoc treatment means and
+      CLDs](#post-hoc-treatment-means-and-clds)
+    - [Global response summary (ANOVA, AIC, model
+      info)](#global-response-summary-anova-aic-model-info)
   - [In-row weed biomass](#in-row-weed-biomass-1)
-    - [Model-prediected means (kg
-      ha⁻¹)](#model-prediected-means-kg-ha¹-1)
-    - [Model-prediected means (lb
-      ac⁻¹)](#model-prediected-means-lb-ac¹-1)
+    - [Post-hoc treatment means and
+      CLDs](#post-hoc-treatment-means-and-clds-1)
+    - [Global response summary (ANOVA, AIC, model
+      info)](#global-response-summary-anova-aic-model-info-1)
+  - [Inter-row weed biomass](#inter-row-weed-biomass-1)
+    - [Post-hoc treatment means and
+      CLDs](#post-hoc-treatment-means-and-clds-2)
+    - [Global response summary (ANOVA, AIC, model
+      info)](#global-response-summary-anova-aic-model-info-2)
+- [Figures](#figures)
+  - [Total weed biomass](#total-weed-biomass-2)
+    - [Model-predicted means (kg ha⁻¹)](#model-predicted-means-kg-ha¹)
+    - [Raw means (kg ha⁻¹)](#raw-means-kg-ha¹)
+    - [Extension figures (lb ac⁻¹)](#extension-figures-lb-ac¹)
+  - [In-row weed biomass](#in-row-weed-biomass-2)
+    - [Model-prediected means (kg ha⁻¹)](#model-prediected-means-kg-ha¹)
     - [Raw means (kg ha⁻¹)](#raw-means-kg-ha¹-1)
-    - [Raw means (lb ha⁻¹)](#raw-means-lb-ha¹-1)
+    - [Extension figures (lb ac⁻¹)](#extension-figures-lb-ac¹-1)
   - [Interrow weed biomass](#interrow-weed-biomass)
     - [Model-prediected means (kg
-      ha⁻¹)](#model-prediected-means-kg-ha¹-2)
-    - [Model-prediected means (lb
-      ac⁻¹)](#model-prediected-means-lb-ac¹-2)
+      ha⁻¹)](#model-prediected-means-kg-ha¹-1)
     - [Raw means (kg ha⁻¹)](#raw-means-kg-ha¹-2)
-    - [Raw means (lb ha⁻¹)](#raw-means-lb-ha¹-2)
+    - [Extension figures (lb ac^-1)](#extension-figures-lb-ac-1)
 
 \#Setup
 
@@ -127,7 +137,7 @@ tidy_emm <- function(emm, ref_levels = NULL) {
 }
 ```
 
-# Data import & prep
+# Data import and preparation
 
 ``` r
 # 1) Read + clean master (weed biomass) ---------------------------------
@@ -205,9 +215,9 @@ kable(
 
 Field V only, 2023 (weed biomass)
 
-# Model testing
+# Model testing and diagnostics
 
-## Exploratory data visualisation
+## Exploratory checks
 
 ### Total weed biomass (kg ha⁻¹) by site-year × treatment
 
@@ -2153,7 +2163,7 @@ ggsave(
 )
 ```
 
-## Selection
+## Model selection
 
 ``` r
 # Model selection rule for weed biomass responses:
@@ -2169,7 +2179,7 @@ ggsave(
 ### Total weed biomass
 
 ``` r
-### Model testing / selection for weed biomass (kg ha⁻¹)
+### Model testing / selection for total weed biomass (kg ha^-1)
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
@@ -2230,7 +2240,7 @@ aic_all <- tibble(
 kable(
   aic_all,
   digits  = 1,
-  caption = "Pooled (all site-years) weed biomass (kg ha⁻¹): candidate distributional families"
+  caption = "Pooled (all site-years) weed biomass (kg ha^-1): candidate distributional families"
 ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -2239,8 +2249,8 @@ kable(
 
 <caption>
 
-Pooled (all site-years) weed biomass (kg ha⁻¹): candidate distributional
-families
+Pooled (all site-years) weed biomass (kg ha^-1): candidate
+distributional families
 </caption>
 
 <thead>
@@ -2331,8 +2341,8 @@ best_all_n <- "ALL: Tweedie"
 best_aic   <- safe_aic(m_all_tw)
 
 cands <- list(
-  "ALL: NB2"                          = m_all_nb,
-  "ALL: Tweedie + ZI"                 = m_all_tw_zi,
+  "ALL: NB2"                            = m_all_nb,
+  "ALL: Tweedie + ZI"                   = m_all_tw_zi,
   "ALL: Tweedie + ZI + disp(site_year)" = m_all_tw_disp
 )
 
@@ -2363,17 +2373,17 @@ wbm_add <- update(
 )
 
 # Compare additive vs interaction
-lrt_wbm <- anova(wbm_add, wbm_int)   # LRT for interaction
+lrt_wbm   <- anova(wbm_add, wbm_int)   # LRT for interaction
 p_int_wbm <- lrt_wbm$`Pr(>Chisq)`[2]
 
-AIC_add <- AIC(wbm_add)
-AIC_int <- AIC(wbm_int)
-deltaAIC <- AIC_add - AIC_int        # > 0 means interaction has lower AIC
+AIC_add  <- AIC(wbm_add)
+AIC_int  <- AIC(wbm_int)
+deltaAIC <- AIC_add - AIC_int         # > 0 means interaction has lower AIC
 
-# Helper thresholds (you can tweak these globally if you like)
+# Helper thresholds
 p_strong    <- 0.01   # strong evidence for interaction
 p_none      <- 0.20   # essentially no evidence for interaction
-dAIC_strong <- 4      # standard "substantial" AIC improvement
+dAIC_strong <- 4      # "substantial" AIC improvement
 
 # Classify evidence for interaction
 interaction_class <- dplyr::case_when(
@@ -2382,7 +2392,7 @@ interaction_class <- dplyr::case_when(
   TRUE                                           ~ "gray_zone"
 )
 
-# Choose primary model (for now: default to additive in gray zone)
+# Choose primary model (default to additive in gray zone)
 primary_model_name_wbm <- dplyr::case_when(
   interaction_class == "interaction" ~ "Interaction: weed_trt * site_year",
   TRUE                               ~ "Additive: weed_trt + site_year"
@@ -2403,15 +2413,15 @@ aic_wbm_out <- tibble::tibble(
   AIC = c(AIC_add, AIC_int)
 ) |>
   dplyr::mutate(
-    deltaAIC = AIC - min(AIC),
-    Selected = dplyr::if_else(model == primary_model_name_wbm, "Yes", ""),
+    deltaAIC                = AIC - min(AIC),
+    Selected                = dplyr::if_else(model == primary_model_name_wbm, "Yes", ""),
     Evidence_for_interaction = interaction_class
   )
 
 kable(
   aic_wbm_out,
   digits  = 2,
-  caption = "Weed biomass (kg ha⁻¹): additive vs interaction (within chosen family)"
+  caption = "Weed biomass (kg ha^-1): additive vs interaction (within chosen family)"
 ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
@@ -2420,7 +2430,7 @@ kable(
 
 <caption>
 
-Weed biomass (kg ha⁻¹): additive vs interaction (within chosen family)
+Weed biomass (kg ha^-1): additive vs interaction (within chosen family)
 </caption>
 
 <thead>
@@ -2534,21 +2544,24 @@ cat(
     ## Selected primary model for weed biomass (used in emmeans/plots):
     ##    Additive: weed_trt + site_year   [LRT p = 0.054; ΔAIC (add - int) = -0.74; class = gray_zone]
 
+#### Diagnostics (residuals, dispersion, zero inflation)
+
 ``` r
-## 4) Diagnostics + Type-III tests for the chosen model ------------------
+### Diagnostics for total weed biomass model
 
 set.seed(123)
 res_wbm <- DHARMa::simulateResiduals(weed_glmm)
+
 plot(res_wbm)
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-7-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-8-1.png)<!-- -->
 
 ``` r
 DHARMa::testDispersion(weed_glmm)
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-7-2.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-8-2.png)<!-- -->
 
     ## 
     ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
@@ -2562,7 +2575,7 @@ DHARMa::testDispersion(weed_glmm)
 DHARMa::testZeroInflation(weed_glmm)
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-7-3.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-8-3.png)<!-- -->
 
     ## 
     ##  DHARMa zero-inflation test via comparison to expected zeros with
@@ -2573,7 +2586,8 @@ DHARMa::testZeroInflation(weed_glmm)
     ## alternative hypothesis: two.sided
 
 ``` r
-car::Anova(weed_glmm, type = 3)
+anova_wbm <- car::Anova(weed_glmm, type = 3)
+anova_wbm
 ```
 
     ## Analysis of Deviance Table (Type III Wald chisquare tests)
@@ -2586,7 +2600,860 @@ car::Anova(weed_glmm, type = 3)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-#### Post-hoc summary table
+### In-row weed biomass
+
+``` r
+#### In-row pooled (all site-years): model testing / selection ----------
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# Model formula: in-row instead of total (full interaction)
+form_all_inrow <- inrow_weed_biomass_kg_ha ~ weed_trt * site_year + (1 | site_year:block)
+
+## 1) Candidate families / structures (all with interaction) ------------
+
+m_all_inrow_tw <- glmmTMB(
+  formula = form_all_inrow,
+  family  = tweedie(link = "log"),
+  data    = weed_biomass_clean
+)
+
+m_all_inrow_nb <- glmmTMB(
+  formula = form_all_inrow,
+  family  = nbinom2(link = "log"),
+  data    = weed_biomass_clean
+)
+
+m_all_inrow_tw_zi <- glmmTMB(
+  formula   = form_all_inrow,
+  family    = tweedie(link = "log"),
+  ziformula = ~ 1,
+  data      = weed_biomass_clean
+)
+
+m_all_inrow_tw_disp <- glmmTMB(
+  formula     = form_all_inrow,
+  family      = tweedie(link = "log"),
+  ziformula   = ~ 1,
+  dispformula = ~ site_year,
+  data        = weed_biomass_clean
+)
+
+# NA-safe AIC helper (if already defined earlier, you can omit this) ----
+safe_aic <- function(mod) {
+  out <- try(AIC(mod), silent = TRUE)
+  if (inherits(out, "try-error")) return(NA_real_)
+  out
+}
+
+aic_all_inrow <- tibble(
+  model = c(
+    "INROW: Tweedie",
+    "INROW: NB2",
+    "INROW: Tweedie + ZI",
+    "INROW: Tweedie + ZI + disp(site_year)"
+  ),
+  AIC = c(
+    safe_aic(m_all_inrow_tw),
+    safe_aic(m_all_inrow_nb),
+    safe_aic(m_all_inrow_tw_zi),
+    safe_aic(m_all_inrow_tw_disp)
+  )
+)
+
+kable(
+  aic_all_inrow,
+  digits  = 2,
+  caption = "In-row weed biomass (kg ha^-1): candidate distributional families"
+) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+
+<caption>
+
+In-row weed biomass (kg ha^-1): candidate distributional families
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+model
+</th>
+
+<th style="text-align:right;">
+
+AIC
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+INROW: Tweedie
+</td>
+
+<td style="text-align:right;">
+
+523.71
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+INROW: NB2
+</td>
+
+<td style="text-align:right;">
+
+530.61
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+INROW: Tweedie + ZI
+</td>
+
+<td style="text-align:right;">
+
+525.71
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+INROW: Tweedie + ZI + disp(site_year)
+</td>
+
+<td style="text-align:right;">
+
+521.17
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+``` r
+## 2) Choose best family (require > 2 AIC units better) -----------------
+
+best_all_inrow   <- m_all_inrow_tw
+best_all_inrow_n <- "INROW: Tweedie"
+best_aic_inrow   <- safe_aic(m_all_inrow_tw)
+
+cands_inrow <- list(
+  "INROW: NB2"                            = m_all_inrow_nb,
+  "INROW: Tweedie + ZI"                   = m_all_inrow_tw_zi,
+  "INROW: Tweedie + ZI + disp(site_year)" = m_all_inrow_tw_disp
+)
+
+for (nm in names(cands_inrow)) {
+  this_aic <- safe_aic(cands_inrow[[nm]])
+  if (is.finite(this_aic) && (this_aic + 2 < best_aic_inrow)) {
+    best_all_inrow   <- cands_inrow[[nm]]
+    best_all_inrow_n <- nm
+    best_aic_inrow   <- this_aic
+  }
+}
+
+cat(
+  "Selected family/structure for in-row weed biomass (all site-years):",
+  best_all_inrow_n, "\n"
+)
+```
+
+    ## Selected family/structure for in-row weed biomass (all site-years): INROW: Tweedie + ZI + disp(site_year)
+
+``` r
+## 3) Within chosen family: additive vs interaction ---------------------
+
+# Interaction model in chosen family
+inrow_int <- best_all_inrow
+
+# Additive model: same family/ZI/dispersion, simpler fixed effects
+inrow_add <- update(
+  best_all_inrow,
+  . ~ weed_trt + site_year + (1 | site_year:block)
+)
+
+# Compare additive vs interaction
+lrt_inrow   <- anova(inrow_add, inrow_int)
+p_int_inrow <- lrt_inrow$`Pr(>Chisq)`[2]
+
+AIC_add_inrow <- AIC(inrow_add)
+AIC_int_inrow <- AIC(inrow_int)
+deltaAIC_inrow <- AIC_add_inrow - AIC_int_inrow  # > 0 => interaction has lower AIC
+
+# Same decision rule as total biomass -----------------------------------
+
+p_strong_inrow    <- 0.01  # strong evidence
+p_none_inrow      <- 0.20  # essentially none
+dAIC_strong_inrow <- 4     # substantial AIC drop
+
+interaction_class_inrow <- dplyr::case_when(
+  p_int_inrow < p_strong_inrow | deltaAIC_inrow >= dAIC_strong_inrow ~ "interaction",
+  p_int_inrow > p_none_inrow  & abs(deltaAIC_inrow) < 2              ~ "additive",
+  TRUE                                                               ~ "gray_zone"
+)
+
+primary_model_name_inrow <- dplyr::case_when(
+  interaction_class_inrow == "interaction" ~ "Interaction: weed_trt * site_year",
+  TRUE                                     ~ "Additive: weed_trt + site_year"
+)
+
+weed_inrow_glmm <- if (primary_model_name_inrow == "Interaction: weed_trt * site_year") {
+  inrow_int
+} else {
+  inrow_add
+}
+
+# AIC table for reporting
+aic_inrow_out <- tibble(
+  model = c(
+    "Additive: weed_trt + site_year",
+    "Interaction: weed_trt * site_year"
+  ),
+  AIC = c(AIC_add_inrow, AIC_int_inrow)
+) |>
+  mutate(
+    deltaAIC                = AIC - min(AIC),
+    Selected                = if_else(model == primary_model_name_inrow, "Yes", ""),
+    Evidence_for_interaction = interaction_class_inrow
+  )
+
+kable(
+  aic_inrow_out,
+  digits  = 2,
+  caption = "In-row weed biomass (kg ha^-1): additive vs interaction (within chosen family)"
+) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+
+<caption>
+
+In-row weed biomass (kg ha^-1): additive vs interaction (within chosen
+family)
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+model
+</th>
+
+<th style="text-align:right;">
+
+AIC
+</th>
+
+<th style="text-align:right;">
+
+deltaAIC
+</th>
+
+<th style="text-align:left;">
+
+Selected
+</th>
+
+<th style="text-align:left;">
+
+Evidence_for_interaction
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+Additive: weed_trt + site_year
+</td>
+
+<td style="text-align:right;">
+
+523.53
+</td>
+
+<td style="text-align:right;">
+
+2.36
+</td>
+
+<td style="text-align:left;">
+
+Yes
+</td>
+
+<td style="text-align:left;">
+
+gray_zone
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Interaction: weed_trt \* site_year
+</td>
+
+<td style="text-align:right;">
+
+521.17
+</td>
+
+<td style="text-align:right;">
+
+0.00
+</td>
+
+<td style="text-align:left;">
+
+</td>
+
+<td style="text-align:left;">
+
+gray_zone
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+``` r
+cat(
+  "\nSelected primary model for in-row weed biomass (used in emmeans/plots):\n  ",
+  primary_model_name_inrow,
+  sprintf(
+    "  [LRT p = %.3f; ΔAIC (add - int) = %.2f; class = %s]\n",
+    p_int_inrow, deltaAIC_inrow, interaction_class_inrow
+  )
+)
+```
+
+    ## 
+    ## Selected primary model for in-row weed biomass (used in emmeans/plots):
+    ##    Additive: weed_trt + site_year   [LRT p = 0.019; ΔAIC (add - int) = 2.36; class = gray_zone]
+
+#### Diagnostics (residuals, dispersion, zero inflation)
+
+``` r
+## Diagnostics + Type-III tests for chosen in-row model --------------
+
+set.seed(123)
+res_inrow <- DHARMa::simulateResiduals(weed_inrow_glmm)
+plot(res_inrow)
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-10-1.png)<!-- -->
+
+``` r
+DHARMa::testDispersion(weed_inrow_glmm)
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-10-2.png)<!-- -->
+
+    ## 
+    ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
+    ##  simulated
+    ## 
+    ## data:  simulationOutput
+    ## dispersion = 0.11726, p-value = 0.08
+    ## alternative hypothesis: two.sided
+
+``` r
+DHARMa::testZeroInflation(weed_inrow_glmm)
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-10-3.png)<!-- -->
+
+    ## 
+    ##  DHARMa zero-inflation test via comparison to expected zeros with
+    ##  simulation under H0 = fitted model
+    ## 
+    ## data:  simulationOutput
+    ## ratioObsSim = 0.9636, p-value = 0.968
+    ## alternative hypothesis: two.sided
+
+``` r
+car::Anova(weed_inrow_glmm, type = 3)
+```
+
+    ## Analysis of Deviance Table (Type III Wald chisquare tests)
+    ## 
+    ## Response: inrow_weed_biomass_kg_ha
+    ##               Chisq Df Pr(>Chisq)    
+    ## (Intercept)  91.564  1  < 2.2e-16 ***
+    ## weed_trt    107.412  4  < 2.2e-16 ***
+    ## site_year    25.185  2  3.398e-06 ***
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+### Inter-row weed biomass
+
+``` r
+#### Inter-row pooled (all site-years): model testing / selection ----------
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# Model formula: inter-row instead of total (full interaction)
+form_all_interrow <- interrow_weed_biomass_kg_ha ~ weed_trt * site_year + (1 | site_year:block)
+
+## 1) Candidate families / structures (all with interaction) -------------
+
+m_all_interrow_tw <- glmmTMB(
+  formula = form_all_interrow,
+  family  = tweedie(link = "log"),
+  data    = weed_biomass_clean
+)
+
+m_all_interrow_nb <- glmmTMB(
+  formula = form_all_interrow,
+  family  = nbinom2(link = "log"),
+  data    = weed_biomass_clean
+)
+
+m_all_interrow_tw_zi <- glmmTMB(
+  formula   = form_all_interrow,
+  family    = tweedie(link = "log"),
+  ziformula = ~ 1,
+  data      = weed_biomass_clean
+)
+
+m_all_interrow_tw_disp <- glmmTMB(
+  formula     = form_all_interrow,
+  family      = tweedie(link = "log"),
+  ziformula   = ~ 1,
+  dispformula = ~ site_year,
+  data        = weed_biomass_clean
+)
+
+# NA-safe AIC helper (omit if already defined earlier) -------------------
+safe_aic <- function(mod) {
+  out <- try(AIC(mod), silent = TRUE)
+  if (inherits(out, "try-error")) return(NA_real_)
+  out
+}
+
+aic_all_interrow <- tibble(
+  model = c(
+    "INTERROW: Tweedie",
+    "INTERROW: NB2",
+    "INTERROW: Tweedie + ZI",
+    "INTERROW: Tweedie + ZI + disp(site_year)"
+  ),
+  AIC = c(
+    safe_aic(m_all_interrow_tw),
+    safe_aic(m_all_interrow_nb),
+    safe_aic(m_all_interrow_tw_zi),
+    safe_aic(m_all_interrow_tw_disp)
+  )
+)
+
+kable(
+  aic_all_interrow,
+  digits  = 2,
+  caption = "Inter-row weed biomass (kg ha^-1): candidate distributional families"
+) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+
+<caption>
+
+Inter-row weed biomass (kg ha^-1): candidate distributional families
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+model
+</th>
+
+<th style="text-align:right;">
+
+AIC
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+INTERROW: Tweedie
+</td>
+
+<td style="text-align:right;">
+
+611.36
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+INTERROW: NB2
+</td>
+
+<td style="text-align:right;">
+
+610.89
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+INTERROW: Tweedie + ZI
+</td>
+
+<td style="text-align:right;">
+
+610.16
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+INTERROW: Tweedie + ZI + disp(site_year)
+</td>
+
+<td style="text-align:right;">
+
+610.28
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+``` r
+## 2) Choose best family (require > 2 AIC units better) ------------------
+
+best_all_interrow   <- m_all_interrow_tw
+best_all_interrow_n <- "INTERROW: Tweedie"
+best_aic_interrow   <- safe_aic(m_all_interrow_tw)
+
+cands_interrow <- list(
+  "INTERROW: NB2"                            = m_all_interrow_nb,
+  "INTERROW: Tweedie + ZI"                   = m_all_interrow_tw_zi,
+  "INTERROW: Tweedie + ZI + disp(site_year)" = m_all_interrow_tw_disp
+)
+
+for (nm in names(cands_interrow)) {
+  this_aic <- safe_aic(cands_interrow[[nm]])
+  if (is.finite(this_aic) && (this_aic + 2 < best_aic_interrow)) {
+    best_all_interrow   <- cands_interrow[[nm]]
+    best_all_interrow_n <- nm
+    best_aic_interrow   <- this_aic
+  }
+}
+
+cat(
+  "Selected family/structure for inter-row weed biomass (all site-years):",
+  best_all_interrow_n, "\n"
+)
+```
+
+    ## Selected family/structure for inter-row weed biomass (all site-years): INTERROW: Tweedie
+
+``` r
+## 3) Within chosen family: additive vs interaction ----------------------
+
+# Interaction model in chosen family
+interrow_int <- best_all_interrow
+
+# Additive model: same family/ZI/dispersion, simpler fixed effects
+interrow_add <- update(
+  best_all_interrow,
+  . ~ weed_trt + site_year + (1 | site_year:block)
+)
+
+# Compare additive vs interaction
+lrt_interrow    <- anova(interrow_add, interrow_int)
+p_int_interrow  <- lrt_interrow$`Pr(>Chisq)`[2]
+
+AIC_add_interrow   <- AIC(interrow_add)
+AIC_int_interrow   <- AIC(interrow_int)
+deltaAIC_interrow  <- AIC_add_interrow - AIC_int_interrow  # > 0 => interaction has lower AIC
+
+# Same decision rule as total & in-row -----------------------------------
+
+p_strong_interrow    <- 0.01  # strong evidence
+p_none_interrow      <- 0.20  # essentially none
+dAIC_strong_interrow <- 4     # substantial AIC drop
+
+interaction_class_interrow <- dplyr::case_when(
+  p_int_interrow < p_strong_interrow | deltaAIC_interrow >= dAIC_strong_interrow ~ "interaction",
+  p_int_interrow > p_none_interrow  & abs(deltaAIC_interrow) < 2                 ~ "additive",
+  TRUE                                                                          ~ "gray_zone"
+)
+
+primary_model_name_interrow <- dplyr::case_when(
+  interaction_class_interrow == "interaction" ~ "Interaction: weed_trt * site_year",
+  TRUE                                        ~ "Additive: weed_trt + site_year"
+)
+
+weed_interrow_glmm <- if (primary_model_name_interrow == "Interaction: weed_trt * site_year") {
+  interrow_int
+} else {
+  interrow_add
+}
+
+# AIC table for reporting
+aic_interrow_out <- tibble(
+  model = c(
+    "Additive: weed_trt + site_year",
+    "Interaction: weed_trt * site_year"
+  ),
+  AIC = c(AIC_add_interrow, AIC_int_interrow)
+) |>
+  mutate(
+    deltaAIC                 = AIC - min(AIC),
+    Selected                 = if_else(model == primary_model_name_interrow, "Yes", ""),
+    Evidence_for_interaction = interaction_class_interrow
+  )
+
+kable(
+  aic_interrow_out,
+  digits  = 2,
+  caption = "Inter-row weed biomass (kg ha^-1): additive vs interaction (within chosen family)"
+) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+
+<caption>
+
+Inter-row weed biomass (kg ha^-1): additive vs interaction (within
+chosen family)
+</caption>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+model
+</th>
+
+<th style="text-align:right;">
+
+AIC
+</th>
+
+<th style="text-align:right;">
+
+deltaAIC
+</th>
+
+<th style="text-align:left;">
+
+Selected
+</th>
+
+<th style="text-align:left;">
+
+Evidence_for_interaction
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+Additive: weed_trt + site_year
+</td>
+
+<td style="text-align:right;">
+
+615.78
+</td>
+
+<td style="text-align:right;">
+
+4.42
+</td>
+
+<td style="text-align:left;">
+
+</td>
+
+<td style="text-align:left;">
+
+interaction
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+Interaction: weed_trt \* site_year
+</td>
+
+<td style="text-align:right;">
+
+611.36
+</td>
+
+<td style="text-align:right;">
+
+0.00
+</td>
+
+<td style="text-align:left;">
+
+Yes
+</td>
+
+<td style="text-align:left;">
+
+interaction
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+``` r
+cat(
+  "\nSelected primary model for inter-row weed biomass (used in emmeans/plots):\n  ",
+  primary_model_name_interrow,
+  sprintf(
+    "  [LRT p = %.3f; ΔAIC (add - int) = %.2f; class = %s]\n",
+    p_int_interrow, deltaAIC_interrow, interaction_class_interrow
+  )
+)
+```
+
+    ## 
+    ## Selected primary model for inter-row weed biomass (used in emmeans/plots):
+    ##    Interaction: weed_trt * site_year   [LRT p = 0.009; ΔAIC (add - int) = 4.42; class = interaction]
+
+#### Diagnostics (residuals, dispersion, zero inflation)
+
+``` r
+##  Diagnostics + Type-III tests for chosen inter-row model -----------
+
+set.seed(123)
+res_interrow <- DHARMa::simulateResiduals(weed_interrow_glmm)
+plot(res_interrow)
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-12-1.png)<!-- -->
+
+``` r
+DHARMa::testDispersion(weed_interrow_glmm)
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-12-2.png)<!-- -->
+
+    ## 
+    ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
+    ##  simulated
+    ## 
+    ## data:  simulationOutput
+    ## dispersion = 0.62589, p-value = 0.672
+    ## alternative hypothesis: two.sided
+
+``` r
+DHARMa::testZeroInflation(weed_interrow_glmm)
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-12-3.png)<!-- -->
+
+    ## 
+    ##  DHARMa zero-inflation test via comparison to expected zeros with
+    ##  simulation under H0 = fitted model
+    ## 
+    ## data:  simulationOutput
+    ## ratioObsSim = 0.98336, p-value = 1
+    ## alternative hypothesis: two.sided
+
+``` r
+car::Anova(weed_interrow_glmm, type = 3)
+```
+
+    ## Analysis of Deviance Table (Type III Wald chisquare tests)
+    ## 
+    ## Response: interrow_weed_biomass_kg_ha
+    ##                      Chisq Df Pr(>Chisq)    
+    ## (Intercept)        238.332  1  < 2.2e-16 ***
+    ## weed_trt            45.959  4  2.512e-09 ***
+    ## site_year            9.057  2    0.01080 *  
+    ## weed_trt:site_year  23.604  8    0.00267 ** 
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+# Summary tables
+
+## Total weed biomass
+
+### Post-hoc treatment means and CLDs
 
 ``` r
 ##### Post-hoc summary table
@@ -2871,7 +3738,7 @@ emm_wbm_out <- emm_wbm_df |>
   )
 ```
 
-#### Global response summary table
+### Global response summary (ANOVA, AIC, model info)
 
 ``` r
 ## 0) Directory for all weed-biomass tables ------------------------------
@@ -4109,429 +4976,9 @@ readr::write_csv(
 )
 ```
 
-### In-row weed biomass
+## In-row weed biomass
 
-``` r
-#### In-row pooled (all site-years): model testing / selection ----------
-
-options(contrasts = c("contr.sum", "contr.poly"))
-
-# Model formula: in-row instead of total (full interaction)
-form_all_inrow <- inrow_weed_biomass_kg_ha ~ weed_trt * site_year + (1 | site_year:block)
-
-## 1) Candidate families / structures (all with interaction) ------------
-
-m_all_inrow_tw <- glmmTMB(
-  formula = form_all_inrow,
-  family  = tweedie(link = "log"),
-  data    = weed_biomass_clean
-)
-
-m_all_inrow_nb <- glmmTMB(
-  formula = form_all_inrow,
-  family  = nbinom2(link = "log"),
-  data    = weed_biomass_clean
-)
-
-m_all_inrow_tw_zi <- glmmTMB(
-  formula   = form_all_inrow,
-  family    = tweedie(link = "log"),
-  ziformula = ~ 1,
-  data      = weed_biomass_clean
-)
-
-m_all_inrow_tw_disp <- glmmTMB(
-  formula     = form_all_inrow,
-  family      = tweedie(link = "log"),
-  ziformula   = ~ 1,
-  dispformula = ~ site_year,
-  data        = weed_biomass_clean
-)
-
-# NA-safe AIC helper (if already defined earlier, you can omit this) ----
-safe_aic <- function(mod) {
-  out <- try(AIC(mod), silent = TRUE)
-  if (inherits(out, "try-error")) return(NA_real_)
-  out
-}
-
-aic_all_inrow <- tibble(
-  model = c(
-    "INROW: Tweedie",
-    "INROW: NB2",
-    "INROW: Tweedie + ZI",
-    "INROW: Tweedie + ZI + disp(site_year)"
-  ),
-  AIC = c(
-    safe_aic(m_all_inrow_tw),
-    safe_aic(m_all_inrow_nb),
-    safe_aic(m_all_inrow_tw_zi),
-    safe_aic(m_all_inrow_tw_disp)
-  )
-)
-
-kable(
-  aic_all_inrow,
-  digits  = 2,
-  caption = "In-row weed biomass (kg ha^-1): candidate distributional families"
-) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
-
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
-
-<caption>
-
-In-row weed biomass (kg ha^-1): candidate distributional families
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-model
-</th>
-
-<th style="text-align:right;">
-
-AIC
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-INROW: Tweedie
-</td>
-
-<td style="text-align:right;">
-
-523.71
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-INROW: NB2
-</td>
-
-<td style="text-align:right;">
-
-530.61
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-INROW: Tweedie + ZI
-</td>
-
-<td style="text-align:right;">
-
-525.71
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-INROW: Tweedie + ZI + disp(site_year)
-</td>
-
-<td style="text-align:right;">
-
-521.17
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-``` r
-## 2) Choose best family (require > 2 AIC units better) -----------------
-
-best_all_inrow   <- m_all_inrow_tw
-best_all_inrow_n <- "INROW: Tweedie"
-best_aic_inrow   <- safe_aic(m_all_inrow_tw)
-
-cands_inrow <- list(
-  "INROW: NB2"                            = m_all_inrow_nb,
-  "INROW: Tweedie + ZI"                   = m_all_inrow_tw_zi,
-  "INROW: Tweedie + ZI + disp(site_year)" = m_all_inrow_tw_disp
-)
-
-for (nm in names(cands_inrow)) {
-  this_aic <- safe_aic(cands_inrow[[nm]])
-  if (is.finite(this_aic) && (this_aic + 2 < best_aic_inrow)) {
-    best_all_inrow   <- cands_inrow[[nm]]
-    best_all_inrow_n <- nm
-    best_aic_inrow   <- this_aic
-  }
-}
-
-cat(
-  "Selected family/structure for in-row weed biomass (all site-years):",
-  best_all_inrow_n, "\n"
-)
-```
-
-    ## Selected family/structure for in-row weed biomass (all site-years): INROW: Tweedie + ZI + disp(site_year)
-
-``` r
-## 3) Within chosen family: additive vs interaction ---------------------
-
-# Interaction model in chosen family
-inrow_int <- best_all_inrow
-
-# Additive model: same family/ZI/dispersion, simpler fixed effects
-inrow_add <- update(
-  best_all_inrow,
-  . ~ weed_trt + site_year + (1 | site_year:block)
-)
-
-# Compare additive vs interaction
-lrt_inrow   <- anova(inrow_add, inrow_int)
-p_int_inrow <- lrt_inrow$`Pr(>Chisq)`[2]
-
-AIC_add_inrow <- AIC(inrow_add)
-AIC_int_inrow <- AIC(inrow_int)
-deltaAIC_inrow <- AIC_add_inrow - AIC_int_inrow  # > 0 => interaction has lower AIC
-
-# Same decision rule as total biomass -----------------------------------
-
-p_strong_inrow    <- 0.01  # strong evidence
-p_none_inrow      <- 0.20  # essentially none
-dAIC_strong_inrow <- 4     # substantial AIC drop
-
-interaction_class_inrow <- dplyr::case_when(
-  p_int_inrow < p_strong_inrow | deltaAIC_inrow >= dAIC_strong_inrow ~ "interaction",
-  p_int_inrow > p_none_inrow  & abs(deltaAIC_inrow) < 2              ~ "additive",
-  TRUE                                                               ~ "gray_zone"
-)
-
-primary_model_name_inrow <- dplyr::case_when(
-  interaction_class_inrow == "interaction" ~ "Interaction: weed_trt * site_year",
-  TRUE                                     ~ "Additive: weed_trt + site_year"
-)
-
-weed_inrow_glmm <- if (primary_model_name_inrow == "Interaction: weed_trt * site_year") {
-  inrow_int
-} else {
-  inrow_add
-}
-
-# AIC table for reporting
-aic_inrow_out <- tibble(
-  model = c(
-    "Additive: weed_trt + site_year",
-    "Interaction: weed_trt * site_year"
-  ),
-  AIC = c(AIC_add_inrow, AIC_int_inrow)
-) |>
-  mutate(
-    deltaAIC                = AIC - min(AIC),
-    Selected                = if_else(model == primary_model_name_inrow, "Yes", ""),
-    Evidence_for_interaction = interaction_class_inrow
-  )
-
-kable(
-  aic_inrow_out,
-  digits  = 2,
-  caption = "In-row weed biomass (kg ha^-1): additive vs interaction (within chosen family)"
-) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
-
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
-
-<caption>
-
-In-row weed biomass (kg ha^-1): additive vs interaction (within chosen
-family)
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-model
-</th>
-
-<th style="text-align:right;">
-
-AIC
-</th>
-
-<th style="text-align:right;">
-
-deltaAIC
-</th>
-
-<th style="text-align:left;">
-
-Selected
-</th>
-
-<th style="text-align:left;">
-
-Evidence_for_interaction
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-Additive: weed_trt + site_year
-</td>
-
-<td style="text-align:right;">
-
-523.53
-</td>
-
-<td style="text-align:right;">
-
-2.36
-</td>
-
-<td style="text-align:left;">
-
-Yes
-</td>
-
-<td style="text-align:left;">
-
-gray_zone
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Interaction: weed_trt \* site_year
-</td>
-
-<td style="text-align:right;">
-
-521.17
-</td>
-
-<td style="text-align:right;">
-
-0.00
-</td>
-
-<td style="text-align:left;">
-
-</td>
-
-<td style="text-align:left;">
-
-gray_zone
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-``` r
-cat(
-  "\nSelected primary model for in-row weed biomass (used in emmeans/plots):\n  ",
-  primary_model_name_inrow,
-  sprintf(
-    "  [LRT p = %.3f; ΔAIC (add - int) = %.2f; class = %s]\n",
-    p_int_inrow, deltaAIC_inrow, interaction_class_inrow
-  )
-)
-```
-
-    ## 
-    ## Selected primary model for in-row weed biomass (used in emmeans/plots):
-    ##    Additive: weed_trt + site_year   [LRT p = 0.019; ΔAIC (add - int) = 2.36; class = gray_zone]
-
-``` r
-## 4) Diagnostics + Type-III tests for chosen in-row model --------------
-
-set.seed(123)
-res_inrow <- DHARMa::simulateResiduals(weed_inrow_glmm)
-plot(res_inrow)
-```
-
-![](analysis/figs/weed_biomass-unnamed-chunk-10-1.png)<!-- -->
-
-``` r
-DHARMa::testDispersion(weed_inrow_glmm)
-```
-
-![](analysis/figs/weed_biomass-unnamed-chunk-10-2.png)<!-- -->
-
-    ## 
-    ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
-    ##  simulated
-    ## 
-    ## data:  simulationOutput
-    ## dispersion = 0.11726, p-value = 0.08
-    ## alternative hypothesis: two.sided
-
-``` r
-DHARMa::testZeroInflation(weed_inrow_glmm)
-```
-
-![](analysis/figs/weed_biomass-unnamed-chunk-10-3.png)<!-- -->
-
-    ## 
-    ##  DHARMa zero-inflation test via comparison to expected zeros with
-    ##  simulation under H0 = fitted model
-    ## 
-    ## data:  simulationOutput
-    ## ratioObsSim = 0.9636, p-value = 0.968
-    ## alternative hypothesis: two.sided
-
-``` r
-car::Anova(weed_inrow_glmm, type = 3)
-```
-
-    ## Analysis of Deviance Table (Type III Wald chisquare tests)
-    ## 
-    ## Response: inrow_weed_biomass_kg_ha
-    ##               Chisq Df Pr(>Chisq)    
-    ## (Intercept)  91.564  1  < 2.2e-16 ***
-    ## weed_trt    107.412  4  < 2.2e-16 ***
-    ## site_year    25.185  2  3.398e-06 ***
-    ## ---
-    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-#### Post-hoc summary table
+### Post-hoc treatment means and CLDs
 
 ``` r
 #### Post-hoc summary table
@@ -4816,7 +5263,7 @@ emm_inrow_out <- emm_inrow_df |>
   )
 ```
 
-#### Global response summary table
+### Global response summary (ANOVA, AIC, model info)
 
 ``` r
 ## 0) Directory for all *in-row* weed-biomass tables ----------------------
@@ -6054,430 +6501,9 @@ readr::write_csv(
 )
 ```
 
-### Inter-row weed biomass
+## Inter-row weed biomass
 
-``` r
-#### Inter-row pooled (all site-years): model testing / selection ----------
-
-options(contrasts = c("contr.sum", "contr.poly"))
-
-# Model formula: inter-row instead of total (full interaction)
-form_all_interrow <- interrow_weed_biomass_kg_ha ~ weed_trt * site_year + (1 | site_year:block)
-
-## 1) Candidate families / structures (all with interaction) -------------
-
-m_all_interrow_tw <- glmmTMB(
-  formula = form_all_interrow,
-  family  = tweedie(link = "log"),
-  data    = weed_biomass_clean
-)
-
-m_all_interrow_nb <- glmmTMB(
-  formula = form_all_interrow,
-  family  = nbinom2(link = "log"),
-  data    = weed_biomass_clean
-)
-
-m_all_interrow_tw_zi <- glmmTMB(
-  formula   = form_all_interrow,
-  family    = tweedie(link = "log"),
-  ziformula = ~ 1,
-  data      = weed_biomass_clean
-)
-
-m_all_interrow_tw_disp <- glmmTMB(
-  formula     = form_all_interrow,
-  family      = tweedie(link = "log"),
-  ziformula   = ~ 1,
-  dispformula = ~ site_year,
-  data        = weed_biomass_clean
-)
-
-# NA-safe AIC helper (omit if already defined earlier) -------------------
-safe_aic <- function(mod) {
-  out <- try(AIC(mod), silent = TRUE)
-  if (inherits(out, "try-error")) return(NA_real_)
-  out
-}
-
-aic_all_interrow <- tibble(
-  model = c(
-    "INTERROW: Tweedie",
-    "INTERROW: NB2",
-    "INTERROW: Tweedie + ZI",
-    "INTERROW: Tweedie + ZI + disp(site_year)"
-  ),
-  AIC = c(
-    safe_aic(m_all_interrow_tw),
-    safe_aic(m_all_interrow_nb),
-    safe_aic(m_all_interrow_tw_zi),
-    safe_aic(m_all_interrow_tw_disp)
-  )
-)
-
-kable(
-  aic_all_interrow,
-  digits  = 2,
-  caption = "Inter-row weed biomass (kg ha^-1): candidate distributional families"
-) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
-
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
-
-<caption>
-
-Inter-row weed biomass (kg ha^-1): candidate distributional families
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-model
-</th>
-
-<th style="text-align:right;">
-
-AIC
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-INTERROW: Tweedie
-</td>
-
-<td style="text-align:right;">
-
-611.36
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-INTERROW: NB2
-</td>
-
-<td style="text-align:right;">
-
-610.89
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-INTERROW: Tweedie + ZI
-</td>
-
-<td style="text-align:right;">
-
-610.16
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-INTERROW: Tweedie + ZI + disp(site_year)
-</td>
-
-<td style="text-align:right;">
-
-610.28
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-``` r
-## 2) Choose best family (require > 2 AIC units better) ------------------
-
-best_all_interrow   <- m_all_interrow_tw
-best_all_interrow_n <- "INTERROW: Tweedie"
-best_aic_interrow   <- safe_aic(m_all_interrow_tw)
-
-cands_interrow <- list(
-  "INTERROW: NB2"                            = m_all_interrow_nb,
-  "INTERROW: Tweedie + ZI"                   = m_all_interrow_tw_zi,
-  "INTERROW: Tweedie + ZI + disp(site_year)" = m_all_interrow_tw_disp
-)
-
-for (nm in names(cands_interrow)) {
-  this_aic <- safe_aic(cands_interrow[[nm]])
-  if (is.finite(this_aic) && (this_aic + 2 < best_aic_interrow)) {
-    best_all_interrow   <- cands_interrow[[nm]]
-    best_all_interrow_n <- nm
-    best_aic_interrow   <- this_aic
-  }
-}
-
-cat(
-  "Selected family/structure for inter-row weed biomass (all site-years):",
-  best_all_interrow_n, "\n"
-)
-```
-
-    ## Selected family/structure for inter-row weed biomass (all site-years): INTERROW: Tweedie
-
-``` r
-## 3) Within chosen family: additive vs interaction ----------------------
-
-# Interaction model in chosen family
-interrow_int <- best_all_interrow
-
-# Additive model: same family/ZI/dispersion, simpler fixed effects
-interrow_add <- update(
-  best_all_interrow,
-  . ~ weed_trt + site_year + (1 | site_year:block)
-)
-
-# Compare additive vs interaction
-lrt_interrow    <- anova(interrow_add, interrow_int)
-p_int_interrow  <- lrt_interrow$`Pr(>Chisq)`[2]
-
-AIC_add_interrow   <- AIC(interrow_add)
-AIC_int_interrow   <- AIC(interrow_int)
-deltaAIC_interrow  <- AIC_add_interrow - AIC_int_interrow  # > 0 => interaction has lower AIC
-
-# Same decision rule as total & in-row -----------------------------------
-
-p_strong_interrow    <- 0.01  # strong evidence
-p_none_interrow      <- 0.20  # essentially none
-dAIC_strong_interrow <- 4     # substantial AIC drop
-
-interaction_class_interrow <- dplyr::case_when(
-  p_int_interrow < p_strong_interrow | deltaAIC_interrow >= dAIC_strong_interrow ~ "interaction",
-  p_int_interrow > p_none_interrow  & abs(deltaAIC_interrow) < 2                 ~ "additive",
-  TRUE                                                                          ~ "gray_zone"
-)
-
-primary_model_name_interrow <- dplyr::case_when(
-  interaction_class_interrow == "interaction" ~ "Interaction: weed_trt * site_year",
-  TRUE                                        ~ "Additive: weed_trt + site_year"
-)
-
-weed_interrow_glmm <- if (primary_model_name_interrow == "Interaction: weed_trt * site_year") {
-  interrow_int
-} else {
-  interrow_add
-}
-
-# AIC table for reporting
-aic_interrow_out <- tibble(
-  model = c(
-    "Additive: weed_trt + site_year",
-    "Interaction: weed_trt * site_year"
-  ),
-  AIC = c(AIC_add_interrow, AIC_int_interrow)
-) |>
-  mutate(
-    deltaAIC                 = AIC - min(AIC),
-    Selected                 = if_else(model == primary_model_name_interrow, "Yes", ""),
-    Evidence_for_interaction = interaction_class_interrow
-  )
-
-kable(
-  aic_interrow_out,
-  digits  = 2,
-  caption = "Inter-row weed biomass (kg ha^-1): additive vs interaction (within chosen family)"
-) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-```
-
-<table class="table table-striped table-hover" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
-
-<caption>
-
-Inter-row weed biomass (kg ha^-1): additive vs interaction (within
-chosen family)
-</caption>
-
-<thead>
-
-<tr>
-
-<th style="text-align:left;">
-
-model
-</th>
-
-<th style="text-align:right;">
-
-AIC
-</th>
-
-<th style="text-align:right;">
-
-deltaAIC
-</th>
-
-<th style="text-align:left;">
-
-Selected
-</th>
-
-<th style="text-align:left;">
-
-Evidence_for_interaction
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td style="text-align:left;">
-
-Additive: weed_trt + site_year
-</td>
-
-<td style="text-align:right;">
-
-615.78
-</td>
-
-<td style="text-align:right;">
-
-4.42
-</td>
-
-<td style="text-align:left;">
-
-</td>
-
-<td style="text-align:left;">
-
-interaction
-</td>
-
-</tr>
-
-<tr>
-
-<td style="text-align:left;">
-
-Interaction: weed_trt \* site_year
-</td>
-
-<td style="text-align:right;">
-
-611.36
-</td>
-
-<td style="text-align:right;">
-
-0.00
-</td>
-
-<td style="text-align:left;">
-
-Yes
-</td>
-
-<td style="text-align:left;">
-
-interaction
-</td>
-
-</tr>
-
-</tbody>
-
-</table>
-
-``` r
-cat(
-  "\nSelected primary model for inter-row weed biomass (used in emmeans/plots):\n  ",
-  primary_model_name_interrow,
-  sprintf(
-    "  [LRT p = %.3f; ΔAIC (add - int) = %.2f; class = %s]\n",
-    p_int_interrow, deltaAIC_interrow, interaction_class_interrow
-  )
-)
-```
-
-    ## 
-    ## Selected primary model for inter-row weed biomass (used in emmeans/plots):
-    ##    Interaction: weed_trt * site_year   [LRT p = 0.009; ΔAIC (add - int) = 4.42; class = interaction]
-
-``` r
-## 4) Diagnostics + Type-III tests for chosen inter-row model -----------
-
-set.seed(123)
-res_interrow <- DHARMa::simulateResiduals(weed_interrow_glmm)
-plot(res_interrow)
-```
-
-![](analysis/figs/weed_biomass-unnamed-chunk-13-1.png)<!-- -->
-
-``` r
-DHARMa::testDispersion(weed_interrow_glmm)
-```
-
-![](analysis/figs/weed_biomass-unnamed-chunk-13-2.png)<!-- -->
-
-    ## 
-    ##  DHARMa nonparametric dispersion test via sd of residuals fitted vs.
-    ##  simulated
-    ## 
-    ## data:  simulationOutput
-    ## dispersion = 0.62589, p-value = 0.672
-    ## alternative hypothesis: two.sided
-
-``` r
-DHARMa::testZeroInflation(weed_interrow_glmm)
-```
-
-![](analysis/figs/weed_biomass-unnamed-chunk-13-3.png)<!-- -->
-
-    ## 
-    ##  DHARMa zero-inflation test via comparison to expected zeros with
-    ##  simulation under H0 = fitted model
-    ## 
-    ## data:  simulationOutput
-    ## ratioObsSim = 0.98336, p-value = 1
-    ## alternative hypothesis: two.sided
-
-``` r
-car::Anova(weed_interrow_glmm, type = 3)
-```
-
-    ## Analysis of Deviance Table (Type III Wald chisquare tests)
-    ## 
-    ## Response: interrow_weed_biomass_kg_ha
-    ##                      Chisq Df Pr(>Chisq)    
-    ## (Intercept)        238.332  1  < 2.2e-16 ***
-    ## weed_trt            45.959  4  2.512e-09 ***
-    ## site_year            9.057  2    0.01080 *  
-    ## weed_trt:site_year  23.604  8    0.00267 ** 
-    ## ---
-    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-##### Post-hoc summary table
+### Post-hoc treatment means and CLDs
 
 ``` r
 #### Post-hoc summary table
@@ -6762,7 +6788,7 @@ emm_interrow_out <- emm_interrow_df |>
   )
 ```
 
-#### Global response summary tabl
+### Global response summary (ANOVA, AIC, model info)
 
 ``` r
 ## 0) Directory for all *inter-row* weed-biomass tables -------------------
@@ -8004,7 +8030,7 @@ readr::write_csv(
 
 ## Total weed biomass
 
-### Model-prediected means (kg ha⁻¹)
+### Model-predicted means (kg ha⁻¹)
 
 ``` r
 ## 0) Directory for total weed-biomass figures ---------------------------
@@ -8082,7 +8108,7 @@ fig_wbm_total_model <- ggplot(
 fig_wbm_total_model  # print in the Rmd
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-16-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-19-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
@@ -8095,7 +8121,102 @@ ggsave(
 )
 ```
 
-### Model-prediected means (lb ac⁻¹)
+### Raw means (kg ha⁻¹)
+
+``` r
+## 0) Directory for total weed-biomass figures ---------------------------
+fig_dir_total <- here("analysis", "figs", "weed-biomass", "total")
+dir.create(fig_dir_total, showWarnings = FALSE, recursive = TRUE)
+
+## Figure: Weed biomass by weed management treatment (raw means ± SE, model CLDs)
+
+# 1) Raw means and SE by treatment --------------------------------------
+raw_wbm_summary <- weed_biomass_clean |>
+  group_by(weed_trt) |>
+  summarise(
+    n    = n(),
+    mean = mean(weed_biomass_kg_ha, na.rm = TRUE),
+    sd   = sd(weed_biomass_kg_ha, na.rm = TRUE),
+    se   = sd / sqrt(n),
+    .groups = "drop"
+  ) |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    ymin     = pmax(mean - se, 0),
+    ymax     = mean + se
+  )
+
+# 2) Model-based CLDs for treatment main effect -------------------------
+emm_wbm <- emmeans(
+  weed_glmm,
+  ~ weed_trt,
+  type = "response"   # back-transform from link scale
+)
+
+cld_wbm <- cld(
+  emm_wbm,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE   # so "a" = highest biomass group(s)
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# 3) Join raw means + model CLDs ----------------------------------------
+plot_df_wbm_raw <- raw_wbm_summary |>
+  left_join(cld_wbm, by = "weed_trt")
+
+# 4) Plot ---------------------------------------------------------------
+fig_wbm_total_raw <- ggplot(plot_df_wbm_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x       = NULL,
+    y       = expression(Weed~biomass~"(kg"~ha^{-1}*")"),
+    title   = "Weed biomass by weed management",
+    caption = "Bars show raw means (kg"~ha^{-1}*") ± SE; similar letters indicate no significant difference (Fisher’s LSD test, α = 0.05)."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_wbm_total_raw  # print in the Rmd
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-20-1.png)<!-- -->
+
+``` r
+# 5) Save figure --------------------------------------------------------
+ggsave(
+  filename = file.path(fig_dir_total, "fig_weed_biomass_total_raw_kg_ha.png"),
+  plot     = fig_wbm_total_raw,
+  width    = 9,
+  height   = 5.5,
+  dpi      = 300
+)
+```
+
+### Extension figures (lb ac⁻¹)
+
+#### Model-predicted means (lb ac⁻¹)
 
 ``` r
 ### Model-predicted means (lb ac^-1)
@@ -8181,7 +8302,7 @@ fig_wbm_total_model_lb <- ggplot(
 fig_wbm_total_model_lb  # print in the Rmd
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-17-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-21-1.png)<!-- -->
 
 ``` r
 # 6) Save figure --------------------------------------------------------
@@ -8194,100 +8315,7 @@ ggsave(
 )
 ```
 
-### Raw means (kg ha⁻¹)
-
-``` r
-## 0) Directory for total weed-biomass figures ---------------------------
-fig_dir_total <- here("analysis", "figs", "weed-biomass", "total")
-dir.create(fig_dir_total, showWarnings = FALSE, recursive = TRUE)
-
-## Figure: Weed biomass by weed management treatment (raw means ± SE, model CLDs)
-
-# 1) Raw means and SE by treatment --------------------------------------
-raw_wbm_summary <- weed_biomass_clean |>
-  group_by(weed_trt) |>
-  summarise(
-    n    = n(),
-    mean = mean(weed_biomass_kg_ha, na.rm = TRUE),
-    sd   = sd(weed_biomass_kg_ha, na.rm = TRUE),
-    se   = sd / sqrt(n),
-    .groups = "drop"
-  ) |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    ymin     = pmax(mean - se, 0),
-    ymax     = mean + se
-  )
-
-# 2) Model-based CLDs for treatment main effect -------------------------
-emm_wbm <- emmeans(
-  weed_glmm,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale
-)
-
-cld_wbm <- cld(
-  emm_wbm,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE   # so "a" = highest biomass group(s)
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# 3) Join raw means + model CLDs ----------------------------------------
-plot_df_wbm_raw <- raw_wbm_summary |>
-  left_join(cld_wbm, by = "weed_trt")
-
-# 4) Plot ---------------------------------------------------------------
-fig_wbm_total_raw <- ggplot(plot_df_wbm_raw, aes(x = weed_trt, y = mean, fill = weed_trt)) +
-  geom_col(width = 0.7, color = "black") +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x       = NULL,
-    y       = expression(Weed~biomass~"(kg"~ha^{-1}*")"),
-    title   = "Weed biomass by weed management",
-    caption = "Bars show raw means (kg ha⁻¹) ± SE; similar letters indicate no significant difference (Fisher’s LSD test, α = 0.05)."
-  ) +
-  theme_classic(base_size = 18) +
-  theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold"),
-    plot.caption = element_text(size = 9, hjust = 0)
-  )
-
-fig_wbm_total_raw  # print in the Rmd
-```
-
-![](analysis/figs/weed_biomass-unnamed-chunk-18-1.png)<!-- -->
-
-``` r
-# 5) Save figure --------------------------------------------------------
-ggsave(
-  filename = file.path(fig_dir_total, "fig_weed_biomass_total_raw_kg_ha.png"),
-  plot     = fig_wbm_total_raw,
-  width    = 9,
-  height   = 5.5,
-  dpi      = 300
-)
-```
-
-### Raw means (lb ha⁻¹)
+#### Raw means (lb ha⁻¹)
 
 ``` r
 ### Figure: Weed biomass by weed management treatment (raw means ± SE, model CLDs)
@@ -8371,7 +8399,7 @@ fig_wbm_total_raw_lb <- ggplot(plot_df_wbm_raw_lb, aes(x = weed_trt, y = mean, f
 fig_wbm_total_raw_lb  # print in the Rmd
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-19-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-22-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
@@ -8466,104 +8494,13 @@ fig_inrow_model <- ggplot(
 fig_inrow_model  # print in the Rmd
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-20-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-23-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
 ggsave(
   filename = file.path(fig_dir_inrow, "fig_inrow-weed_biomass_model_kg_ha.png"),
   plot     = fig_inrow_model,
-  width    = 9,
-  height   = 5.5,
-  dpi      = 300
-)
-```
-
-### Model-prediected means (lb ac⁻¹)
-
-``` r
-### Figure: In-row weed biomass by weed management 
-### (GLMM-predicted marginal means ± SE, model CLDs, lb ac^-1)
-
-# kg/ha → lb/ac conversion factor
-kg_ha_to_lb_ac <- 0.892179
-
-# 1) Model-based emmeans by treatment (still fit in kg ha^-1) -----------
-emm_inrow <- emmeans(
-  weed_inrow_glmm,
-  ~ weed_trt,
-  type = "response"   # back-transform from link scale (kg ha^-1)
-)
-
-# Tidy emmeans and convert to lb ac^-1
-emm_inrow_lb_df <- as_tibble(emm_inrow) |>
-  mutate(
-    weed_trt   = factor(weed_trt, levels = mow_levels),
-    mean_lb    = response * kg_ha_to_lb_ac,
-    SE_lb      = SE       * kg_ha_to_lb_ac,
-    ymin       = pmax(mean_lb - SE_lb, 0),
-    ymax       = mean_lb + SE_lb
-  )
-
-# 2) Model-based CLDs for treatment main effect -------------------------
-cld_inrow <- cld(
-  emm_inrow,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE   # so "a" = highest biomass group(s)
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
-  ) |>
-  select(weed_trt, .group)
-
-# 3) Join model-predicted means (lb/ac) + CLDs --------------------------
-plot_df_inrow_model_lb <- emm_inrow_lb_df |>
-  left_join(cld_inrow, by = "weed_trt")
-
-# 4) Plot ---------------------------------------------------------------
-fig_inrow_model_lb <- ggplot(
-  plot_df_inrow_model_lb,
-  aes(x = weed_trt, y = mean_lb, fill = weed_trt)
-) +
-  geom_col(width = 0.7, color = "black") +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 6
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x       = NULL,
-    y       = expression(In-row~weed~biomass~"(lb"~ac^{-1}*")"),
-    title   = "In-row weed biomass by weed management",
-    caption = "Bars show GLMM-predicted marginal means (lb"~ac^{-1}*") ± SE; letters denote Fisher’s LSD groups (α = 0.05)."
-  ) +
-  theme_classic(base_size = 18) +
-  theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    plot.title   = element_text(face = "bold"),
-    plot.caption = element_text(size = 9, hjust = 0)
-  )
-
-fig_inrow_model_lb  # print in the Rmd
-```
-
-![](analysis/figs/weed_biomass-unnamed-chunk-21-1.png)<!-- -->
-
-``` r
-# 5) Save figure --------------------------------------------------------
-ggsave(
-  filename = file.path(fig_dir_inrow, "fig_inrow-weed_biomass_model_lb_ac.png"),
-  plot     = fig_inrow_model_lb,
   width    = 9,
   height   = 5.5,
   dpi      = 300
@@ -8652,7 +8589,7 @@ fig_inrow_raw <- ggplot(plot_df_inrow_raw, aes(x = weed_trt, y = mean, fill = we
 fig_inrow_raw  # print in the Rmd
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-22-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-24-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
@@ -8665,7 +8602,100 @@ ggsave(
 )
 ```
 
-### Raw means (lb ha⁻¹)
+### Extension figures (lb ac⁻¹)
+
+#### Model-prediected means (lb ac⁻¹)
+
+``` r
+### Figure: In-row weed biomass by weed management 
+### (GLMM-predicted marginal means ± SE, model CLDs, lb ac^-1)
+
+# kg/ha → lb/ac conversion factor
+kg_ha_to_lb_ac <- 0.892179
+
+# 1) Model-based emmeans by treatment (still fit in kg ha^-1) -----------
+emm_inrow <- emmeans(
+  weed_inrow_glmm,
+  ~ weed_trt,
+  type = "response"   # back-transform from link scale (kg ha^-1)
+)
+
+# Tidy emmeans and convert to lb ac^-1
+emm_inrow_lb_df <- as_tibble(emm_inrow) |>
+  mutate(
+    weed_trt   = factor(weed_trt, levels = mow_levels),
+    mean_lb    = response * kg_ha_to_lb_ac,
+    SE_lb      = SE       * kg_ha_to_lb_ac,
+    ymin       = pmax(mean_lb - SE_lb, 0),
+    ymax       = mean_lb + SE_lb
+  )
+
+# 2) Model-based CLDs for treatment main effect -------------------------
+cld_inrow <- cld(
+  emm_inrow,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE   # so "a" = highest biomass group(s)
+) |>
+  as_tibble() |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    .group   = str_trim(.group)
+  ) |>
+  select(weed_trt, .group)
+
+# 3) Join model-predicted means (lb/ac) + CLDs --------------------------
+plot_df_inrow_model_lb <- emm_inrow_lb_df |>
+  left_join(cld_inrow, by = "weed_trt")
+
+# 4) Plot ---------------------------------------------------------------
+fig_inrow_model_lb <- ggplot(
+  plot_df_inrow_model_lb,
+  aes(x = weed_trt, y = mean_lb, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 6
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x       = NULL,
+    y       = expression(In-row~weed~biomass~"(lb"~ac^{-1}*")"),
+    title   = "In-row weed biomass by weed management",
+    caption = "Bars show GLMM-predicted marginal means (lb"~ac^{-1}*") ± SE; letters denote Fisher’s LSD groups (α = 0.05)."
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_inrow_model_lb  # print in the Rmd
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-25-1.png)<!-- -->
+
+``` r
+# 5) Save figure --------------------------------------------------------
+ggsave(
+  filename = file.path(fig_dir_inrow, "fig_inrow-weed_biomass_model_lb_ac.png"),
+  plot     = fig_inrow_model_lb,
+  width    = 9,
+  height   = 5.5,
+  dpi      = 300
+)
+```
+
+#### Raw means (lb ha⁻¹)
 
 ``` r
 ### Figure: In-row weed biomass by weed management (raw means ± SE, model CLDs)
@@ -8749,7 +8779,7 @@ fig_inrow_raw_lb <- ggplot(plot_df_inrow_raw_lb, aes(x = weed_trt, y = mean, fil
 fig_inrow_raw_lb  # print in the Rmd
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-23-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-26-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
@@ -8856,7 +8886,7 @@ fig_interrow_model_kg_sy <- ggplot(
 fig_interrow_model_kg_sy  # print in the Rmd
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-24-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-27-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
@@ -8869,7 +8899,120 @@ ggsave(
 )
 ```
 
-### Model-prediected means (lb ac⁻¹)
+### Raw means (kg ha⁻¹)
+
+``` r
+## 0) Directory for inter-row weed-biomass figures -----------------------
+fig_dir_interrow <- here("analysis", "figs", "weed-biomass", "inter-row")
+dir.create(fig_dir_interrow, showWarnings = FALSE, recursive = TRUE)
+
+## Optional: nice facet labels for site_year (reuse if already defined) --
+site_year_labs <- c(
+  "2024.field O2 east" = "2024 \u2013 Field O2 East",
+  "2024.field O2 west" = "2024 \u2013 Field O2 West",
+  "2023.field v"       = "2023 \u2013 Field V"
+)
+
+## Figure: Inter-row weed biomass by weed management (raw means ± SE, site-year CLDs)
+
+# 1) Raw means and SE by site-year × treatment ---------------------------
+raw_interrow_summary <- weed_biomass_clean |>
+  group_by(site_year, weed_trt) |>
+  summarise(
+    n    = n(),
+    mean = mean(interrow_weed_biomass_kg_ha, na.rm = TRUE),
+    sd   = sd(interrow_weed_biomass_kg_ha, na.rm = TRUE),
+    se   = sd / sqrt(n),
+    .groups = "drop"
+  ) |>
+  mutate(
+    site_year = as.factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels),
+    ymin      = pmax(mean - se, 0),
+    ymax      = mean + se
+  )
+
+# 2) Model-based CLDs for treatment *within each site-year* --------------
+emm_interrow_sy <- emmeans(
+  weed_interrow_glmm,
+  ~ weed_trt | site_year,
+  type = "response"   # back-transform from link scale
+)
+
+cld_interrow_sy <- cld(
+  emm_interrow_sy,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
+  reversed = TRUE      # so "a" = highest biomass group(s) within each site-year
+) |>
+  as_tibble() |>
+  mutate(
+    site_year = as.factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels),
+    .group    = str_trim(.group)
+  ) |>
+  select(site_year, weed_trt, .group)
+
+# 3) Join raw means + site-year CLDs ------------------------------------
+plot_df_interrow_sy <- raw_interrow_summary |>
+  left_join(cld_interrow_sy, by = c("site_year", "weed_trt"))
+
+# 4) Plot ---------------------------------------------------------------
+fig_interrow_raw_kg_sy <- ggplot(
+  plot_df_interrow_sy,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  geom_text(
+    aes(y = ymax * 1.08, label = .group),
+    vjust    = 0,
+    fontface = "bold",
+    size     = 4
+  ) +
+  facet_wrap(
+    ~ site_year,
+    nrow     = 1,
+    labeller = labeller(site_year = site_year_labs)
+  ) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x     = NULL,
+    y     = expression(Inter-row~weed~biomass~"(kg"~ha^{-1}*")"),
+    title = "Inter-row weed biomass by weed management across site-years",
+     caption = "Bars show raw means (kg"~ha^{-1}*") ± SE; letters denote model-based CLDs within each site-year (Fisher’s LSD, α = 0.05)."
+  ) +
+  theme_classic(base_size = 16) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    strip.text   = element_text(face = "bold"),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_interrow_raw_kg_sy  # print in the Rmd
+```
+
+![](analysis/figs/weed_biomass-unnamed-chunk-28-1.png)<!-- -->
+
+``` r
+# 5) Save figure --------------------------------------------------------
+ggsave(
+  filename = file.path(fig_dir_interrow, "fig_interrow-weed_biomass_raw_by-site-year_kg_ha.png"),
+  plot     = fig_interrow_raw_kg_sy,
+  width    = 12,
+  height   = 5.5,
+  dpi      = 300
+)
+```
+
+### Extension figures (lb ac^-1)
+
+#### Model-predicted means (lb ac⁻¹)
 
 ``` r
 ## 0) Directory for inter-row weed-biomass figures -----------------------
@@ -8965,7 +9108,7 @@ fig_interrow_model_lb_sy <- ggplot(
 fig_interrow_model_lb_sy  # print in the Rmd
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-25-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-29-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
@@ -8979,118 +9122,7 @@ ggsave(
 )
 ```
 
-### Raw means (kg ha⁻¹)
-
-``` r
-## 0) Directory for inter-row weed-biomass figures -----------------------
-fig_dir_interrow <- here("analysis", "figs", "weed-biomass", "inter-row")
-dir.create(fig_dir_interrow, showWarnings = FALSE, recursive = TRUE)
-
-## Optional: nice facet labels for site_year (reuse if already defined) --
-site_year_labs <- c(
-  "2024.field O2 east" = "2024 \u2013 Field O2 East",
-  "2024.field O2 west" = "2024 \u2013 Field O2 West",
-  "2023.field v"       = "2023 \u2013 Field V"
-)
-
-## Figure: Inter-row weed biomass by weed management (raw means ± SE, site-year CLDs)
-
-# 1) Raw means and SE by site-year × treatment ---------------------------
-raw_interrow_summary <- weed_biomass_clean |>
-  group_by(site_year, weed_trt) |>
-  summarise(
-    n    = n(),
-    mean = mean(interrow_weed_biomass_kg_ha, na.rm = TRUE),
-    sd   = sd(interrow_weed_biomass_kg_ha, na.rm = TRUE),
-    se   = sd / sqrt(n),
-    .groups = "drop"
-  ) |>
-  mutate(
-    site_year = as.factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels),
-    ymin      = pmax(mean - se, 0),
-    ymax      = mean + se
-  )
-
-# 2) Model-based CLDs for treatment *within each site-year* --------------
-emm_interrow_sy <- emmeans(
-  weed_interrow_glmm,
-  ~ weed_trt | site_year,
-  type = "response"   # back-transform from link scale
-)
-
-cld_interrow_sy <- cld(
-  emm_interrow_sy,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE      # so "a" = highest biomass group(s) within each site-year
-) |>
-  as_tibble() |>
-  mutate(
-    site_year = as.factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels),
-    .group    = str_trim(.group)
-  ) |>
-  select(site_year, weed_trt, .group)
-
-# 3) Join raw means + site-year CLDs ------------------------------------
-plot_df_interrow_sy <- raw_interrow_summary |>
-  left_join(cld_interrow_sy, by = c("site_year", "weed_trt"))
-
-# 4) Plot ---------------------------------------------------------------
-fig_interrow_raw_kg_sy <- ggplot(
-  plot_df_interrow_sy,
-  aes(x = weed_trt, y = mean, fill = weed_trt)
-) +
-  geom_col(width = 0.7, color = "black") +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
-  geom_text(
-    aes(y = ymax * 1.08, label = .group),
-    vjust    = 0,
-    fontface = "bold",
-    size     = 4
-  ) +
-  facet_wrap(
-    ~ site_year,
-    nrow     = 1,
-    labeller = labeller(site_year = site_year_labs)
-  ) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
-  scale_x_discrete(labels = label_break_comma_cult) +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    x     = NULL,
-    y     = expression(Inter-row~weed~biomass~"(kg"~ha^{-1}*")"),
-    title = "Inter-row weed biomass by weed management across site-years",
-     caption = "Bars show raw means (kg ha⁻¹) ± SE; letters denote model-based CLDs within each site-year (Fisher’s LSD, α = 0.05)."
-  ) +
-  theme_classic(base_size = 16) +
-  theme(
-    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8)),
-    strip.text   = element_text(face = "bold"),
-    plot.title   = element_text(face = "bold"),
-    plot.caption = element_text(size = 9, hjust = 0)
-  )
-
-fig_interrow_raw_kg_sy  # print in the Rmd
-```
-
-![](analysis/figs/weed_biomass-unnamed-chunk-26-1.png)<!-- -->
-
-``` r
-# 5) Save figure --------------------------------------------------------
-ggsave(
-  filename = file.path(fig_dir_interrow, "fig_interrow-weed_biomass_raw_by-site-year_kg_ha.png"),
-  plot     = fig_interrow_raw_kg_sy,
-  width    = 12,
-  height   = 5.5,
-  dpi      = 300
-)
-```
-
-### Raw means (lb ha⁻¹)
+#### Raw means (lb ha⁻¹)
 
 ``` r
 ## 0) Directory for inter-row weed-biomass figures -----------------------
@@ -9181,7 +9213,7 @@ fig_interrow_raw_lb_sy <- ggplot(
     x     = NULL,
     y     = expression(Inter-row~weed~biomass~"(lb"~ac^{-1}*")"),
     title = "Inter-row weed biomass by weed management across site-years",
-     caption = "Bars show raw means (lb ac^-1) ± SE; letters denote model-based CLDs within each site-year (Fisher’s LSD, P > 0.05)."
+     caption = "Bars show raw means (lb"~ac^{-1}*") ± SE; letters denote model-based CLDs within each site-year (Fisher’s LSD, P > 0.05)."
   ) +
   theme_classic(base_size = 16) +
   theme(
@@ -9195,7 +9227,7 @@ fig_interrow_raw_lb_sy <- ggplot(
 fig_interrow_raw_lb_sy  # print in the Rmd
 ```
 
-![](analysis/figs/weed_biomass-unnamed-chunk-27-1.png)<!-- -->
+![](analysis/figs/weed_biomass-unnamed-chunk-30-1.png)<!-- -->
 
 ``` r
 # 5) Save figure --------------------------------------------------------
