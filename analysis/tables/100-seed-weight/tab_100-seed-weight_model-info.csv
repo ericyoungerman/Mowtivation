@@ -1,0 +1,2 @@
+response_label,family_structure,fixed_effects,random_effects,AIC_additive,AIC_interaction,deltaAIC_add_int,LRT_p_int_raw,LRT_p_int_label,interaction_class
+"100-seed weight (g), model-predicted means*",Gaussian LMM (identity link),Additive: weed_trt + site_year,(1 | site_year:block),90.05,90.72,-0.67,0.05295827592979982,0.053,gray_zone
