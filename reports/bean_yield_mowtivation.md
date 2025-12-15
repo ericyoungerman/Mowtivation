@@ -1,6 +1,8 @@
 Soybean yield
 ================
 
+- [Setup](#setup)
+- [Packages](#packages)
 - [Data import and preparation](#data-import-and-preparation)
 - [Model testing and diagnostics](#model-testing-and-diagnostics)
   - [Exploratory checks](#exploratory-checks)
@@ -21,9 +23,9 @@ Soybean yield
     - [Model-predicted means (lb ac⁻¹)](#model-predicted-means-lb-ac¹)
     - [Raw means (lb ac⁻¹)](#raw-means-lb-ac¹)
 
-\#Setup
+# Setup
 
-\#Packages
+# Packages
 
 ``` r
 # Packages
@@ -40,7 +42,7 @@ library(here)
 library(conflicted)
 library(lme4)
 library(WrensBookshelf)
-
+library(writexl)
 
 # Handle conflicts
 conflicts_prefer(dplyr::select)
@@ -2632,6 +2634,22 @@ model_info_yield <- tibble::tibble(
 readr::write_csv(
   model_info_yield,
   file.path(tab_dir_yield, "tab_bean-yield_model-info.csv")
+)
+## 6) OPTIONAL: Combine all bean-yield tables into one Excel workbook ----
+## (requires: library(writexl) in your Packages chunk)
+
+yield_tables <- list(
+  Anova_pvals            = pvals_yield,
+  LRT_add_vs_int         = lrt_table_yield,
+  Location_means_CLD     = loc_summary_yield,
+  Treatment_means_CLD    = trt_summary_yield,
+  SiteYear_trt_means     = int_summary_yield,
+  Model_info             = model_info_yield
+)
+
+write_xlsx(
+  yield_tables,
+  path = file.path(tab_dir_yield, "bean-yield_all-tables.xlsx")
 )
 ```
 
