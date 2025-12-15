@@ -1,6 +1,8 @@
 Weed biomass
 ================
 
+- [Setup](#setup)
+- [Packages](#packages)
 - [Data import and preparation](#data-import-and-preparation)
 - [Model testing and diagnostics](#model-testing-and-diagnostics)
   - [Exploratory checks](#exploratory-checks)
@@ -45,9 +47,9 @@ Weed biomass
     - [Raw means (kg ha⁻¹)](#raw-means-kg-ha¹-2)
     - [Extension figures (lb ac^-1)](#extension-figures-lb-ac-1)
 
-\#Setup
+# Setup
 
-\#Packages
+# Packages
 
 ``` r
 # Packages
@@ -64,7 +66,7 @@ library(here)
 library(conflicted)
 library(lme4)
 library(WrensBookshelf)
-
+library(writexl)
 
 # Handle conflicts
 conflicts_prefer(dplyr::select)
@@ -4974,6 +4976,23 @@ readr::write_csv(
   model_info_wbm,
   file.path(tab_dir_wbm, "tab_total-wbm_model-info.csv")
 )
+
+## 6) OPTIONAL: Combine all TOTAL weed-biomass tables into one workbook --
+## (requires: library(writexl))
+
+wbm_total_tables <- list(
+  Anova_pvals         = pvals_wbm,
+  LRT_add_vs_int      = lrt_table_wbm,
+  Location_means_CLD  = loc_summary_wbm,
+  Treatment_means_CLD = trt_summary_wbm,
+  SiteYear_trt_means  = int_summary_wbm,
+  Model_info          = model_info_wbm
+)
+
+write_xlsx(
+  wbm_total_tables,
+  path = file.path(tab_dir_wbm, "total-weed-biomass_all-tables.xlsx")
+)
 ```
 
 ## In-row weed biomass
@@ -6499,6 +6518,22 @@ readr::write_csv(
   model_info_inrow,
   file.path(tab_dir_inrow, "tab_inrow-wbm_model-info.csv")
 )
+
+## OPTIONAL: Combine all IN-ROW weed-biomass tables into one workbook ----
+
+wbm_inrow_tables <- list(
+  Anova_pvals         = pvals_inrow,
+  LRT_add_vs_int      = lrt_table_inrow,
+  Location_means_CLD  = loc_summary_inrow,
+  Treatment_means_CLD = trt_summary_inrow,
+  SiteYear_trt_means  = int_summary_inrow,
+  Model_info          = model_info_inrow
+)
+
+write_xlsx(
+  wbm_inrow_tables,
+  path = file.path(tab_dir_inrow, "inrow-weed-biomass_all-tables.xlsx")
+)
 ```
 
 ## Inter-row weed biomass
@@ -8023,6 +8058,22 @@ model_info_interrow <- tibble::tibble(
 readr::write_csv(
   model_info_interrow,
   file.path(tab_dir_interrow, "tab_interrow-wbm_model-info.csv")
+)
+
+## OPTIONAL: Combine all INTER-ROW weed-biomass tables into one workbook ----
+
+wbm_inter_tables <- list(
+  Anova_pvals         = pvals_interrow,
+  LRT_add_vs_int      = lrt_table_interrow,
+  Location_means_CLD  = loc_summary_interrow,
+  Treatment_means_CLD = trt_summary_interrow,
+  SiteYear_trt_means  = int_summary_interrow,
+  Model_info          = model_info_interrow
+)
+
+write_xlsx(
+  wbm_inter_tables,
+  path = file.path(tab_dir_interrow, "interrow-weed-biomass_all-tables.xlsx")
 )
 ```
 
