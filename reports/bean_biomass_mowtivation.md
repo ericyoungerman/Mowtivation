@@ -40,7 +40,7 @@ library(here)
 library(conflicted)
 library(lme4)
 library(WrensBookshelf)
-
+library(writexl)
 
 # Handle conflicts
 conflicts_prefer(dplyr::select)
@@ -2636,6 +2636,23 @@ model_info_bio <- tibble::tibble(
 readr::write_csv(
   model_info_bio,
   file.path(tab_dir_bio, "tab_bean-biomass_model-info.csv")
+)
+
+## 6) OPTIONAL: Combine all bean-biomass tables into one Excel workbook --
+## (requires: library(writexl) in your Packages chunk)
+
+bio_tables <- list(
+  Anova_pvals            = pvals_bio,
+  LRT_add_vs_int         = lrt_table_bio,
+  Location_means_CLD     = loc_summary_bio,
+  Treatment_means_CLD    = trt_summary_bio,
+  SiteYear_trt_means     = int_summary_bio,
+  Model_info             = model_info_bio
+)
+
+write_xlsx(
+  bio_tables,
+  path = file.path(tab_dir_bio, "bean-biomass_all-tables.xlsx")
 )
 ```
 
