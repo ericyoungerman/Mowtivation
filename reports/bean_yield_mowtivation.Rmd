@@ -110,6 +110,7 @@ tidy_emm <- function(emm, ref_levels = NULL) {
 ```
 
 # Data import and preparation
+##All data
 ```{r}
 bean_yield_clean <- read_excel(
   here("data", "raw", "All Treatments", "combined_raw.xlsx")
@@ -153,50 +154,72 @@ bean_yield_clean <- bean_yield_clean |>
 
 ```
 
+## 2024 subset
+```{r}
+# Subset for 2024-only (farmer meeting highlight) ------------------------
+
+bean_yield_clean <- bean_yield_clean |>
+  dplyr::mutate(
+    # Works for site_year like "CU_2024", "FH_2024", etc.
+    year = readr::parse_number(as.character(site_year))
+  )
+
+bean_yield_2024 <- bean_yield_clean |>
+  dplyr::filter(year == 2024) |>
+  droplevels()
+
+# Quick sanity check
+dplyr::count(bean_yield_2024, site_year)
+```
+
 # Model testing and diagnostics
 ## Exploratory checks
+
 ```{r}
 ## 0) Directories for bean-yield tables & figures ------------------------
+
 tab_dir_bean_yield <- here("analysis", "tables", "bean-yield")
 dir.create(tab_dir_bean_yield, showWarnings = FALSE, recursive = TRUE)
 
 fig_dir_bean_yield <- here("analysis", "figs", "bean-yield")
 dir.create(fig_dir_bean_yield, showWarnings = FALSE, recursive = TRUE)
 
-## 1) Summary table: bean yield by site-year × treatment -----------------
+## Prep a single exploratory dataframe (keeps factor levels consistent) --
 
-bean_yield_sy_trt_summary <- bean_yield_clean |>
-  group_by(site_year, weed_trt) |>
-  summarise(
-    n      = n(),
+bean_yield_explore <- bean_yield_clean |>
+  dplyr::mutate(
+    site_year = factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels)
+  )
+
+## 1) Summary table: bean yield by site-year x treatment -----------------
+
+bean_yield_sy_trt_summary <- bean_yield_explore |>
+  dplyr::group_by(site_year, weed_trt) |>
+  dplyr::summarise(
+    n      = sum(!is.na(bean_yield_kg_ha)),
     mean   = mean(bean_yield_kg_ha, na.rm = TRUE),
     median = median(bean_yield_kg_ha, na.rm = TRUE),
     sd     = sd(bean_yield_kg_ha, na.rm = TRUE),
-    se     = sd / sqrt(n),
+    se     = dplyr::if_else(n >= 2, sd / sqrt(n), NA_real_),
     .groups = "drop"
   ) |>
-  mutate(
-    site_year = as.factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels)
-  ) |>
-  arrange(site_year, weed_trt)
+  dplyr::arrange(site_year, weed_trt)
 
-# Save summary table for bean yield
+# Save summary table
 readr::write_csv(
   bean_yield_sy_trt_summary,
-  file.path(tab_dir_bean_yield,
-            "tab_bean-yield_site-year_treatment_summary_raw_kg_ha.csv")
+  file.path(tab_dir_bean_yield, "tab_bean-yield_site-year_treatment_summary_raw_kg_ha.csv")
 )
 
 bean_yield_sy_trt_summary |>
-  kable(
+  knitr::kable(
     digits  = 1,
-    caption = "Bean yield (kg ha^-1) by site-year × treatment (raw means ± SD and SE)"
+    caption = "Bean yield (kg ha^-1) by site-year x treatment (raw means, median, SD, SE)"
   ) |>
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+  kableExtra::kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
-
-## 2) Faceted boxplot: all site-years -----------------------------------
+set.seed(123)  # keeps jitter stable across knits
 
 fig_bean_yield_box_sy <- bean_yield_clean |>
   mutate(
@@ -217,7 +240,7 @@ fig_bean_yield_box_sy <- bean_yield_clean |>
     color  = "grey30"
   ) +
   facet_wrap(~ site_year, nrow = 1) +
-  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_fill_manual(values = fill_cols, breaks = mow_levels, guide = "none") +
   scale_x_discrete(labels = label_break_comma_cult) +
   scale_y_continuous(labels = scales::label_comma()) +
   labs(
@@ -231,21 +254,142 @@ fig_bean_yield_box_sy <- bean_yield_clean |>
     strip.text  = element_text(face = "bold")
   )
 
-fig_bean_yield_box_sy  # print in the Rmd
+fig_bean_yield_box_sy
 
 # Save figure
 ggsave(
-  filename = file.path(fig_dir_bean_yield,
-                       "fig_bean-yield_box_by-site-year_raw_kg_ha.png"),
+  filename = file.path(fig_dir_bean_yield, "fig_bean-yield_box_by-site-year_raw_kg_ha.png"),
   plot     = fig_bean_yield_box_sy,
   width    = 12,
   height   = 5.5,
-  dpi      = 300
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
 )
-
 ```
 
 ## Model selection
+### All data
+```{r}
+### Model testing / selection for bean yield (kg ha^-1) ------------------
+
+# NOTE: Ideally set contrasts once in your setup chunk (not repeatedly).
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# 1) Fit candidate models (REML for estimation/emmeans) ------------------
+yield_add_reml <- lmer(
+  bean_yield_kg_ha ~ weed_trt + site_year + (1 | site_year:block),
+  data = bean_yield_clean,
+  REML = TRUE
+)
+
+yield_int_reml <- lmer(
+  bean_yield_kg_ha ~ weed_trt * site_year + (1 | site_year:block),
+  data = bean_yield_clean,
+  REML = TRUE
+)
+
+# 2) Compare with ML (LRT + AIC) ----------------------------------------
+yield_add_ml <- update(yield_add_reml, REML = FALSE)
+yield_int_ml <- update(yield_int_reml, REML = FALSE)
+
+lrt_yield <- anova(yield_add_ml, yield_int_ml)
+
+AIC_add_yield <- AIC(yield_add_ml)
+AIC_int_yield <- AIC(yield_int_ml)
+
+# ΔAIC (int - add): > 0 => interaction WORSE (supports additive)
+deltaAIC_int_minus_add <- AIC_int_yield - AIC_add_yield
+
+p_int_yield <- lrt_yield$`Pr(>Chisq)`[2]
+
+# 3) Classify evidence for interaction ----------------------------------
+p_strong_yield    <- 0.01
+p_none_yield      <- 0.20
+dAIC_strong_yield <- 4
+
+interaction_class_yield <- dplyr::case_when(
+  # Interaction clearly supported
+  p_int_yield < p_strong_yield | deltaAIC_int_minus_add <= -dAIC_strong_yield ~ "interaction",
+
+  # Additive clearly supported (interaction worse by >= 4 AIC)
+  deltaAIC_int_minus_add >=  dAIC_strong_yield                                ~ "additive",
+
+  # Essentially no evidence either way
+  p_int_yield > p_none_yield & abs(deltaAIC_int_minus_add) < 2                ~ "additive",
+
+  TRUE                                                                        ~ "gray_zone"
+)
+
+primary_model_name_yield <- dplyr::if_else(
+  interaction_class_yield == "interaction",
+  "Interaction: weed_trt * site_year",
+  "Additive: weed_trt + site_year"
+)
+
+# 4) Final model used for emmeans / plots (REML fits) --------------------
+yield.lmer <- if (primary_model_name_yield == "Interaction: weed_trt * site_year") {
+  yield_int_reml
+} else {
+  yield_add_reml
+}
+
+family_structure_yield <- "Gaussian LMM (identity link)"
+
+# 5) AIC table for reporting (ML AIC) -----------------------------------
+aic_yield_out <- tibble::tibble(
+  model = c(
+    "Additive: weed_trt + site_year",
+    "Interaction: weed_trt * site_year"
+  ),
+  AIC = c(AIC_add_yield, AIC_int_yield)
+) |>
+  dplyr::mutate(
+    deltaAIC = AIC - min(AIC),
+    Selected = dplyr::if_else(AIC == min(AIC), "Yes", ""),
+    Evidence_for_interaction = interaction_class_yield
+  )
+
+aic_yield_out |>
+  knitr::kable(
+    digits  = 2,
+    caption = "Bean yield (kg ha^-1): additive vs interaction (Gaussian LMM, ML AIC)"
+  ) |>
+  kableExtra::kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+# 6) Quick reminder + diagnostics (selected model) -----------------------
+cat(
+  "\nSelected primary model for bean yield (used in emmeans/plots):\n  ",
+  primary_model_name_yield,
+  sprintf(
+    "  [LRT p = %.3f; AIC_add = %.2f; AIC_int = %.2f; ΔAIC (int - add) = %.2f; class = %s]\n\n",
+    p_int_yield, AIC_add_yield, AIC_int_yield, deltaAIC_int_minus_add, interaction_class_yield
+  )
+)
+
+set.seed(123)
+res_yield <- DHARMa::simulateResiduals(yield.lmer)
+plot(res_yield)
+DHARMa::testDispersion(res_yield)
+DHARMa::testUniformity(res_yield)
+DHARMa::testOutliers(res_yield)
+
+car::Anova(yield.lmer, type = 3)
+
+performance::check_model(yield.lmer)
+performance::r2_nakagawa(yield.lmer)
+
+# 7) Optional sanity check: diagnostics for interaction model ------------
+set.seed(123)
+res_yield_int <- DHARMa::simulateResiduals(yield_int_reml)
+plot(res_yield_int)
+DHARMa::testDispersion(res_yield_int)
+DHARMa::testUniformity(res_yield_int)
+DHARMa::testOutliers(res_yield_int)
+
+car::Anova(yield_int_reml, type = 3)
+```
+
 ```{r}
 ### Model testing / selection for bean yield (kg ha^-1)
 
@@ -326,25 +470,137 @@ kable(
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
 
-## Diagnostics (residuals, dispersion, zero inflation)
-```{r}
-# Quick reminder + diagnostics ---------------------------------------
 
+### 2024 subset
+```{r}
+### Model testing / selection for bean yield in 2024 only (kg ha^-1) -----
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# 0) Subset to 2024 ------------------------------------------------------
+bean_yield_2024 <- bean_yield_clean |>
+  mutate(
+    year      = readr::parse_number(as.character(site_year)),
+    site_year = as.factor(site_year),
+    weed_trt  = factor(weed_trt, levels = mow_levels)
+  ) |>
+  filter(year == 2024) |>
+  droplevels()
+
+# (Optional quick sanity check)
+count(bean_yield_2024, site_year)
+
+# 1) Fit candidate models (REML for estimation/emmeans) ------------------
+yield_2024_add_reml <- lmer(
+  bean_yield_kg_ha ~ weed_trt + site_year + (1 | site_year:block),
+  data = bean_yield_2024,
+  REML = TRUE
+)
+
+yield_2024_int_reml <- lmer(
+  bean_yield_kg_ha ~ weed_trt * site_year + (1 | site_year:block),
+  data = bean_yield_2024,
+  REML = TRUE
+)
+
+# 2) Compare with ML (LRT + AIC) -----------------------------------------
+yield_2024_add_ml <- update(yield_2024_add_reml, REML = FALSE)
+yield_2024_int_ml <- update(yield_2024_int_reml, REML = FALSE)
+
+lrt_yield_2024 <- anova(yield_2024_add_ml, yield_2024_int_ml)
+
+AIC_add_yield_2024 <- AIC(yield_2024_add_ml)
+AIC_int_yield_2024 <- AIC(yield_2024_int_ml)
+
+# ΔAIC (int - add): > 0 => interaction WORSE (supports additive)
+deltaAIC_int_minus_add_2024 <- AIC_int_yield_2024 - AIC_add_yield_2024
+p_int_yield_2024 <- lrt_yield_2024$`Pr(>Chisq)`[2]
+
+# 3) Classify evidence for interaction -----------------------------------
+p_strong_yield    <- 0.01
+p_none_yield      <- 0.20
+dAIC_strong_yield <- 4
+
+interaction_class_yield_2024 <- dplyr::case_when(
+  p_int_yield_2024 < p_strong_yield | deltaAIC_int_minus_add_2024 <= -dAIC_strong_yield ~ "interaction",
+  deltaAIC_int_minus_add_2024 >=  dAIC_strong_yield                                     ~ "additive",
+  p_int_yield_2024 > p_none_yield & abs(deltaAIC_int_minus_add_2024) < 2                 ~ "additive",
+  TRUE                                                                                   ~ "gray_zone"
+)
+
+primary_model_name_yield_2024 <- if_else(
+  interaction_class_yield_2024 == "interaction",
+  "Interaction: weed_trt * site_year",
+  "Additive: weed_trt + site_year"
+)
+
+# 4) Final selected model (REML) -----------------------------------------
+yield_2024.lmer <- if (primary_model_name_yield_2024 == "Interaction: weed_trt * site_year") {
+  yield_2024_int_reml
+} else {
+  yield_2024_add_reml
+}
+
+family_structure_yield_2024 <- "Gaussian LMM (identity link)"
+
+# 5) AIC table for reporting (ML AIC) ------------------------------------
+aic_yield_2024_out <- tibble(
+  model = c(
+    "Additive: weed_trt + site_year",
+    "Interaction: weed_trt * site_year"
+  ),
+  AIC = c(AIC_add_yield_2024, AIC_int_yield_2024)
+) |>
+  mutate(
+    deltaAIC = AIC - min(AIC),
+    Selected = if_else(AIC == min(AIC), "Yes", ""),
+    Evidence_for_interaction = interaction_class_yield_2024
+  )
+
+kable(
+  aic_yield_2024_out,
+  digits  = 2,
+  caption = "2024-only bean yield (kg ha^-1): additive vs interaction (Gaussian LMM, ML AIC)"
+) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+# 6) Quick reminder + diagnostics (selected model) ------------------------
 cat(
-  "\nSelected primary model for bean yield (used in emmeans/plots):\n  ",
-  primary_model_name_yield,
+  "\nSelected primary model for 2024 bean yield (used in emmeans/plots):\n  ",
+  primary_model_name_yield_2024,
   sprintf(
-    "  [LRT p = %.3f; ΔAIC (add - int) = %.2f; class = %s]\n",
-    p_int_yield, deltaAIC_yield, interaction_class_yield
+    "  [LRT p = %.3f; AIC_add = %.2f; AIC_int = %.2f; ΔAIC (int - add) = %.2f; class = %s]\n\n",
+    p_int_yield_2024, AIC_add_yield_2024, AIC_int_yield_2024,
+    deltaAIC_int_minus_add_2024, interaction_class_yield_2024
   )
 )
 
 set.seed(123)
-res_yield <- DHARMa::simulateResiduals(yield.lmer)
-plot(res_yield)
-DHARMa::testDispersion(yield.lmer)
+res_yield_2024 <- DHARMa::simulateResiduals(yield_2024.lmer)
+plot(res_yield_2024)
+DHARMa::testDispersion(res_yield_2024)
+DHARMa::testUniformity(res_yield_2024)
+DHARMa::testOutliers(res_yield_2024)
 
-car::Anova(yield.lmer, type = 3)
+car::Anova(yield_2024.lmer, type = 3)
+
+performance::check_model(yield_2024.lmer)
+performance::r2_nakagawa(yield_2024.lmer)
+
+# 7) Optional: interaction-model diagnostics (sanity check) --------------
+set.seed(123)
+res_yield_2024_int <- DHARMa::simulateResiduals(yield_2024_int_reml)
+plot(res_yield_2024_int)
+DHARMa::testDispersion(res_yield_2024_int)
+DHARMa::testUniformity(res_yield_2024_int)
+DHARMa::testOutliers(res_yield_2024_int)
+
+car::Anova(yield_2024_int_reml, type = 3)
+
+bean_yield_2024 |>
+  group_by(site_year, weed_trt) |>
+  summarise(mean = mean(bean_yield_kg_ha, na.rm = TRUE), .groups = "drop") |>
+  arrange(site_year, desc(mean))
 
 ```
 
@@ -352,106 +608,89 @@ car::Anova(yield.lmer, type = 3)
 # Summary tables
 ## Post-hoc treatment means and CLDs
 ```{r}
-### Bean yield (kg ha⁻¹) with Fisher's LSD CLDs
+### Bean yield (kg ha^-1) tables (FORCE interaction model for summaries) --
 
-# Estimated marginal means for weed_trt
-emm_yield <- emmeans(yield.lmer, ~ weed_trt)
+# Use the interaction model for these tables (even if your primary model is additive)
+yield_tbl <- yield_int_reml
+yield_tbl_name <- "Interaction: weed_trt * site_year"
 
-# Tidy emmeans (adds ci_low / ci_high and enforces treatment order)
+# Directory for bean-yield tables
+tab_dir_yield <- here("analysis", "tables", "bean-yield")
+dir.create(tab_dir_yield, showWarnings = FALSE, recursive = TRUE)
+
+
+## A) Treatment means (pooled over site-years) with Fisher's LSD CLDs -----
+
+emm_yield <- emmeans(yield_tbl, ~ weed_trt)
+
 emm_yield_df <- tidy_emm(emm_yield, ref_levels = mow_levels) |>
   as_tibble()
 
-# Compact letter display (Fisher's LSD, no adjustment; "a" = highest)
 cld_yield <- cld(
   emm_yield,
-  adjust  = "none",
-  Letters = letters,
-  sort    = TRUE,
+  adjust   = "none",
+  Letters  = letters,
+  sort     = TRUE,
   reversed = TRUE
 ) |>
   as_tibble() |>
   mutate(
     weed_trt = factor(weed_trt, levels = mow_levels),
-    .group   = str_trim(.group)
+    .group   = stringr::str_trim(.group)
   ) |>
   select(weed_trt, .group)
 
-# Join emmeans + CLDs and format for reporting
-emm_yield_df |>
+yield_trt_table <- emm_yield_df |>
   left_join(cld_yield, by = "weed_trt") |>
   select(weed_trt, emmean, SE, ci_low, ci_high, .group) |>
-  mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1))) |>
+  mutate(across(c(emmean, SE, ci_low, ci_high), ~ round(.x, 1)))
+
+yield_trt_table |>
   kable(
-    caption   = "Estimated bean yield (kg ha⁻¹) with 95% CI and Fisher's LSD group letters",
+    caption   = "Estimated bean yield (kg ha^-1) pooled over site-years: 95% CI and Fisher's LSD group letters",
     col.names = c("Treatment", "Mean", "SE", "Lower CI", "Upper CI", "Group")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
-```
 
-## Global response summary (ANOVA, AIC, model info)
-```{r}
-#### Global response summary table: Bean yield (kg ha^-1)
+## B) Global response summary (Type III ANOVA + LRT + AIC) ----------------
 
-## 0) Directory for all bean-yield tables -------------------------------
-
-tab_dir_yield <- here("analysis", "tables", "bean-yield")
-dir.create(tab_dir_yield, showWarnings = FALSE, recursive = TRUE)
-
-
-# 1) P-value summary (Location, Treatment, Interaction) ------------------
-
-anova_yield <- Anova(yield.lmer, type = 3)
-
-anova_yield_df <- anova_yield |>
+anova_yield <- car::Anova(yield_tbl, type = 3) |>
   as.data.frame() |>
   tibble::rownames_to_column("Effect")
 
-p_site_yield <- anova_yield_df$`Pr(>Chisq)`[anova_yield_df$Effect == "site_year"]
-p_trt_yield  <- anova_yield_df$`Pr(>Chisq)`[anova_yield_df$Effect == "weed_trt"]
-p_int_yield3 <- anova_yield_df$`Pr(>Chisq)`[anova_yield_df$Effect == "weed_trt:site_year"]
+p_site_yield <- anova_yield$`Pr(>Chisq)`[anova_yield$Effect == "site_year"]
+p_trt_yield  <- anova_yield$`Pr(>Chisq)`[anova_yield$Effect == "weed_trt"]
+p_int_yield3 <- anova_yield$`Pr(>Chisq)`[anova_yield$Effect == "weed_trt:site_year"]
 
 pvals_yield <- tibble(
-  Effect = c(
-    "Location (site_year)",
-    "Treatment (weed_trt)"
-  ),
-  p_raw = c(p_site_yield, p_trt_yield)
-)
-
-# Only include the interaction row if the *selected* primary model uses the interaction
-if (primary_model_name_yield == "Interaction: weed_trt * site_year") {
-  pvals_yield <- bind_rows(
-    pvals_yield,
-    tibble(
-      Effect = "Location × Treatment",
-      p_raw  = p_int_yield3
-    )
-  )
-}
-
-pvals_yield <- pvals_yield |>
+  Effect = c("Site-year (site_year)", "Treatment (weed_trt)", "Site-year x Treatment"),
+  p_raw  = c(p_site_yield, p_trt_yield, p_int_yield3)
+) |>
   mutate(
     `P-value` = case_when(
-      p_raw < 0.001 ~ "<0.001",
-      p_raw < 0.01  ~ "<0.01",
-      TRUE          ~ sprintf("%.3f", p_raw)
+      is.na(p_raw)   ~ NA_character_,
+      p_raw < 0.001  ~ "<0.001",
+      p_raw < 0.01   ~ "<0.01",
+      TRUE           ~ sprintf("%.3f", p_raw)
     )
   ) |>
   select(Effect, `P-value`)
 
-# Save ANOVA p-value summary
 readr::write_csv(
   pvals_yield,
-  file.path(tab_dir_yield, "tab_bean-yield_Anova_pvals.csv")
+  file.path(tab_dir_yield, "tab_bean-yield_Anova_pvals_interaction-model.csv")
 )
 
+pvals_yield |>
+  kable(caption = "Bean yield (kg ha^-1): Type III tests from interaction model") |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
-## 1b) Likelihood-ratio test: additive vs interaction --------------------
 
+# LRT summary from your model-selection chunk (add vs int, ML)
 lrt_table_yield <- tibble(
   Test  = "LRT (additive vs interaction)",
-  p_raw = p_int_yield    # from your model-selection chunk
+  p_raw = p_int_yield
 ) |>
   mutate(
     `P-value` = case_when(
@@ -462,7 +701,6 @@ lrt_table_yield <- tibble(
   ) |>
   select(Test, `P-value`)
 
-# Save LRT summary
 readr::write_csv(
   lrt_table_yield,
   file.path(tab_dir_yield, "tab_bean-yield_LRT_add-vs-int.csv")
@@ -476,205 +714,150 @@ lrt_table_yield |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 
-## 2) Location block: site-year means (model + raw) ----------------------
+## C) Site-year means (model + raw) --------------------------------------
 
-emm_loc_yield <- emmeans(
-  yield.lmer,
-  ~ site_year
-)
+emm_loc_yield <- emmeans(yield_tbl, ~ site_year)
 
-emm_loc_yield_df <- as_tibble(emm_loc_yield) |>
+loc_summary_yield <- as_tibble(emm_loc_yield) |>
   mutate(
     site_year  = as.factor(site_year),
-    model_mean = emmean   # kg ha^-1
+    model_mean = emmean
   ) |>
-  select(site_year, model_mean)
-
-cld_loc_yield <- cld(
-  emm_loc_yield,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    site_year = as.factor(site_year),
-    loc_CLD   = str_trim(.group)
+  select(site_year, model_mean) |>
+  left_join(
+    cld(emm_loc_yield, adjust = "none", Letters = letters, sort = TRUE, reversed = TRUE) |>
+      as_tibble() |>
+      transmute(site_year = as.factor(site_year), CLD = stringr::str_trim(.group)),
+    by = "site_year"
   ) |>
-  select(site_year, loc_CLD)
-
-raw_loc_yield <- bean_yield_clean |>
-  group_by(site_year) |>
-  summarise(
-    raw_mean = mean(bean_yield_kg_ha, na.rm = TRUE),
-    .groups  = "drop"
+  left_join(
+    bean_yield_clean |>
+      group_by(site_year) |>
+      summarise(raw_mean = mean(bean_yield_kg_ha, na.rm = TRUE), .groups = "drop") |>
+      mutate(site_year = as.factor(site_year)),
+    by = "site_year"
   ) |>
-  mutate(site_year = as.factor(site_year))
-
-loc_summary_yield <- emm_loc_yield_df |>
-  left_join(cld_loc_yield, by = "site_year") |>
-  left_join(raw_loc_yield, by = "site_year") |>
   mutate(
     model_mean = round(model_mean, 1),
-    raw_mean   = round(raw_mean, 1),
-    raw_CLD    = loc_CLD
+    raw_mean   = round(raw_mean, 1)
   ) |>
   arrange(site_year)
 
-# Save location summary
 readr::write_csv(
   loc_summary_yield,
-  file.path(tab_dir_yield, "tab_bean-yield_location_means_CLD.csv")
+  file.path(tab_dir_yield, "tab_bean-yield_site-year_means_model-and-raw.csv")
 )
 
 loc_summary_yield |>
   kable(
-    caption   = "Bean yield (kg ha^-1): location (site-year) means with CLDs",
-    col.names = c("Site-year", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
+    caption   = "Bean yield (kg ha^-1): site-year means (model and raw) with Fisher's LSD letters (model-based)",
+    col.names = c("Site-year", "Model mean", "Group", "Raw mean")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 
-## 3) Treatment block: means (model + raw) -------------------------------
+## D) Treatment means (model + raw) --------------------------------------
 
-emm_yield_trt <- emmeans(
-  yield.lmer,
-  ~ weed_trt
-)
+emm_yield_trt <- emmeans(yield_tbl, ~ weed_trt)
 
-emm_trt_yield_df <- as_tibble(emm_yield_trt) |>
+trt_summary_yield <- as_tibble(emm_yield_trt) |>
   mutate(
     weed_trt   = factor(weed_trt, levels = mow_levels),
-    model_mean = emmean   # kg ha^-1
+    model_mean = emmean
   ) |>
-  select(weed_trt, model_mean)
-
-cld_yield_trt <- cld(
-  emm_yield_trt,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt = factor(weed_trt, levels = mow_levels),
-    trt_CLD  = str_trim(.group)
+  select(weed_trt, model_mean) |>
+  left_join(
+    cld(emm_yield_trt, adjust = "none", Letters = letters, sort = TRUE, reversed = TRUE) |>
+      as_tibble() |>
+      transmute(weed_trt = factor(weed_trt, levels = mow_levels), CLD = stringr::str_trim(.group)),
+    by = "weed_trt"
   ) |>
-  select(weed_trt, trt_CLD)
-
-raw_trt_yield <- bean_yield_clean |>
-  group_by(weed_trt) |>
-  summarise(
-    raw_mean = mean(bean_yield_kg_ha, na.rm = TRUE),
-    .groups  = "drop"
+  left_join(
+    bean_yield_clean |>
+      group_by(weed_trt) |>
+      summarise(raw_mean = mean(bean_yield_kg_ha, na.rm = TRUE), .groups = "drop") |>
+      mutate(weed_trt = factor(weed_trt, levels = mow_levels)),
+    by = "weed_trt"
   ) |>
-  mutate(weed_trt = factor(weed_trt, levels = mow_levels))
-
-trt_summary_yield <- emm_trt_yield_df |>
-  left_join(cld_yield_trt,  by = "weed_trt") |>
-  left_join(raw_trt_yield,  by = "weed_trt") |>
   mutate(
     model_mean = round(model_mean, 1),
-    raw_mean   = round(raw_mean, 1),
-    raw_CLD    = trt_CLD
+    raw_mean   = round(raw_mean, 1)
   ) |>
   arrange(weed_trt)
 
-# Save treatment summary
 readr::write_csv(
   trt_summary_yield,
-  file.path(tab_dir_yield, "tab_bean-yield_treatment_means_CLD.csv")
+  file.path(tab_dir_yield, "tab_bean-yield_treatment_means_model-and-raw.csv")
 )
 
 trt_summary_yield |>
   kable(
-    caption   = "Bean yield (kg ha^-1): treatment means with CLDs",
-    col.names = c("Treatment", "Model mean", "Model CLD", "Raw mean", "Raw CLD")
+    caption   = "Bean yield (kg ha^-1): treatment means (model and raw) with Fisher's LSD letters (model-based)",
+    col.names = c("Treatment", "Model mean", "Group", "Raw mean")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 
-## 4) Interaction block: site-year × treatment means ---------------------
+## E) Site-year x treatment means (model + raw) --------------------------
 
-emm_sy_yield <- emmeans(
-  yield.lmer,
-  ~ weed_trt | site_year
-)
+emm_sy_yield <- emmeans(yield_tbl, ~ weed_trt | site_year)
 
-emm_sy_yield_df <- as_tibble(emm_sy_yield) |>
+int_summary_yield <- as_tibble(emm_sy_yield) |>
   mutate(
     weed_trt   = factor(weed_trt, levels = mow_levels),
     site_year  = as.factor(site_year),
-    model_mean = emmean   # kg ha^-1
+    model_mean = emmean
   ) |>
-  select(site_year, weed_trt, model_mean)
-
-cld_sy_yield <- cld(
-  emm_sy_yield,
-  adjust   = "none",
-  Letters  = letters,
-  sort     = TRUE,
-  reversed = TRUE
-) |>
-  as_tibble() |>
-  mutate(
-    weed_trt  = factor(weed_trt, levels = mow_levels),
-    site_year = as.factor(site_year),
-    int_CLD   = str_trim(.group)
+  select(site_year, weed_trt, model_mean) |>
+  left_join(
+    cld(emm_sy_yield, adjust = "none", Letters = letters, sort = TRUE, reversed = TRUE) |>
+      as_tibble() |>
+      transmute(
+        site_year = as.factor(site_year),
+        weed_trt  = factor(weed_trt, levels = mow_levels),
+        CLD       = stringr::str_trim(.group)
+      ),
+    by = c("site_year", "weed_trt")
   ) |>
-  select(site_year, weed_trt, int_CLD)
-
-raw_sy_yield <- bean_yield_clean |>
-  group_by(site_year, weed_trt) |>
-  summarise(
-    raw_mean = mean(bean_yield_kg_ha, na.rm = TRUE),
-    .groups  = "drop"
+  left_join(
+    bean_yield_clean |>
+      group_by(site_year, weed_trt) |>
+      summarise(raw_mean = mean(bean_yield_kg_ha, na.rm = TRUE), .groups = "drop") |>
+      mutate(
+        site_year = as.factor(site_year),
+        weed_trt  = factor(weed_trt, levels = mow_levels)
+      ),
+    by = c("site_year", "weed_trt")
   ) |>
-  mutate(
-    site_year = as.factor(site_year),
-    weed_trt  = factor(weed_trt, levels = mow_levels)
-  )
-
-int_summary_yield <- emm_sy_yield_df |>
-  left_join(cld_sy_yield, by = c("site_year", "weed_trt")) |>
-  left_join(raw_sy_yield, by = c("site_year", "weed_trt")) |>
   mutate(
     model_mean = round(model_mean, 1),
-    raw_mean   = round(raw_mean, 1),
-    raw_CLD    = int_CLD
+    raw_mean   = round(raw_mean, 1)
   ) |>
   arrange(site_year, weed_trt)
 
-# Save interaction summary
 readr::write_csv(
   int_summary_yield,
-  file.path(tab_dir_yield, "tab_bean-yield_site-year_treatment_means_CLD.csv")
+  file.path(tab_dir_yield, "tab_bean-yield_site-year_x_treatment_means_model-and-raw.csv")
 )
 
 int_summary_yield |>
   kable(
-    caption   = "Bean yield (kg ha^-1): site-year × treatment means with CLDs",
-    col.names = c(
-      "Site-year", "Treatment",
-      "Model mean", "Model CLD",
-      "Raw mean",   "Raw CLD"
-    )
+    caption   = "Bean yield (kg ha^-1): site-year x treatment means (model and raw) with Fisher's LSD letters (model-based)",
+    col.names = c("Site-year", "Treatment", "Model mean", "Group", "Raw mean")
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 
-## 5) Model-info row for global response summary -------------------------
+## F) Model-info row (for your regression/model summary table) -----------
 
 model_info_yield <- tibble::tibble(
   response_label    = "Bean yield (kg ha^-1), model-predicted means*",
   family_structure  = family_structure_yield,
-  fixed_effects     = primary_model_name_yield,
+  fixed_effects     = yield_tbl_name,
   random_effects    = "(1 | site_year:block)",
   AIC_additive      = round(AIC_add_yield, 2),
   AIC_interaction   = round(AIC_int_yield, 2),
-  deltaAIC_add_int  = round(deltaAIC_yield, 2),
+  deltaAIC_int_add  = round(deltaAIC_int_minus_add, 2),  # from updated selection chunk
   LRT_p_int_raw     = p_int_yield,
   LRT_p_int_label   = dplyr::case_when(
     p_int_yield < 0.001 ~ "<0.001",
@@ -688,24 +871,26 @@ readr::write_csv(
   model_info_yield,
   file.path(tab_dir_yield, "tab_bean-yield_model-info.csv")
 )
-## 6) OPTIONAL: Combine all bean-yield tables into one Excel workbook ----
-## (requires: library(writexl) in your Packages chunk)
+
+
+## G) OPTIONAL: write everything to one Excel workbook -------------------
 
 yield_tables <- list(
-  Anova_pvals            = pvals_yield,
-  LRT_add_vs_int         = lrt_table_yield,
-  Location_means_CLD     = loc_summary_yield,
-  Treatment_means_CLD    = trt_summary_yield,
-  SiteYear_trt_means     = int_summary_yield,
-  Model_info             = model_info_yield
+  Treatment_means_CI_CLD      = yield_trt_table,
+  Anova_pvals_interaction     = pvals_yield,
+  LRT_add_vs_int              = lrt_table_yield,
+  SiteYear_means_model_raw    = loc_summary_yield,
+  Treatment_means_model_raw   = trt_summary_yield,
+  SiteYear_x_trt_model_raw    = int_summary_yield,
+  Model_info                  = model_info_yield
 )
 
-write_xlsx(
+writexl::write_xlsx(
   yield_tables,
   path = file.path(tab_dir_yield, "bean-yield_all-tables.xlsx")
 )
-
 ```
+
 
 ## Equivalence tests vs tilled control
 ```{r}
@@ -829,7 +1014,669 @@ equiv_yield_out |>
 ```
 
 # Figures
-## Model-predicted means (kg ha⁻¹)
+## All data
+```{r}
+### Soybean yield figures (pooled over site-years) -----------------------
+
+# Conversions (yield already reflects 13% moisture)
+kg_ha_to_lb_ac <- 0.892179
+bu_weight_lb   <- 60                    # soybean bu weight (lb/bu)
+kg_ha_to_bu_ac <- kg_ha_to_lb_ac / bu_weight_lb
+
+# Directory
+fig_dir_yield <- here("analysis", "figs", "soybean-yield")
+dir.create(fig_dir_yield, showWarnings = FALSE, recursive = TRUE)
+
+# Model used for figures (default = selected primary model)
+yield_fig <- yield.lmer
+# Optional: force interaction model
+# yield_fig <- yield_int_reml
+
+# Guardrail for CLD letters (only show if global treatment effect is significant)
+p_trt_yield_fig <- car::Anova(yield_fig, type = 3)$`Pr(>Chisq)`["weed_trt"]
+show_letters <- !is.na(p_trt_yield_fig) && (p_trt_yield_fig < 0.05)
+
+
+
+# 1) MODEL-PREDICTED MEANS (kg ha^-1) -----------------------------------
+
+emm_yield_trt <- emmeans(
+  yield_fig,
+  ~ weed_trt
+)
+
+plot_df_yield_model <- as_tibble(emm_yield_trt) |>
+  mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    mean     = emmean,
+    ymin     = pmax(mean - SE, 0),
+    ymax     = mean + SE
+  )
+
+if (show_letters) {
+  cld_yield_trt <- cld(
+    emm_yield_trt,
+    adjust   = "none",
+    Letters  = letters,
+    sort     = TRUE,
+    reversed = TRUE
+  ) |>
+    as_tibble() |>
+    mutate(
+      weed_trt = factor(weed_trt, levels = mow_levels),
+      .group   = stringr::str_trim(.group)
+    ) |>
+    select(weed_trt, .group)
+
+  plot_df_yield_model <- plot_df_yield_model |>
+    left_join(cld_yield_trt, by = "weed_trt")
+}
+
+fig_soy_yield_total_model_kg <- ggplot(
+  plot_df_yield_model,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  { if (show_letters) geom_text(aes(y = ymax * 1.08, label = .group),
+                                vjust = 0, fontface = "bold", size = 6) } +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x       = NULL,
+    y       = expression(Soybean~yield~"(kg"~ha^{-1}*" at 13% moisture)"),
+    title   = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_model_kg
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_soybean-yield_total_model_kg_ha.png"),
+  plot     = fig_soy_yield_total_model_kg,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+
+# 1a) MODEL-PREDICTED MEANS (lb/ac) -------------------------------------
+
+plot_df_yield_model_lb <- plot_df_yield_model |>
+  mutate(
+    mean_lb = mean * kg_ha_to_lb_ac,
+    ymin_lb = ymin * kg_ha_to_lb_ac,
+    ymax_lb = ymax * kg_ha_to_lb_ac
+  )
+
+fig_soy_yield_total_model_lb <- ggplot(
+  plot_df_yield_model_lb,
+  aes(x = weed_trt, y = mean_lb, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin_lb, ymax = ymax_lb), width = 0.14) +
+  { if (show_letters) geom_text(aes(y = ymax_lb * 1.08, label = .group),
+                                vjust = 0, fontface = "bold", size = 6) } +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x     = NULL,
+    y     = "Soybean yield (lb/ac at 13% moisture)",
+    title = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_model_lb
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_soybean-yield_total_model_lb_ac.png"),
+  plot     = fig_soy_yield_total_model_lb,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+# 1b) MODEL-PREDICTED MEANS (bu/ac) -------------------------------------
+
+plot_df_yield_model_bu <- plot_df_yield_model |>
+  mutate(
+    mean_bu = mean * kg_ha_to_bu_ac,
+    ymin_bu = ymin * kg_ha_to_bu_ac,
+    ymax_bu = ymax * kg_ha_to_bu_ac
+  )
+
+fig_soy_yield_total_model_bu <- ggplot(
+  plot_df_yield_model_bu,
+  aes(x = weed_trt, y = mean_bu, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin_bu, ymax = ymax_bu), width = 0.14) +
+  { if (show_letters) geom_text(aes(y = ymax_bu * 1.08, label = .group),
+                                vjust = 0, fontface = "bold", size = 6) } +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x     = NULL,
+    y     = "Soybean yield (bu/ac at 13% moisture)",
+    title = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_model_bu
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_soybean-yield_total_model_bu_ac.png"),
+  plot     = fig_soy_yield_total_model_bu,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+
+
+# 2) RAW MEANS (kg ha^-1) ------------------------------------------------
+
+raw_yield_summary <- bean_yield_clean |>
+  dplyr::group_by(weed_trt) |>
+  dplyr::summarise(
+    n    = sum(!is.na(bean_yield_kg_ha)),
+    mean = mean(bean_yield_kg_ha, na.rm = TRUE),
+    sd   = sd(bean_yield_kg_ha, na.rm = TRUE),
+    se   = dplyr::if_else(n >= 2, sd / sqrt(n), NA_real_),
+    .groups = "drop"
+  ) |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    ymin     = pmax(mean - se, 0),
+    ymax     = mean + se
+  )
+
+fig_soy_yield_total_raw_kg <- ggplot(
+  raw_yield_summary,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x     = NULL,
+    y     = expression(Soybean~yield~"(kg"~ha^{-1}*" at 13% moisture)"),
+    title = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_raw_kg
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_soybean-yield_total_raw_kg_ha.png"),
+  plot     = fig_soy_yield_total_raw_kg,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+
+
+# 2a) RAW MEANS (lb/ac) --------------------------------------------------
+
+raw_yield_summary_lb <- raw_yield_summary |>
+  dplyr::mutate(
+    mean_lb = mean * kg_ha_to_lb_ac,
+    ymin_lb = ymin * kg_ha_to_lb_ac,
+    ymax_lb = ymax * kg_ha_to_lb_ac
+  )
+
+fig_soy_yield_total_raw_lb <- ggplot(
+  raw_yield_summary_lb,
+  aes(x = weed_trt, y = mean_lb, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin_lb, ymax = ymax_lb), width = 0.14) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x     = NULL,
+    y     = "Soybean yield (lb/ac at 13% moisture)",
+    title = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_raw_lb
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_soybean-yield_total_raw_lb_ac.png"),
+  plot     = fig_soy_yield_total_raw_lb,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+
+
+# 2b) RAW MEANS (bu/ac) --------------------------------------------------
+
+raw_yield_summary_bu <- raw_yield_summary |>
+  dplyr::mutate(
+    mean_bu = mean * kg_ha_to_bu_ac,
+    ymin_bu = ymin * kg_ha_to_bu_ac,
+    ymax_bu = ymax * kg_ha_to_bu_ac
+  )
+
+fig_soy_yield_total_raw_bu <- ggplot(
+  raw_yield_summary_bu,
+  aes(x = weed_trt, y = mean_bu, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin_bu, ymax = ymax_bu), width = 0.14) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x     = NULL,
+    y     = "Soybean yield (bu/ac at 13% moisture)",
+    title = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_raw_bu
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_soybean-yield_total_raw_bu_ac.png"),
+  plot     = fig_soy_yield_total_raw_bu,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+
+
+```
+## 2024 subset
+```{r}
+### Soybean yield figures (2024 only; pooled over 2024 site-years) -------
+
+# Conversions (yield already reflects 13% moisture)
+kg_ha_to_lb_ac <- 0.892179
+bu_weight_lb   <- 60                    # soybean bu weight (lb/bu)
+kg_ha_to_bu_ac <- kg_ha_to_lb_ac / bu_weight_lb
+
+# Directory
+fig_dir_yield <- here("analysis", "figs", "soybean-yield")
+dir.create(fig_dir_yield, showWarnings = FALSE, recursive = TRUE)
+
+# ---- 2024 subset only --------------------------------------------------
+bean_yield_clean_2024 <- bean_yield_clean |>
+  dplyr::mutate(year = readr::parse_number(as.character(site_year))) |>
+  dplyr::filter(year == 2024) |>
+  droplevels()
+
+# Fit the same model structure as your selected primary model,
+# but using ONLY the 2024 data (so emmeans/Anova reflect 2024).
+yield_fig <- lmer(
+  formula(yield.lmer),
+  data = bean_yield_clean_2024,
+  REML = TRUE
+)
+# ------------------------------------------------------------------------
+
+# Guardrail for CLD letters (only show if global treatment effect is significant)
+p_trt_yield_fig <- car::Anova(yield_fig, type = 3)$`Pr(>Chisq)`["weed_trt"]
+show_letters <- !is.na(p_trt_yield_fig) && (p_trt_yield_fig < 0.05)
+
+
+# 1) MODEL-PREDICTED MEANS (kg ha^-1) -----------------------------------
+
+emm_yield_trt <- emmeans(
+  yield_fig,
+  ~ weed_trt
+)
+
+plot_df_yield_model <- as_tibble(emm_yield_trt) |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    mean     = emmean,
+    ymin     = pmax(mean - SE, 0),
+    ymax     = mean + SE
+  )
+
+if (show_letters) {
+  cld_yield_trt <- cld(
+    emm_yield_trt,
+    adjust   = "none",
+    Letters  = letters,
+    sort     = TRUE,
+    reversed = TRUE
+  ) |>
+    as_tibble() |>
+    dplyr::mutate(
+      weed_trt = factor(weed_trt, levels = mow_levels),
+      .group   = stringr::str_trim(.group)
+    ) |>
+    dplyr::select(weed_trt, .group)
+
+  plot_df_yield_model <- plot_df_yield_model |>
+    dplyr::left_join(cld_yield_trt, by = "weed_trt")
+}
+
+fig_soy_yield_total_model_kg <- ggplot(
+  plot_df_yield_model,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  { if (show_letters) geom_text(aes(y = ymax * 1.08, label = .group),
+                                vjust = 0, fontface = "bold", size = 6) } +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x       = NULL,
+    y       = expression(Soybean~yield~"(kg"~ha^{-1}*" at 13% moisture)"),
+    title   = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_model_kg
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_2024_soybean-yield_total_model_kg_ha.png"),
+  plot     = fig_soy_yield_total_model_kg,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+
+# 1a) MODEL-PREDICTED MEANS (lb/ac) -------------------------------------
+
+plot_df_yield_model_lb <- plot_df_yield_model |>
+  dplyr::mutate(
+    mean_lb = mean * kg_ha_to_lb_ac,
+    ymin_lb = ymin * kg_ha_to_lb_ac,
+    ymax_lb = ymax * kg_ha_to_lb_ac
+  )
+
+fig_soy_yield_total_model_lb <- ggplot(
+  plot_df_yield_model_lb,
+  aes(x = weed_trt, y = mean_lb, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin_lb, ymax = ymax_lb), width = 0.14) +
+  { if (show_letters) geom_text(aes(y = ymax_lb * 1.08, label = .group),
+                                vjust = 0, fontface = "bold", size = 6) } +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x     = NULL,
+    y     = "Soybean yield (lb/ac at 13% moisture)",
+    title = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_model_lb
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_2024_soybean-yield_total_model_lb_ac.png"),
+  plot     = fig_soy_yield_total_model_lb,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+
+# 1b) MODEL-PREDICTED MEANS (bu/ac) -------------------------------------
+
+plot_df_yield_model_bu <- plot_df_yield_model |>
+  dplyr::mutate(
+    mean_bu = mean * kg_ha_to_bu_ac,
+    ymin_bu = ymin * kg_ha_to_bu_ac,
+    ymax_bu = ymax * kg_ha_to_bu_ac
+  )
+
+fig_soy_yield_total_model_bu <- ggplot(
+  plot_df_yield_model_bu,
+  aes(x = weed_trt, y = mean_bu, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin_bu, ymax = ymax_bu), width = 0.14) +
+  { if (show_letters) geom_text(aes(y = ymax_bu * 1.08, label = .group),
+                                vjust = 0, fontface = "bold", size = 6) } +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x     = NULL,
+    y     = "Soybean yield (bu/ac at 13% moisture)",
+    title = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_model_bu
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_2024_soybean-yield_total_model_bu_ac.png"),
+  plot     = fig_soy_yield_total_model_bu,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+
+
+# 2) RAW MEANS (kg ha^-1) ------------------------------------------------
+
+raw_yield_summary <- bean_yield_clean_2024 |>
+  dplyr::group_by(weed_trt) |>
+  dplyr::summarise(
+    n    = sum(!is.na(bean_yield_kg_ha)),
+    mean = mean(bean_yield_kg_ha, na.rm = TRUE),
+    sd   = sd(bean_yield_kg_ha, na.rm = TRUE),
+    se   = dplyr::if_else(n >= 2, sd / sqrt(n), NA_real_),
+    .groups = "drop"
+  ) |>
+  dplyr::mutate(
+    weed_trt = factor(weed_trt, levels = mow_levels),
+    ymin     = pmax(mean - se, 0),
+    ymax     = mean + se
+  )
+
+fig_soy_yield_total_raw_kg <- ggplot(
+  raw_yield_summary,
+  aes(x = weed_trt, y = mean, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.14) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x     = NULL,
+    y     = expression(Soybean~yield~"(kg"~ha^{-1}*" at 13% moisture)"),
+    title = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_raw_kg
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_2024_soybean-yield_total_raw_kg_ha.png"),
+  plot     = fig_soy_yield_total_raw_kg,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+
+
+# 2a) RAW MEANS (lb/ac) --------------------------------------------------
+
+raw_yield_summary_lb <- raw_yield_summary |>
+  dplyr::mutate(
+    mean_lb = mean * kg_ha_to_lb_ac,
+    ymin_lb = ymin * kg_ha_to_lb_ac,
+    ymax_lb = ymax * kg_ha_to_lb_ac
+  )
+
+fig_soy_yield_total_raw_lb <- ggplot(
+  raw_yield_summary_lb,
+  aes(x = weed_trt, y = mean_lb, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin_lb, ymax = ymax_lb), width = 0.14) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x     = NULL,
+    y     = "Soybean yield (lb/ac at 13% moisture)",
+    title = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_raw_lb
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_2024_soybean-yield_total_raw_lb_ac.png"),
+  plot     = fig_soy_yield_total_raw_lb,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+
+
+# 2b) RAW MEANS (bu/ac) --------------------------------------------------
+
+raw_yield_summary_bu <- raw_yield_summary |>
+  dplyr::mutate(
+    mean_bu = mean * kg_ha_to_bu_ac,
+    ymin_bu = ymin * kg_ha_to_bu_ac,
+    ymax_bu = ymax * kg_ha_to_bu_ac
+  )
+
+fig_soy_yield_total_raw_bu <- ggplot(
+  raw_yield_summary_bu,
+  aes(x = weed_trt, y = mean_bu, fill = weed_trt)
+) +
+  geom_col(width = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = ymin_bu, ymax = ymax_bu), width = 0.14) +
+  scale_fill_manual(values = fill_cols, guide = "none") +
+  scale_x_discrete(labels = label_break_comma_cult) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x     = NULL,
+    y     = "Soybean yield (bu/ac at 13% moisture)",
+    title = "Soybean yield by weed management"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    axis.text.x  = element_text(lineheight = 0.95, margin = margin(t = 8)),
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title   = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+
+fig_soy_yield_total_raw_bu
+
+ggsave(
+  filename = file.path(fig_dir_yield, "fig_2024_soybean-yield_total_raw_bu_ac.png"),
+  plot     = fig_soy_yield_total_raw_bu,
+  width    = 9,
+  height   = 5.5,
+  units    = "in",
+  dpi      = 300,
+  bg       = "white"
+)
+
+```
+
+
+
+
 ```{r}
 ## 0) Directory for bean-yield figures -----------------------------------
 fig_dir_yield <- here("analysis", "figs", "bean-yield")
