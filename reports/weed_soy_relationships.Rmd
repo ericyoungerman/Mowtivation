@@ -14,9 +14,40 @@ always_allow_html: true
 knitr::opts_chunk$set(
   echo    = TRUE,
   message = FALSE,
-  warning = FALSE,
-  fig.path = "figs/analysis/weed_soy-"
+  warning = FALSE
 )
+```
+
+#Directories
+```{r}
+
+## 0) Directories for weed–soy relationship outputs ----------------------
+
+fig_dir_rel <- here::here("analysis", "figs", "weed-soy-relationships")
+tab_dir_rel <- here::here("analysis", "tables", "weed-soy-relationships")
+
+dir.create(fig_dir_rel, showWarnings = FALSE, recursive = TRUE)
+dir.create(tab_dir_rel, showWarnings = FALSE, recursive = TRUE)
+
+## Helper: save ggplots consistently (adds prefix; defaults to .png) -------
+save_fig_rel <- function(plot, filename, width = 7, height = 5, dpi = 300) {
+  if (!grepl("\\.(png|pdf)$", filename)) filename <- paste0(filename, ".png")
+  ggplot2::ggsave(
+    filename = file.path(fig_dir_rel, paste0("weed_soy-", filename)),
+    plot     = plot,
+    width    = width,
+    height   = height,
+    dpi      = dpi,
+    units    = "in"
+  )
+}
+
+## Helper: write tables consistently (adds prefix; defaults to .csv) -------
+save_tab_rel <- function(df, filename) {
+  if (!grepl("\\.csv$", filename)) filename <- paste0(filename, ".csv")
+  readr::write_csv(df, file.path(tab_dir_rel, paste0("weed_soy-", filename)))
+}
+
 ```
 
 #Packages
@@ -40,6 +71,7 @@ library(car)
 library(kableExtra)
 library(broom)        # tidy() / glance() for lm
 library(broom.mixed)  # tidy() / glance() for lmer / glmmTMB
+library(writexl)
 
 # Diagnostics
 library(performance)  # check_model(), etc.
@@ -56,6 +88,7 @@ library(conflicted)
 conflicts_prefer(dplyr::select)
 conflicts_prefer(dplyr::filter)
 conflicts_prefer(dplyr::recode)
+conflicts_prefer(dplyr::lag)
 
 ## Treatment level order (used everywhere) ----------------------------------
 
@@ -78,18 +111,9 @@ fill_cols <- WB_brewer(
 
 ## Axis label helpers -------------------------------------------------------
 
-# Break on spaces (every word on its own line)
-label_break_spaces <- function(x) {
-  stringr::str_replace_all(x, " ", "\n")
-}
+label_break_spaces <- function(x) stringr::str_replace_all(x, " ", "\n")
+label_break_comma  <- function(x) stringr::str_replace_all(x, ", ", ",\n")
 
-# Break after the comma: "Rolled,\nno control"
-label_break_comma <- function(x) {
-  stringr::str_replace_all(x, ", ", ",\n")
-}
-
-# Break after comma and split "high-residue cultivation"
-# -> "Rolled,\nhigh-residue\ncultivation"
 label_break_comma_cult <- function(x) {
   x |>
     stringr::str_replace("high-residue cultivation",
@@ -102,8 +126,8 @@ label_break_comma_cult <- function(x) {
 tidy_emm <- function(emm, ref_levels = NULL) {
   emm_df <- as.data.frame(emm)
 
-  lcl_col <- intersect(c("lower.CL", "asymp.LCL"), names(emm_df))[1]
-  ucl_col <- intersect(c("upper.CL", "asymp.UCL"), names(emm_df))[1]
+  lcl_col <- intersect(c("lower.CL", "asymp.LCL", "lower"), names(emm_df))[1]
+  ucl_col <- intersect(c("upper.CL", "asymp.UCL", "upper"), names(emm_df))[1]
 
   if (is.na(lcl_col) || is.na(ucl_col)) {
     stop("Could not find CI columns in emmeans output.")
@@ -122,19 +146,16 @@ tidy_emm <- function(emm, ref_levels = NULL) {
 
   out
 }
-
 ```
 
 # Data import & prep
 ```{r}
 ## Data import & prep ---------------------------------------------------------
 
-# convenient conversion factor (kg/ha -> lb/ac)
 kg_ha_to_lb_ac <- 0.892179   # 1 kg/ha ≈ 0.892179 lb/ac
+row_spacing_m  <- 0.762      # 30-inch rows (m)
 
-# 1) Read + clean master (weed + soybean) -------------------------------------
-
-weed_biomass_clean <- read_excel(
+weed_soy_clean <- read_excel(
   here("data", "raw", "All Treatments", "combined_raw.xlsx")
 ) |>
   clean_names() |>
@@ -144,22 +165,27 @@ weed_biomass_clean <- read_excel(
     location  = factor(location),
     site_year = factor(interaction(year, location, drop = TRUE)),
     block     = factor(block),
-    weed_trt  = recode(
+    weed_trt  = dplyr::case_match(
       weed_trt,
-      "RNO" = "Rolled, no control",
-      "RIM" = "Rolled, mowing",
-      "RIC" = "Rolled, high-residue cultivation",
-      "TIM" = "Tilled, mowing",
-      "TIC" = "Tilled, cultivation"
+      "RNO" ~ "Rolled, no control",
+      "RIM" ~ "Rolled, mowing",
+      "RIC" ~ "Rolled, high-residue cultivation",
+      "TIM" ~ "Tilled, mowing",
+      "TIC" ~ "Tilled, cultivation",
+      .default = NA_character_
     ),
     weed_trt = factor(weed_trt, levels = mow_levels)
-  ) |>
-  # keep only rows with non-missing total weed biomass
+  )
+
+# Safety check: make sure all treatments were successfully recoded
+stopifnot(!any(is.na(weed_soy_clean$weed_trt)))
+
+weed_soy_clean <- weed_soy_clean |>
+  # keep only rows with non-missing total weed biomass (needed for relationships)
   filter(!is.na(weed_biomass)) |>
-  # per-area metrics (biomass in g per 0.5 m² quadrat)
   mutate(
     ## ---- WEEDS: total / in-row / interrow ----------------------------------
-    weed_biomass_g_m2           = weed_biomass          * 2,   # g/m²
+    weed_biomass_g_m2           = weed_biomass          * 2,   # g/m² (from 0.5 m²)
     weed_biomass_kg_ha          = weed_biomass          * 20,  # kg/ha
     weed_biomass_lb_ac          = weed_biomass_kg_ha    * kg_ha_to_lb_ac,
 
@@ -172,336 +198,359 @@ weed_biomass_clean <- read_excel(
     interrow_weed_biomass_lb_ac = interrow_weed_biomass_kg_ha * kg_ha_to_lb_ac,
 
     ## ---- SOYBEAN: biomass --------------------------------------------------
-    # bean_biomass assumed g per 0.5 m² quadrat (same as weeds)
-    bean_biomass_g_m2    = bean_biomass * 2,           # g/m²
-    bean_biomass_kg_ha   = bean_biomass * 20,          # kg/ha
+    bean_biomass_g_m2    = bean_biomass * 2,
+    bean_biomass_kg_ha   = bean_biomass * 20,
     bean_biomass_lb_ac   = bean_biomass_kg_ha * kg_ha_to_lb_ac,
 
-    ## ---- SOYBEAN: adjusted yield (same formulas as before) -----------------
-    bean_yield_adj_bu_acre = (((bean_yield / 454) / (16.4 / 43560)) / 60) *
-      ((100 - 0.00001) / (100 - 13)),
-    bean_yield_adj_lbs_acre = ((bean_yield / 454) / (16.4 / 43560)) *
-      ((100 - 0.00001) / (100 - 13)),
-    bean_yield_adj_kg_ha = ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 *
-      ((100 - 0.00001) / (100 - 13)),
+    ## ---- SOYBEAN: adjusted yield ------------------------------------------
+    bean_yield_adj_bu_acre =
+      (((bean_yield / 454) / (16.4 / 43560)) / 60) * ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_lbs_acre =
+      ((bean_yield / 454) / (16.4 / 43560)) * ((100 - 0.00001) / (100 - 13)),
+    bean_yield_adj_kg_ha =
+      ((bean_yield / 454) / (16.4 / 43560)) * 1.12085 * ((100 - 0.00001) / (100 - 13)),
 
     ## ---- SOYBEAN: population metrics --------------------------------------
-    # bean_population assumed plants per 1 m of row
     bean_population_two_meter = bean_population * 2,
-    bean_population_hectare   = (bean_population / 0.762) * 10000,
+    bean_population_hectare   = (bean_population / row_spacing_m) * 10000,
     bean_population_acre      = bean_population_hectare / 2.471
   )
 
-# 2) 2023 Field V subset ------------------------------------------------------
-
-weed_biomass_field_v_2023 <- weed_biomass_clean |>
-  filter(
-    year == "2023",          # year is a factor; compare to character label
-    location == "field v"
-  )
-
-# Quick check tables ----------------------------------------------------------
-
+# Quick check table ----------------------------------------------------------
 kable(
-  head(weed_biomass_clean),
+  head(weed_soy_clean),
   caption = "All site-years, cleaned (weed + soybean metrics)"
-)
+) |>
+  kable_styling(full_width = FALSE)
 
-kable(
-  head(weed_biomass_field_v_2023),
-  caption = "Field V only, 2023 (weed + soybean metrics)"
-)
 
 ```
 # Model testing
+```{r}
+# Model selection rule for weed–soy relationships (slope heterogeneity):
+# - For each soybean response (Y) × weed metric (B), fit two candidate LMMs:
+#     1) Additive (common slope):        Y ~ B + site_year + (1 | site_year:block)
+#     2) Interaction (site-year slopes): Y ~ B * site_year + (1 | site_year:block)
+#
+# - Compare interaction vs additive using ML refits (anova() does this internally):
+#     * LRT p < 0.01 OR ΔAIC_int-add ≤ -4  -> keep interaction (strong evidence slopes differ by site-year)
+#     * LRT p > 0.20 AND |ΔAIC_int-add| < 2 -> keep additive (negligible interaction)
+#     * Otherwise = gray zone:
+#         keep additive for parsimony,
+#         but report site-year-specific slopes (emtrends) and show site-year patterns in plots.
+#
+# Notes:
+# - ΔAIC_int-add = AIC(interaction) - AIC(additive)
+#     negative favors interaction; positive favors additive.
+# - Final reported coefficients/emmeans are fit with REML; only the comparison uses ML.
+
+```
+
 ## Total weed biomass
 ### Yield 
 #### Dataset
 
 ```{r}
 # ----------------------------------------------------------------------
-# Model testing: total weed biomass vs adjusted soybean yield (kg ha^-1)
+# Total weed biomass vs adjusted soybean yield (kg ha^-1)
 # ----------------------------------------------------------------------
 
-## Exploratory: regression dataset -------------------------------------
-
-reg_yield <- weed_biomass_clean |>
+reg_yield <- weed_soy_clean |>
   filter(
     !is.na(weed_biomass_kg_ha),
     !is.na(bean_yield_adj_kg_ha),
     !is.na(site_year),
     !is.na(block)
+  ) |>
+  transmute(
+    site_year = droplevels(site_year),
+    block     = droplevels(block),
+    B         = weed_biomass_kg_ha,
+    Y         = bean_yield_adj_kg_ha
   )
 
-# Quick structure check (optional)
-str(reg_yield[, c("site_year", "block",
-                  "weed_biomass_kg_ha", "bean_yield_adj_kg_ha")])
+# Quick structure + range checks (useful for plots / asymptote placement)
+str(reg_yield)
+summary(reg_yield$B)
+summary(reg_yield$Y)
+range(reg_yield$B, na.rm = TRUE)
+range(reg_yield$Y, na.rm = TRUE)
 
 ```
-#### Mixed model selection (site-year effects)
+#### Mixed model selection (site-year effects; ML comparison, REML for inference)
 ```{r}
-## Mixed model selection: additive vs interaction ----------------------
+### 2) Mixed model selection (site-year effects; ML comparison, REML for inference)
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
-# 1) Candidate mixed models --------------------------------------------
-
-# Additive: common slope across site-year (site_year as fixed effect)
+# 1) Candidate models fit with REML (for estimation / inference) ----------
 yield_add <- lmer(
-  bean_yield_adj_kg_ha ~ weed_biomass_kg_ha + site_year +
-    (1 | site_year:block),
-  data = reg_yield
+  Y ~ B + site_year + (1 | site_year:block),
+  data = reg_yield,
+  REML = TRUE
 )
 
-# Interaction: slope allowed to differ by site-year
 yield_int <- lmer(
-  bean_yield_adj_kg_ha ~ weed_biomass_kg_ha * site_year +
-    (1 | site_year:block),
-  data = reg_yield
+  Y ~ B * site_year + (1 | site_year:block),
+  data = reg_yield,
+  REML = TRUE
 )
 
-# 2) Likelihood ratio test ---------------------------------------------
+# 2) LRT + ML AICs (anova refits with REML = FALSE internally) -----------
+lrt_yield <- anova(yield_add, yield_int)  # ML comparison
 
-lrt_yield   <- anova(yield_add, yield_int)
+AIC_add_yield <- lrt_yield$AIC[1]
+AIC_int_yield <- lrt_yield$AIC[2]
+deltaAIC_yield_int_add <- AIC_int_yield - AIC_add_yield   # <0 favors interaction
+
 p_int_yield <- lrt_yield$`Pr(>Chisq)`[2]
 
-# 3) AIC table with LRT p-value only for interaction model -------------
+# 3) Decision rule (same as global response summary) ---------------------
+p_strong    <- 0.01
+p_none      <- 0.20
+dAIC_strong <- 4
 
-aic_yield <- tibble(
-  model = c(
-    "Additive: weed_biomass_kg_ha + site_year",
-    "Interaction: weed_biomass_kg_ha * site_year"
-  ),
-  AIC = c(AIC(yield_add), AIC(yield_int))
-) |>
-  mutate(
-    deltaAIC = AIC - min(AIC),
-    `LRT p (interaction vs additive)` = c(NA_real_, p_int_yield)
-  )
+interaction_class_yield <- dplyr::case_when(
+  p_int_yield < p_strong | (-deltaAIC_yield_int_add) >= dAIC_strong ~ "interaction",
+  p_int_yield > p_none   & abs(deltaAIC_yield_int_add) < 2          ~ "additive",
+  TRUE                                                              ~ "gray_zone"
+)
 
-# Selection rule: prefer simpler model unless interaction is clearly better
-keep_interaction <- (p_int_yield < 0.05) &&
-  (aic_yield$deltaAIC[aic_yield$model ==
-                        "Interaction: weed_biomass_kg_ha * site_year"] < 2)
+chosen_model_name_yield <- dplyr::case_when(
+  interaction_class_yield == "interaction" ~ "Interaction: B * site_year",
+  TRUE                                     ~ "Additive: B + site_year"
+)
 
-yield_mod_best <- if (keep_interaction) yield_int else yield_add
-
-chosen_model_name_yield <- if (keep_interaction) {
-  "Interaction: weed_biomass_kg_ha * site_year"
+yield_mod_best <- if (chosen_model_name_yield == "Interaction: B * site_year") {
+  yield_int
 } else {
-  "Additive: weed_biomass_kg_ha + site_year"
+  yield_add
 }
 
-aic_yield_out <- aic_yield |>
-  mutate(
-    Selected = if_else(model == chosen_model_name_yield, "Yes", "")
-  )
+# 4) Save model-selection summary ---------------------------------------
+model_sel_yield <- tibble(
+  response_label    = "Soybean yield (kg ha^-1)",
+  predictor         = "Total weed biomass (kg ha^-1)",
+  model_additive    = "B + site_year + (1|site_year:block)",
+  model_interaction = "B * site_year + (1|site_year:block)",
+  AIC_additive      = AIC_add_yield,
+  AIC_interaction   = AIC_int_yield,
+  deltaAIC_int_add  = deltaAIC_yield_int_add,
+  LRT_p_int         = p_int_yield,
+  selected_model    = chosen_model_name_yield,
+  interaction_class = interaction_class_yield
+)
 
-aic_yield_out |>
+save_tab_rel(model_sel_yield, "yield_totalweed_mixedmodel_selection")
+
+model_sel_yield |>
+  mutate(
+    across(c(AIC_additive, AIC_interaction, deltaAIC_int_add), ~ round(.x, 2)),
+    LRT_p_int = round(LRT_p_int, 3)
+  ) |>
   kable(
-    digits  = 2,
-    caption = "Adjusted soybean yield vs total weed biomass: model comparison (additive vs interaction). LRT p-value compares the interaction model vs the additive model."
+    caption = "Mixed-model selection for yield vs total weed biomass. LRT p-values and ΔAIC compare interaction vs additive fixed-effects structures using ML refits; models are fit with REML for inference. ΔAIC = AIC(int) − AIC(add)."
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 cat(
-  "\nSelected model for adjusted soybean yield vs total weed biomass:\n  ",
+  "\nSelected model for yield vs total weed biomass:\n  ",
   chosen_model_name_yield,
-  sprintf("  [LRT p (interaction) = %.3f]\n", p_int_yield)
+  sprintf("\n  LRT p (interaction vs additive) = %.3f; ΔAIC (int - add) = %.2f [%s]\n",
+          p_int_yield, deltaAIC_yield_int_add, interaction_class_yield)
 )
+
 
 ```
 #### Slope summary via emtrends
 ```{r}
-## Slope summary: emtrends for yield vs total weed biomass --------------
+## Slope summary (emtrends): yield vs total weed biomass -----------------
 
-# helper: find the trend column name from emtrends output
-get_trend_col <- function(df, var = "weed_biomass_kg_ha") {
-  nm <- grep(paste0("^", var, "\\.trend$"), names(df), value = TRUE)
-  if (length(nm) != 1) {
-    stop("Could not uniquely identify trend column for ", var)
-  }
-  nm
-}
+# Determine whether slopes vary by site-year based on the selected structure
+## Slope summary (emtrends): yield vs total weed biomass -----------------
 
-# helper: find t or z statistic column
-get_stat_col <- function(df) {
-  nm <- intersect(c("t.ratio", "z.ratio"), names(df))
-  if (length(nm) == 0) {
-    return(NA_character_)
-  }
-  nm[1]
-}
+has_interaction_yield <- chosen_model_name_yield == "Interaction: B * site_year"
 
-if (chosen_model_name_yield == "Additive: weed_biomass_kg_ha + site_year") {
-  
-  # One common slope across site-years
-  emm_slope <- emtrends(yield_mod_best, ~ 1, var = "weed_biomass_kg_ha")
-  emm_slope_df <- summary(emm_slope, infer = c(TRUE, TRUE)) |>
-    as_tibble()
-  
-  trend_col <- get_trend_col(emm_slope_df, "weed_biomass_kg_ha")
-  stat_col  <- get_stat_col(emm_slope_df)
-  
-  has_df <- "df" %in% names(emm_slope_df)
-  has_p  <- "p.value" %in% names(emm_slope_df)
-  
-  slope_tbl <- emm_slope_df |>
+if (!has_interaction_yield) {
+
+  emm_slope <- emtrends(yield_mod_best, ~ 1, var = "B")
+  tmp <- summary(emm_slope, infer = c(TRUE, TRUE)) |> as_tibble()
+
+  trend_col <- "B.trend"
+  stat_col  <- intersect(c("t.ratio", "z.ratio"), names(tmp))[1]
+  has_df    <- "df" %in% names(tmp)
+  has_p     <- "p.value" %in% names(tmp)
+
+  slope_tbl <- tmp |>
     transmute(
       Scope              = "Pooled across site-years",
       slope_kg_per_kg    = .data[[trend_col]],
-      slope_kg_per_100kg = .data[[trend_col]] * 100,
-      SE,
-      df         = if (has_df) df else NA_real_,
-      lower_95CL = lower.CL,
-      upper_95CL = upper.CL,
-      stat       = if (!is.na(stat_col)) .data[[stat_col]] else NA_real_,
-      p_value    = if (has_p) .data[["p.value"]] else NA_real_
+      slope_kg_per_100kg = 100 * .data[[trend_col]],
+      SE                 = SE,
+      df                 = if (has_df) df else NA_real_,
+      lower_95CL         = lower.CL,
+      upper_95CL         = upper.CL,
+      stat               = if (!is.na(stat_col)) .data[[stat_col]] else NA_real_,
+      p_value            = if (has_p) p.value else NA_real_
     )
-  
+
 } else {
-  
-  # Slopes vary by site-year
-  emm_slope <- emtrends(yield_mod_best, ~ site_year, var = "weed_biomass_kg_ha")
-  emm_slope_df <- summary(emm_slope, infer = c(TRUE, TRUE)) |>
-    as_tibble()
-  
-  trend_col <- get_trend_col(emm_slope_df, "weed_biomass_kg_ha")
-  stat_col  <- get_stat_col(emm_slope_df)
-  
-  has_df <- "df" %in% names(emm_slope_df)
-  has_p  <- "p.value" %in% names(emm_slope_df)
-  
-  slope_tbl <- emm_slope_df |>
+
+  emm_slope <- emtrends(yield_mod_best, ~ site_year, var = "B")
+  tmp <- summary(emm_slope, infer = c(TRUE, TRUE)) |> as_tibble()
+
+  trend_col <- "B.trend"
+  stat_col  <- intersect(c("t.ratio", "z.ratio"), names(tmp))[1]
+  has_df    <- "df" %in% names(tmp)
+  has_p     <- "p.value" %in% names(tmp)
+
+  slope_tbl <- tmp |>
     transmute(
       Scope              = as.character(site_year),
       slope_kg_per_kg    = .data[[trend_col]],
-      slope_kg_per_100kg = .data[[trend_col]] * 100,
-      SE,
-      df         = if (has_df) df else NA_real_,
-      lower_95CL = lower.CL,
-      upper_95CL = upper.CL,
-      stat       = if (!is.na(stat_col)) .data[[stat_col]] else NA_real_,
-      p_value    = if (has_p) .data[["p.value"]] else NA_real_
+      slope_kg_per_100kg = 100 * .data[[trend_col]],
+      SE                 = SE,
+      df                 = if (has_df) df else NA_real_,
+      lower_95CL         = lower.CL,
+      upper_95CL         = upper.CL,
+      stat               = if (!is.na(stat_col)) .data[[stat_col]] else NA_real_,
+      p_value            = if (has_p) p.value else NA_real_
     )
 }
 
+save_tab_rel(slope_tbl, "yield_totalweed_slopes_emtrends")
+
 slope_tbl |>
-  mutate(
-    across(
-      c(slope_kg_per_kg, slope_kg_per_100kg, SE, lower_95CL, upper_95CL),
-      ~ round(.x, 3)
-    )
-  ) |>
+  mutate(across(where(is.numeric), ~ round(.x, 3))) |>
   kable(
-    caption = "Slopes of adjusted soybean yield vs total weed biomass (kg ha^-1): mixed-model emtrends",
-    col.names = c(
-      "Scope (site-year / pooled)",
-      "Slope (kg yield per kg weed)",
-      "Slope (kg yield per 100 kg weed)",
-      "SE", "df",
-      "Lower 95% CL", "Upper 95% CL",
-      "Test statistic", "p-value"
-    )
+    caption = "Slopes of adjusted soybean yield vs total weed biomass (emtrends from selected mixed model)"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 ```
 #### Linear vs rectangular hyperbolic response
 ```{r}
-## Linear vs rectangular hyperbolic response of yield to weed biomass ----
+### 4) Linear vs hyperbolic (Ryan/Spitters biomass form; optional 3-parameter)
+#### Linear vs rectangular hyperbolic response --------------------------
 
-# Use the same plot-level data (no random effects here, just a marginal comparison)
 dat_yield <- reg_yield |>
-  select(weed_biomass_kg_ha, bean_yield_adj_kg_ha) |>
-  rename(
-    B = weed_biomass_kg_ha,
-    Y = bean_yield_adj_kg_ha
-  )
+  transmute(B = B, Y = Y) |>
+  filter(is.finite(B), is.finite(Y), B >= 0)
 
-# Quick sanity check (optional)
-names(dat_yield)    # should be "B" and "Y"
-
-# 1) Linear model -------------------------------------------------------
-
+# Linear (marginal; no random effects)
 lin_mod <- lm(Y ~ B, data = dat_yield)
 
-# 2) Rectangular hyperbolic model:
-#    Y = Y0 - (Lmax * B) / (K + B)
-#    Y0   = weed-free yield
-#    Lmax = maximum yield loss
-#    K    = biomass at half of Lmax
-
-start_vals <- list(
-  Y0   = max(dat_yield$Y, na.rm = TRUE),  # near weed-free yield
-  Lmax = max(dat_yield$Y, na.rm = TRUE) - min(dat_yield$Y, na.rm = TRUE),
-  K    = median(dat_yield$B[dat_yield$B > 0], na.rm = TRUE)
+# Hyperbolic (Ryan/Spitters biomass form): Y = Y0 / (1 + iw * B)
+start_vals_ryan <- list(
+  Y0 = as.numeric(quantile(dat_yield$Y, 0.95, na.rm = TRUE)),
+  iw = as.numeric(1 / max(dat_yield$B[dat_yield$B > 0], na.rm = TRUE))
 )
 
-hyper_mod <- nls(
-  Y ~ Y0 - (Lmax * B) / (K + B),
-  data  = dat_yield,
-  start = start_vals
+hyper_mod_ryan <- tryCatch(
+  minpack.lm::nlsLM(
+    Y ~ Y0 / (1 + iw * B),
+    data    = dat_yield,
+    start   = start_vals_ryan,
+    lower   = c(Y0 = 0, iw = 0),
+    control = minpack.lm::nls.lm.control(maxiter = 500)
+  ),
+  error = function(e) e
 )
 
-summary(hyper_mod)
+# Optional: 3-parameter absolute-yield hyperbola: Y = Y0 - (Lmax*B)/(K+B)
+start_vals_3p <- list(
+  Y0   = as.numeric(quantile(dat_yield$Y, 0.95, na.rm = TRUE)),
+  Lmax = as.numeric(max(dat_yield$Y, na.rm = TRUE) - min(dat_yield$Y, na.rm = TRUE)),
+  K    = as.numeric(median(dat_yield$B[dat_yield$B > 0], na.rm = TRUE))
+)
+if (!is.finite(start_vals_3p$K)) start_vals_3p$K <- 1
 
-# 3) AIC and R2 comparison -----------------------------------------------
+hyper_mod_3p <- tryCatch(
+  minpack.lm::nlsLM(
+    Y ~ Y0 - (Lmax * B) / (K + B),
+    data    = dat_yield,
+    start   = start_vals_3p,
+    lower   = c(Y0 = 0, Lmax = 0, K = 0),
+    control = minpack.lm::nls.lm.control(maxiter = 500)
+  ),
+  error = function(e) e
+)
 
-# AIC
-aic_lin   <- AIC(lin_mod)
-aic_hyper <- AIC(hyper_mod)
-
-# R2 for linear model
-gl_lin <- broom::glance(lin_mod)
-R2_lin     <- gl_lin$r.squared
-R2_lin_adj <- gl_lin$adj.r.squared
-
-# R2 for nls (hyperbolic)
-get_r2_nls <- function(mod) {
-  y_hat <- fitted(mod)
-  res   <- resid(mod)
-  y     <- y_hat + res  # reconstruct observed response
-  
-  rss <- sum(res^2)
+# R2 helper for nonlinear fits
+r2_from_fit <- function(y, yhat) {
+  rss <- sum((y - yhat)^2)
   tss <- sum((y - mean(y))^2)
   1 - rss / tss
 }
 
-R2_hyper <- get_r2_nls(hyper_mod)
-
-# Residual df (more meaningful than n)
-df_lin   <- df.residual(lin_mod)
-df_hyper <- df.residual(hyper_mod)
-
+# Model comparison table
 mod_comp <- tibble(
-  model = c("Linear", "Hyperbolic"),
-  df    = c(df_lin, df_hyper),
-  AIC   = c(aic_lin, aic_hyper),
-  R2    = c(R2_lin, R2_hyper)
+  model = "Linear",
+  df    = df.residual(lin_mod),
+  AIC   = AIC(lin_mod),
+  R2    = broom::glance(lin_mod)$r.squared
 )
 
+# Optional: parameter table (nice for your global regression summary workflow)
+param_tbl <- tibble()
+
+if (!inherits(hyper_mod_ryan, "error")) {
+  mod_comp <- bind_rows(
+    mod_comp,
+    tibble(
+      model = "Hyperbolic (Ryan/Spitters: Y0/(1+iwB))",
+      df    = df.residual(hyper_mod_ryan),
+      AIC   = AIC(hyper_mod_ryan),
+      R2    = r2_from_fit(dat_yield$Y, fitted(hyper_mod_ryan))
+    )
+  )
+
+  param_tbl <- bind_rows(
+    param_tbl,
+    tibble(model = "Ryan/Spitters", term = names(coef(hyper_mod_ryan)), estimate = as.numeric(coef(hyper_mod_ryan)))
+  )
+} else {
+  cat("\nRyan/Spitters hyperbolic fit failed:\n", hyper_mod_ryan$message, "\n")
+}
+
+if (!inherits(hyper_mod_3p, "error")) {
+  mod_comp <- bind_rows(
+    mod_comp,
+    tibble(
+      model = "Hyperbolic (3-parameter: Y0 - Lmax*B/(K+B))",
+      df    = df.residual(hyper_mod_3p),
+      AIC   = AIC(hyper_mod_3p),
+      R2    = r2_from_fit(dat_yield$Y, fitted(hyper_mod_3p))
+    )
+  )
+
+  param_tbl <- bind_rows(
+    param_tbl,
+    tibble(model = "3-parameter", term = names(coef(hyper_mod_3p)), estimate = as.numeric(coef(hyper_mod_3p)))
+  )
+} else {
+  cat("\n3-parameter hyperbolic fit failed:\n", hyper_mod_3p$message, "\n")
+}
+
+save_tab_rel(mod_comp, "yield_totalweed_linear_vs_hyperbolic")
+if (nrow(param_tbl) > 0) save_tab_rel(param_tbl, "yield_totalweed_hyperbolic_parameters")
+
 mod_comp |>
+  mutate(across(where(is.numeric), ~ round(.x, 3))) |>
   kable(
-    digits  = 3,
-    caption = "Model comparison for adjusted soybean yield vs total weed biomass: linear vs rectangular hyperbolic"
+    caption = "Marginal model comparison (no random effects): linear vs hyperbolic yield response to weed biomass"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 ```
 #### Diagnostics
 ```{r}
-## Diagnostics & visualization ------------------------------------------
 
-library(performance)
+#### Diagnostics
 
-# Mixed model diagnostics (chosen model)
 check_model(yield_mod_best)
-
-# Simple linear model diagnostics
 check_model(lin_mod)
 
-# Optional specific checks for the linear model
 check_heteroscedasticity(lin_mod)
 check_normality(lin_mod)
 check_outliers(lin_mod)
@@ -510,74 +559,145 @@ check_outliers(lin_mod)
 
 #### Visualisation
 
+##### Table
 ```{r}
-# Reuse treatment palette for line/point colors
-line_cols <- unname(fill_cols)[1:4]
+# 6) OPTIONAL: Combine current yield ~ total weed biomass outputs into one workbook
+# (robust: reads the CSVs you already saved)
+
+yield_totalweed_tables <- list(
+  MixedModel_Selection = readr::read_csv(
+    file.path(tab_dir_rel, "weed_soy-yield_totalweed_mixedmodel_selection.csv"),
+    show_col_types = FALSE
+  ),
+  Slopes_emtrends = readr::read_csv(
+    file.path(tab_dir_rel, "weed_soy-yield_totalweed_slopes_emtrends.csv"),
+    show_col_types = FALSE
+  ),
+  Linear_vs_Hyperbolic = readr::read_csv(
+    file.path(tab_dir_rel, "weed_soy-yield_totalweed_linear_vs_hyperbolic.csv"),
+    show_col_types = FALSE
+  )
+)
+
+writexl::write_xlsx(
+  yield_totalweed_tables,
+  path = file.path(tab_dir_rel, "weed_soy-yield_totalweed_all-tables.xlsx")
+)
+
 
 ```
 
+##### Figure
 ```{r}
-ggplot(dat_yield, aes(x = B, y = Y)) +
-  # points: always black
-  geom_point(
-    color = "black",
-    alpha = 1
-  ) +
-  # LOESS: uses palette color and appears in legend
-  geom_smooth(
-    aes(color = "LOESS"),
-    method = "loess",
-    se = FALSE,
-    linewidth = 1,
-    linetype = "dashed"
-  ) +
-  # Linear: always black, not tied to color scale
+#### Visualisation (clean: linear + 2 hyperbolas + 3p asymptote text)
+
+p_yield_totalweed <- ggplot(dat_yield, aes(x = B, y = Y)) +
+  geom_point(color = "black") +
+  # Linear fit (quiet benchmark)
   stat_function(
     fun = function(x) coef(lin_mod)[1] + coef(lin_mod)[2] * x,
-    linewidth = 1,
-    color = "black"
-  ) +
-  # Hyperbolic: uses palette color and appears in legend
-  stat_function(
-    aes(color = "Hyperbolic"),
-    fun = function(x) {
-      pars <- coef(hyper_mod)
-      pars["Y0"] - (pars["Lmax"] * x) / (pars["K"] + x)
-    },
-    linewidth = 1,
-    linetype = "dotdash"
-  ) +
-  scale_color_manual(
-    name   = NULL,
-    breaks = c("LOESS", "Hyperbolic"),
-    labels = c(
-      "LOESS smooth",
-      "Hyperbolic fit"
-    ),
-    values = c(
-      "LOESS"      = line_cols[2],
-      "Hyperbolic" = line_cols[4]
-    )
-  ) +
-  guides(
-    color = guide_legend(
-      override.aes = list(
-        linetype = c("dashed", "dotdash"),
-        shape    = c(NA, NA),
-        alpha    = c(1, 1)
-      )
-    )
+    linewidth = 0.8,
+    color = "grey35"
   ) +
   labs(
     x = bquote("Total weed biomass (kg ha"^-1*")"),
-    y = bquote("Adjusted soybean yield (kg ha"^-1*")"),
+    y = bquote("Soybean yield (kg ha"^-1*")"),
     title = "Yield vs total weed biomass",
-    subtitle = "Data (black), LOESS, and linear vs hyperbolic fits"
+    subtitle = "Data (black), linear fit, and hyperbolic fits"
   ) +
   theme_classic() +
-  theme(
-    legend.position = "right"
+  theme(legend.position = "bottom")
+
+# Choose higher-contrast colors (blue + orange) from your palette
+col_blue   <- unname(fill_cols)[1]
+col_orange <- unname(fill_cols)[4]
+
+# Ryan/Spitters hyperbola ------------------------------------------------
+if (!inherits(hyper_mod_ryan, "error")) {
+  p_yield_totalweed <- p_yield_totalweed +
+    stat_function(
+      aes(color = "Hyperbolic (Ryan/Spitters)"),
+      fun = function(x) {
+        pars <- coef(hyper_mod_ryan)
+        pars["Y0"] / (1 + pars["iw"] * x)
+      },
+      linewidth = 1,
+      linetype = "dotdash"
+    )
+}
+
+# 3-parameter hyperbola + asymptote -------------------------------------
+if (!inherits(hyper_mod_3p, "error")) {
+
+  pars3  <- coef(hyper_mod_3p)
+  y_asym <- as.numeric(pars3["Y0"] - pars3["Lmax"])
+
+  # Add curve + dotted asymptote line (both in blue to tie to 3-parameter model)
+  p_yield_totalweed <- p_yield_totalweed +
+    stat_function(
+      aes(color = "Hyperbolic (3-parameter)"),
+      fun = function(x) {
+        pars <- coef(hyper_mod_3p)
+        pars["Y0"] - (pars["Lmax"] * x) / (pars["K"] + x)
+      },
+      linewidth = 1,
+      linetype = "twodash"
+    ) +
+    geom_hline(
+      yintercept = y_asym,
+      linewidth  = 0.7,
+      linetype   = "dotted",
+      color      = col_blue
+    )
+
+  # Place text clearly below the dotted line and away from points
+x_lab <- max(dat_yield$B, na.rm = TRUE) * 0.42
+y_rng <- diff(range(dat_yield$Y, na.rm = TRUE))
+y_lab <- y_asym - 0.07 * y_rng   # more separation from the line
+
+# plotmath label (no unicode)
+asym_lab <- paste0("Asymptote == ", round(y_asym, 0), "~kg~ha^{-1}")
+
+p_yield_totalweed <- p_yield_totalweed +
+  annotate(
+    "text",
+    x = x_lab,
+    y = y_lab,
+    label = asym_lab,
+    parse = TRUE,
+    hjust = 0.5,
+    vjust = 1,
+    size  = 3,
+    color = col_blue
   )
+
+
+  # y-limits: include observed data and asymptote (with padding)
+  y_min_data <- min(dat_yield$Y, na.rm = TRUE)
+  y_max_data <- max(dat_yield$Y, na.rm = TRUE)
+
+  y_min_plot <- min(y_min_data, y_asym)
+  y_max_plot <- y_max_data
+  pad <- 0.05 * (y_max_plot - y_min_plot)
+
+  p_yield_totalweed <- p_yield_totalweed +
+    coord_cartesian(ylim = c(y_min_plot - pad, y_max_plot + pad))
+}
+
+# Legend colors ----------------------------------------------------------
+p_yield_totalweed <- p_yield_totalweed +
+  scale_color_manual(
+    name = NULL,
+    breaks = c("Hyperbolic (Ryan/Spitters)", "Hyperbolic (3-parameter)"),
+    values = c(
+      "Hyperbolic (Ryan/Spitters)" = col_orange,
+      "Hyperbolic (3-parameter)"   = col_blue
+    )
+  )
+
+p_yield_totalweed
+
+save_fig_rel(p_yield_totalweed, "yield_totalweed_fits", width = 7, height = 5)
 
 
 ```
@@ -589,262 +709,302 @@ ggplot(dat_yield, aes(x = B, y = Y)) +
 # Model testing: total weed biomass vs soybean biomass (kg ha^-1)
 # ----------------------------------------------------------------------
 
-## Exploratory: regression dataset -------------------------------------
+## 1) Regression dataset ------------------------------------------------
 
-reg_biomass <- weed_biomass_clean |>
+reg_biomass <- weed_soy_clean |>
   filter(
     !is.na(weed_biomass_kg_ha),
     !is.na(bean_biomass_kg_ha),
     !is.na(site_year),
     !is.na(block)
+  ) |>
+  transmute(
+    site_year,
+    block,
+    B = weed_biomass_kg_ha,
+    Y = bean_biomass_kg_ha
   )
 
 # Quick structure check (optional)
-str(reg_biomass[, c("site_year", "block",
-                    "weed_biomass_kg_ha", "bean_biomass_kg_ha")])
+str(reg_biomass)
+
+# Quick range checks (useful later for plot limits / asymptote label placement)
+summary(reg_biomass$B)
+summary(reg_biomass$Y)
+range(reg_biomass$B, na.rm = TRUE)
+range(reg_biomass$Y, na.rm = TRUE)
 
 ```
 #### Mixed model selection (site-year effects)
 ```{r}
-### Mixed model selection (site-year effects): soybean biomass ---------
-## Mixed model selection: additive vs interaction ----------------------
+### Mixed model selection (site-year effects): soybean biomass ----------
+## Additive vs interaction (common slope vs site-year-specific slopes)
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
-# 1) Candidate mixed models --------------------------------------------
-
-# Additive: common slope across site-year (site_year as fixed effect)
+# 1) Candidate mixed models (fit with REML for estimation) --------------
 biomass_add <- lmer(
-  bean_biomass_kg_ha ~ weed_biomass_kg_ha + site_year +
-    (1 | site_year:block),
-  data = reg_biomass
+  Y ~ B + site_year + (1 | site_year:block),
+  data = reg_biomass,
+  REML = TRUE
 )
 
-# Interaction: slope allowed to differ by site-year
 biomass_int <- lmer(
-  bean_biomass_kg_ha ~ weed_biomass_kg_ha * site_year +
-    (1 | site_year:block),
-  data = reg_biomass
+  Y ~ B * site_year + (1 | site_year:block),
+  data = reg_biomass,
+  REML = TRUE
 )
 
-# 2) Likelihood ratio test ---------------------------------------------
+# 2) LRT + ML AICs (anova refits with REML = FALSE internally) ----------
+lrt_biomass <- anova(biomass_add, biomass_int)  # ML comparison
 
-lrt_biomass   <- anova(biomass_add, biomass_int)
+AIC_add_biomass <- lrt_biomass$AIC[1]
+AIC_int_biomass <- lrt_biomass$AIC[2]
+deltaAIC_biomass_int_add <- AIC_int_biomass - AIC_add_biomass  # <0 favors interaction
+
 p_int_biomass <- lrt_biomass$`Pr(>Chisq)`[2]
 
-# 3) AIC table with LRT p-value only for interaction model -------------
+# 3) Decision rule (same structure as your weed-biomass rule) -----------
+p_strong    <- 0.01
+p_none      <- 0.20
+dAIC_strong <- 4
 
-aic_biomass <- tibble(
-  model = c(
-    "Additive: weed_biomass_kg_ha + site_year",
-    "Interaction: weed_biomass_kg_ha * site_year"
-  ),
-  AIC = c(AIC(biomass_add), AIC(biomass_int))
-) |>
-  mutate(
-    deltaAIC = AIC - min(AIC),
-    `LRT p (interaction vs additive)` = c(NA_real_, p_int_biomass)
-  )
+interaction_class_biomass <- dplyr::case_when(
+  p_int_biomass < p_strong | (-deltaAIC_biomass_int_add) >= dAIC_strong ~ "interaction",
+  p_int_biomass > p_none   & abs(deltaAIC_biomass_int_add) < 2          ~ "additive",
+  TRUE                                                                  ~ "gray_zone"
+)
 
-# Selection rule: prefer simpler model unless interaction is clearly better
-keep_interaction_biomass <- (p_int_biomass < 0.05) &&
-  (aic_biomass$deltaAIC[aic_biomass$model ==
-                          "Interaction: weed_biomass_kg_ha * site_year"] < 2)
+chosen_model_name_biomass <- dplyr::case_when(
+  interaction_class_biomass == "interaction" ~ "Interaction: B * site_year",
+  TRUE                                      ~ "Additive: B + site_year"
+)
 
-biomass_mod_best <- if (keep_interaction_biomass) biomass_int else biomass_add
-
-chosen_model_name_biomass <- if (keep_interaction_biomass) {
-  "Interaction: weed_biomass_kg_ha * site_year"
+biomass_mod_best <- if (chosen_model_name_biomass == "Interaction: B * site_year") {
+  biomass_int
 } else {
-  "Additive: weed_biomass_kg_ha + site_year"
+  biomass_add
 }
 
-aic_biomass_out <- aic_biomass |>
-  mutate(
-    Selected = if_else(model == chosen_model_name_biomass, "Yes", "")
-  )
+# 4) Output table for global regression summary -------------------------
+biomass_mixedmodel_selection_out <- tibble(
+  response_label    = "Soybean biomass (kg ha^-1)",
+  predictor         = "Total weed biomass (kg ha^-1)",
+  model_additive    = "B + site_year + (1|site_year:block)",
+  model_interaction = "B * site_year + (1|site_year:block)",
+  AIC_additive      = AIC_add_biomass,
+  AIC_interaction   = AIC_int_biomass,
+  deltaAIC_int_add  = deltaAIC_biomass_int_add,
+  LRT_p_int         = p_int_biomass,
+  selected_model    = chosen_model_name_biomass,
+  interaction_class = interaction_class_biomass
+)
 
-aic_biomass_out |>
+# Save + print
+save_tab_rel(biomass_mixedmodel_selection_out, "biomass_totalweed_mixedmodel_selection")
+
+biomass_mixedmodel_selection_out |>
+  mutate(
+    across(c(AIC_additive, AIC_interaction, deltaAIC_int_add), ~ round(.x, 2)),
+    LRT_p_int = round(LRT_p_int, 3)
+  ) |>
   kable(
-    digits  = 2,
-    caption = "Soybean biomass vs total weed biomass: model comparison (additive vs interaction). LRT p-value compares the interaction model vs the additive model."
+    caption = "Soybean biomass vs total weed biomass: mixed-model selection (additive vs site-year interaction)."
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 cat(
   "\nSelected model for soybean biomass vs total weed biomass:\n  ",
   chosen_model_name_biomass,
-  sprintf("  [LRT p (interaction) = %.3f]\n", p_int_biomass)
+  sprintf("\n  LRT p (interaction vs additive) = %.3f; ΔAIC (int - add) = %.2f [%s]\n",
+          p_int_biomass, deltaAIC_biomass_int_add, interaction_class_biomass)
 )
 
 ```
 #### Slope summary via emtrends
 ```{r}
-### Slope summary: soybean biomass vs total weed biomass ---------------
+## Slope summary (emtrends): soybean biomass vs total weed biomass -------
 
-if (chosen_model_name_biomass == "Additive: weed_biomass_kg_ha + site_year") {
-  
-  # One common slope across site-years
-  emm_slope_biomass <- emtrends(
-    biomass_mod_best, ~ 1,
-    var = "weed_biomass_kg_ha"
-  )
-  
-  emm_slope_biomass_df <- summary(emm_slope_biomass, infer = c(TRUE, TRUE)) |>
-    as_tibble()
-  
-  trend_col_biomass <- get_trend_col(emm_slope_biomass_df, "weed_biomass_kg_ha")
-  stat_col_biomass  <- get_stat_col(emm_slope_biomass_df)
-  
-  has_df_biomass <- "df" %in% names(emm_slope_biomass_df)
-  has_p_biomass  <- "p.value" %in% names(emm_slope_biomass_df)
-  
-  slope_tbl_biomass <- emm_slope_biomass_df |>
+has_interaction_biomass <- chosen_model_name_biomass == "Interaction: B * site_year"
+
+if (!has_interaction_biomass) {
+
+  # Pooled slope across site-years
+  emm_slope <- emtrends(biomass_mod_best, ~ 1, var = "B")
+  tmp <- summary(emm_slope, infer = c(TRUE, TRUE)) |> as_tibble()
+
+  trend_col <- "B.trend"
+  stat_col  <- intersect(c("t.ratio", "z.ratio"), names(tmp))[1]
+  has_df    <- "df" %in% names(tmp)
+  has_p     <- "p.value" %in% names(tmp)
+
+  slope_tbl_biomass <- tmp |>
     transmute(
-      Scope                  = "Pooled across site-years",
-      slope_kgbean_per_kgweed    = .data[[trend_col_biomass]],
-      slope_kgbean_per_100kgweed = .data[[trend_col_biomass]] * 100,
-      SE,
-      df         = if (has_df_biomass) df else NA_real_,
-      lower_95CL = lower.CL,
-      upper_95CL = upper.CL,
-      stat       = if (!is.na(stat_col_biomass)) .data[[stat_col_biomass]] else NA_real_,
-      p_value    = if (has_p_biomass) .data[["p.value"]] else NA_real_
+      Scope              = "Pooled across site-years",
+      slope_kg_per_kg    = .data[[trend_col]],
+      slope_kg_per_100kg = 100 * .data[[trend_col]],
+      SE                 = SE,
+      df                 = if (has_df) df else NA_real_,
+      lower_95CL         = lower.CL,
+      upper_95CL         = upper.CL,
+      stat               = if (!is.na(stat_col)) .data[[stat_col]] else NA_real_,
+      p_value            = if (has_p) p.value else NA_real_
     )
-  
+
 } else {
-  
-  # Slopes vary by site-year
-  emm_slope_biomass <- emtrends(
-    biomass_mod_best, ~ site_year,
-    var = "weed_biomass_kg_ha"
-  )
-  
-  emm_slope_biomass_df <- summary(emm_slope_biomass, infer = c(TRUE, TRUE)) |>
-    as_tibble()
-  
-  trend_col_biomass <- get_trend_col(emm_slope_biomass_df, "weed_biomass_kg_ha")
-  stat_col_biomass  <- get_stat_col(emm_slope_biomass_df)
-  
-  has_df_biomass <- "df" %in% names(emm_slope_biomass_df)
-  has_p_biomass  <- "p.value" %in% names(emm_slope_biomass_df)
-  
-  slope_tbl_biomass <- emm_slope_biomass_df |>
+
+  # Site-year-specific slopes
+  emm_slope <- emtrends(biomass_mod_best, ~ site_year, var = "B")
+  tmp <- summary(emm_slope, infer = c(TRUE, TRUE)) |> as_tibble()
+
+  trend_col <- "B.trend"
+  stat_col  <- intersect(c("t.ratio", "z.ratio"), names(tmp))[1]
+  has_df    <- "df" %in% names(tmp)
+  has_p     <- "p.value" %in% names(tmp)
+
+  slope_tbl_biomass <- tmp |>
     transmute(
-      Scope                  = as.character(site_year),
-      slope_kgbean_per_kgweed    = .data[[trend_col_biomass]],
-      slope_kgbean_per_100kgweed = .data[[trend_col_biomass]] * 100,
-      SE,
-      df         = if (has_df_biomass) df else NA_real_,
-      lower_95CL = lower.CL,
-      upper_95CL = upper.CL,
-      stat       = if (!is.na(stat_col_biomass)) .data[[stat_col_biomass]] else NA_real_,
-      p_value    = if (has_p_biomass) .data[["p.value"]] else NA_real_
+      Scope              = as.character(site_year),
+      slope_kg_per_kg    = .data[[trend_col]],
+      slope_kg_per_100kg = 100 * .data[[trend_col]],
+      SE                 = SE,
+      df                 = if (has_df) df else NA_real_,
+      lower_95CL         = lower.CL,
+      upper_95CL         = upper.CL,
+      stat               = if (!is.na(stat_col)) .data[[stat_col]] else NA_real_,
+      p_value            = if (has_p) p.value else NA_real_
     )
 }
 
+save_tab_rel(slope_tbl_biomass, "biomass_totalweed_slopes_emtrends")
+
 slope_tbl_biomass |>
-  mutate(
-    across(
-      c(slope_kgbean_per_kgweed,
-        slope_kgbean_per_100kgweed,
-        SE, lower_95CL, upper_95CL),
-      ~ round(.x, 3)
-    )
-  ) |>
+  mutate(across(where(is.numeric), ~ round(.x, 3))) |>
   kable(
-    caption = "Slopes of soybean biomass vs total weed biomass (kg ha^-1): mixed-model emtrends",
-    col.names = c(
-      "Scope (site-year / pooled)",
-      "Slope (kg bean per kg weed)",
-      "Slope (kg bean per 100 kg weed)",
-      "SE", "df",
-      "Lower 95% CL", "Upper 95% CL",
-      "Test statistic", "p-value"
-    )
+    caption = "Slopes of soybean biomass vs total weed biomass (emtrends from selected mixed model)"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 ```
 #### Linear vs rectangular hyperbolic response
 ```{r}
+## 4) Linear vs hyperbolic: soybean biomass response (Ryan/Spitters; optional 3-parameter)
+#### Linear vs rectangular hyperbolic response --------------------------
 
-## Linear vs rectangular hyperbolic response of soybean biomass to weed biomass ----
-
-# Use the same plot-level data (no random effects here, just a marginal comparison)
 dat_biomass <- reg_biomass |>
-  select(weed_biomass_kg_ha, bean_biomass_kg_ha) |>
-  rename(
-    B = weed_biomass_kg_ha,
-    Y = bean_biomass_kg_ha
-  )
+  transmute(B = B, Y = Y) |>
+  filter(is.finite(B), is.finite(Y), B >= 0)
 
-# Quick sanity check (optional)
-names(dat_biomass)    # should be "B" and "Y"
-
-# 1) Linear model -------------------------------------------------------
-
+# Linear (marginal; no random effects)
 lin_mod_biomass <- lm(Y ~ B, data = dat_biomass)
 
-# 2) Rectangular hyperbolic model:
-#    Y = Y0 - (Lmax * B) / (K + B)
-#    Y0   = weed-free soybean biomass
-#    Lmax = maximum biomass loss
-#    K    = biomass at half of Lmax
-
-start_vals_biomass <- list(
-  Y0   = max(dat_biomass$Y, na.rm = TRUE),  # near weed-free biomass
-  Lmax = max(dat_biomass$Y, na.rm = TRUE) - min(dat_biomass$Y, na.rm = TRUE),
-  K    = median(dat_biomass$B[dat_biomass$B > 0], na.rm = TRUE)
+# Hyperbolic (Ryan/Spitters biomass form): Y = Y0 / (1 + iw * B)
+start_vals_ryan_biomass <- list(
+  Y0 = as.numeric(quantile(dat_biomass$Y, 0.95, na.rm = TRUE)),
+  iw = as.numeric(1 / max(dat_biomass$B[dat_biomass$B > 0], na.rm = TRUE))
 )
 
-hyper_mod_biomass <- nls(
-  Y ~ Y0 - (Lmax * B) / (K + B),
-  data  = dat_biomass,
-  start = start_vals_biomass
+hyper_mod_ryan_biomass <- tryCatch(
+  minpack.lm::nlsLM(
+    Y ~ Y0 / (1 + iw * B),
+    data    = dat_biomass,
+    start   = start_vals_ryan_biomass,
+    lower   = c(Y0 = 0, iw = 0),
+    control = minpack.lm::nls.lm.control(maxiter = 500)
+  ),
+  error = function(e) e
 )
 
-summary(hyper_mod_biomass)
+# Optional: 3-parameter absolute-yield hyperbola: Y = Y0 - (Lmax*B)/(K+B)
+start_vals_3p_biomass <- list(
+  Y0   = as.numeric(quantile(dat_biomass$Y, 0.95, na.rm = TRUE)),
+  Lmax = as.numeric(max(dat_biomass$Y, na.rm = TRUE) - min(dat_biomass$Y, na.rm = TRUE)),
+  K    = as.numeric(median(dat_biomass$B[dat_biomass$B > 0], na.rm = TRUE))
+)
+if (!is.finite(start_vals_3p_biomass$K)) start_vals_3p_biomass$K <- 1
 
-# 3) AIC and R2 comparison -----------------------------------------------
+hyper_mod_3p_biomass <- tryCatch(
+  minpack.lm::nlsLM(
+    Y ~ Y0 - (Lmax * B) / (K + B),
+    data    = dat_biomass,
+    start   = start_vals_3p_biomass,
+    lower   = c(Y0 = 0, Lmax = 0, K = 0),
+    control = minpack.lm::nls.lm.control(maxiter = 500)
+  ),
+  error = function(e) e
+)
 
-# AIC
-aic_lin_biomass   <- AIC(lin_mod_biomass)
-aic_hyper_biomass <- AIC(hyper_mod_biomass)
-
-# R2 for linear model
-gl_lin_biomass <- broom::glance(lin_mod_biomass)
-R2_lin_biomass     <- gl_lin_biomass$r.squared
-R2_lin_biomass_adj <- gl_lin_biomass$adj.r.squared
-
-# R2 for nls (hyperbolic)
-get_r2_nls <- function(mod) {
-  y_hat <- fitted(mod)
-  res   <- resid(mod)
-  y     <- y_hat + res  # reconstruct observed response
-  
-  rss <- sum(res^2)
+# R2 helper for nonlinear fits
+r2_from_fit <- function(y, yhat) {
+  rss <- sum((y - yhat)^2)
   tss <- sum((y - mean(y))^2)
   1 - rss / tss
 }
 
-R2_hyper_biomass <- get_r2_nls(hyper_mod_biomass)
-
-# Residual df (more meaningful than n)
-df_lin_biomass   <- df.residual(lin_mod_biomass)
-df_hyper_biomass <- df.residual(hyper_mod_biomass)
-
+# Model comparison table
 mod_comp_biomass <- tibble(
-  model = c("Linear", "Hyperbolic"),
-  df    = c(df_lin_biomass, df_hyper_biomass),
-  AIC   = c(aic_lin_biomass, aic_hyper_biomass),
-  R2    = c(R2_lin_biomass, R2_hyper_biomass)
+  model = "Linear",
+  df    = df.residual(lin_mod_biomass),
+  AIC   = AIC(lin_mod_biomass),
+  R2    = broom::glance(lin_mod_biomass)$r.squared
 )
 
+# Optional: parameter table (useful for global regression summary)
+param_tbl_biomass <- tibble()
+
+if (!inherits(hyper_mod_ryan_biomass, "error")) {
+  mod_comp_biomass <- bind_rows(
+    mod_comp_biomass,
+    tibble(
+      model = "Hyperbolic (Ryan/Spitters: Y0/(1+iwB))",
+      df    = df.residual(hyper_mod_ryan_biomass),
+      AIC   = AIC(hyper_mod_ryan_biomass),
+      R2    = r2_from_fit(dat_biomass$Y, fitted(hyper_mod_ryan_biomass))
+    )
+  )
+
+  param_tbl_biomass <- bind_rows(
+    param_tbl_biomass,
+    tibble(
+      model    = "Ryan/Spitters",
+      term     = names(coef(hyper_mod_ryan_biomass)),
+      estimate = as.numeric(coef(hyper_mod_ryan_biomass))
+    )
+  )
+} else {
+  cat("\nRyan/Spitters hyperbolic fit failed (biomass):\n", hyper_mod_ryan_biomass$message, "\n")
+}
+
+if (!inherits(hyper_mod_3p_biomass, "error")) {
+  mod_comp_biomass <- bind_rows(
+    mod_comp_biomass,
+    tibble(
+      model = "Hyperbolic (3-parameter: Y0 - Lmax*B/(K+B))",
+      df    = df.residual(hyper_mod_3p_biomass),
+      AIC   = AIC(hyper_mod_3p_biomass),
+      R2    = r2_from_fit(dat_biomass$Y, fitted(hyper_mod_3p_biomass))
+    )
+  )
+
+  param_tbl_biomass <- bind_rows(
+    param_tbl_biomass,
+    tibble(
+      model    = "3-parameter",
+      term     = names(coef(hyper_mod_3p_biomass)),
+      estimate = as.numeric(coef(hyper_mod_3p_biomass))
+    )
+  )
+} else {
+  cat("\n3-parameter hyperbolic fit failed (biomass):\n", hyper_mod_3p_biomass$message, "\n")
+}
+
+save_tab_rel(mod_comp_biomass, "biomass_totalweed_linear_vs_hyperbolic")
+if (nrow(param_tbl_biomass) > 0) save_tab_rel(param_tbl_biomass, "biomass_totalweed_hyperbolic_parameters")
+
 mod_comp_biomass |>
+  mutate(across(where(is.numeric), ~ round(.x, 3))) |>
   kable(
-    digits  = 3,
-    caption = "Model comparison for soybean biomass vs total weed biomass: linear vs rectangular hyperbolic"
+    caption = "Marginal model comparison (no random effects): linear vs hyperbolic soybean biomass response to total weed biomass"
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
@@ -863,90 +1023,145 @@ check_normality(lin_mod_biomass)
 check_outliers(lin_mod_biomass)
 ```
 #### Visualisation
+##### Table
 ```{r}
-ggplot(dat_biomass, aes(x = B, y = Y)) +
-  # points: always black
-  geom_point(
-    color = "black",
-    alpha = 1
-  ) +
-  # LOESS: uses palette color and appears in legend
-  geom_smooth(
-    aes(color = "LOESS"),
-    method = "loess",
-    se = FALSE,
-    linewidth = 1,
-    linetype = "dashed"
-  ) +
-  # Linear: always black, not tied to color scale
+# 6) OPTIONAL: Combine current biomass ~ total weed biomass outputs into one workbook
+# (robust: reads the CSVs you already saved)
+
+biomass_totalweed_tables <- list(
+  MixedModel_Selection = readr::read_csv(
+    file.path(tab_dir_rel, "weed_soy-biomass_totalweed_mixedmodel_selection.csv"),
+    show_col_types = FALSE
+  ),
+  Slopes_emtrends = readr::read_csv(
+    file.path(tab_dir_rel, "weed_soy-biomass_totalweed_slopes_emtrends.csv"),
+    show_col_types = FALSE
+  ),
+  Linear_vs_Hyperbolic = readr::read_csv(
+    file.path(tab_dir_rel, "weed_soy-biomass_totalweed_linear_vs_hyperbolic.csv"),
+    show_col_types = FALSE
+  )
+)
+
+writexl::write_xlsx(
+  biomass_totalweed_tables,
+  path = file.path(tab_dir_rel, "weed_soy-biomass_totalweed_all-tables.xlsx")
+)
+
+
+
+```
+
+##### Figure
+```{r}
+#### Visualisation (clean: linear + 2 hyperbolas + 3p asymptote text) ----
+
+p_biomass_totalweed <- ggplot(dat_biomass, aes(x = B, y = Y)) +
+  geom_point(color = "black") +
+  # Linear fit (quiet benchmark)
   stat_function(
     fun = function(x) coef(lin_mod_biomass)[1] + coef(lin_mod_biomass)[2] * x,
-    linewidth = 1,
-    color = "black"
-  ) +
-  # Hyperbolic: uses palette color and appears in legend
-  stat_function(
-    aes(color = "Hyperbolic"),
-    fun = function(x) {
-      pars <- coef(hyper_mod_biomass)
-      pars["Y0"] - (pars["Lmax"] * x) / (pars["K"] + x)
-    },
-    linewidth = 1,
-    linetype = "dotdash"
-  ) +
-  scale_color_manual(
-    name   = NULL,
-    breaks = c("LOESS", "Hyperbolic"),
-    labels = c(
-      "LOESS smooth",
-      "Hyperbolic fit"
-    ),
-    values = c(
-      "LOESS"      = line_cols[2],
-      "Hyperbolic" = line_cols[4]
-    )
-  ) +
-  guides(
-    color = guide_legend(
-      override.aes = list(
-        linetype = c("dashed", "dotdash"),
-        shape    = c(NA, NA),
-        alpha    = c(1, 1)
-      )
-    )
+    linewidth = 0.8,
+    color = "grey35"
   ) +
   labs(
     x = bquote("Total weed biomass (kg ha"^-1*")"),
     y = bquote("Soybean biomass (kg ha"^-1*")"),
     title = "Soybean biomass vs total weed biomass",
-    subtitle = "Data (black), LOESS, and linear vs hyperbolic fits"
+    subtitle = "Data (black), linear fit, and hyperbolic fits"
   ) +
   theme_classic() +
-  theme(
-    legend.position = "right"
+  theme(legend.position = "bottom")
+
+# Choose higher-contrast colors (blue + orange) from your palette
+col_blue   <- unname(fill_cols)[1]
+col_orange <- unname(fill_cols)[4]
+
+# Ryan/Spitters hyperbola ------------------------------------------------
+if (!inherits(hyper_mod_ryan_biomass, "error")) {
+  p_biomass_totalweed <- p_biomass_totalweed +
+    stat_function(
+      aes(color = "Hyperbolic (Ryan/Spitters)"),
+      fun = function(x) {
+        pars <- coef(hyper_mod_ryan_biomass)
+        pars["Y0"] / (1 + pars["iw"] * x)
+      },
+      linewidth = 1,
+      linetype = "dotdash"
+    )
+}
+
+# 3-parameter hyperbola + asymptote -------------------------------------
+if (!inherits(hyper_mod_3p_biomass, "error")) {
+
+  pars3  <- coef(hyper_mod_3p_biomass)
+  y_asym <- as.numeric(pars3["Y0"] - pars3["Lmax"])
+
+  # Add curve + dotted asymptote line (both in blue to tie to 3-parameter model)
+  p_biomass_totalweed <- p_biomass_totalweed +
+    stat_function(
+      aes(color = "Hyperbolic (3-parameter)"),
+      fun = function(x) {
+        pars <- coef(hyper_mod_3p_biomass)
+        pars["Y0"] - (pars["Lmax"] * x) / (pars["K"] + x)
+      },
+      linewidth = 1,
+      linetype = "twodash"
+    ) +
+    geom_hline(
+      yintercept = y_asym,
+      linewidth  = 0.7,
+      linetype   = "dotted",
+      color      = col_blue
+    )
+
+  # Place label below the dotted line and away from points
+  x_lab <- max(dat_biomass$B, na.rm = TRUE) * 0.42
+  y_rng <- diff(range(dat_biomass$Y, na.rm = TRUE))
+  y_lab <- y_asym - 0.07 * y_rng
+
+  # plotmath label (no unicode)
+  asym_lab <- paste0("Asymptote == ", round(y_asym, 0), "~kg~ha^{-1}")
+
+  p_biomass_totalweed <- p_biomass_totalweed +
+    annotate(
+      "text",
+      x = x_lab,
+      y = y_lab,
+      label = asym_lab,
+      parse = TRUE,
+      hjust = 0.5,
+      vjust = 1,
+      size  = 3,
+      color = col_blue
+    )
+
+  # y-limits: include observed data and asymptote (with padding)
+  y_min_data <- min(dat_biomass$Y, na.rm = TRUE)
+  y_max_data <- max(dat_biomass$Y, na.rm = TRUE)
+
+  y_min_plot <- min(y_min_data, y_asym)
+  y_max_plot <- y_max_data
+  pad <- 0.05 * (y_max_plot - y_min_plot)
+
+  p_biomass_totalweed <- p_biomass_totalweed +
+    coord_cartesian(ylim = c(y_min_plot - pad, y_max_plot + pad))
+}
+
+# Legend colors ----------------------------------------------------------
+p_biomass_totalweed <- p_biomass_totalweed +
+  scale_color_manual(
+    name = NULL,
+    breaks = c("Hyperbolic (Ryan/Spitters)", "Hyperbolic (3-parameter)"),
+    values = c(
+      "Hyperbolic (Ryan/Spitters)" = col_orange,
+      "Hyperbolic (3-parameter)"   = col_blue
+    )
   )
 
-```
-### Population
-#### Dataset
-```{r}
-# ----------------------------------------------------------------------
-# Model testing: total weed biomass vs bean population (plants ha^-1)
-# ----------------------------------------------------------------------
+p_biomass_totalweed
 
-## Exploratory: regression dataset -------------------------------------
-
-reg_pop <- weed_biomass_clean |>
-  filter(
-    !is.na(weed_biomass_kg_ha),
-    !is.na(bean_population_hectare),
-    !is.na(site_year),
-    !is.na(block)
-  )
-
-# Quick structure check (optional)
-str(reg_pop[, c("site_year", "block",
-                "weed_biomass_kg_ha", "bean_population_hectare")])
+save_fig_rel(p_biomass_totalweed, "biomass_totalweed_fits", width = 7, height = 5)
 
 ```
 

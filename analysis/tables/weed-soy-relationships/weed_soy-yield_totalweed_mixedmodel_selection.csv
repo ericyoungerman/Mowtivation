@@ -1,0 +1,2 @@
+response_label,predictor,model_additive,model_interaction,AIC_additive,AIC_interaction,deltaAIC_int_add,LRT_p_int,selected_model,interaction_class
+Soybean yield (kg ha^-1),Total weed biomass (kg ha^-1),B + site_year + (1|site_year:block),B * site_year + (1|site_year:block),899.9794522062195,898.9654385438325,-1.0140136623870148,0.08151185320652818,Additive: B + site_year,gray_zone

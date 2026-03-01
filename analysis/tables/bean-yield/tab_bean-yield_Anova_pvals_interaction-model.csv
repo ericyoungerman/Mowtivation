@@ -1,0 +1,4 @@
+Effect,P-value
+Site-year (site_year),<0.001
+Treatment (weed_trt),0.306
+Site-year x Treatment,0.253
