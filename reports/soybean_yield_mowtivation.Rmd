@@ -36,6 +36,7 @@ library(conflicted)
 library(lme4)
 library(WrensBookshelf)
 library(writexl)
+library(performance)
 
 # Handle conflicts
 conflicts_prefer(dplyr::select)
@@ -107,6 +108,15 @@ tidy_emm <- function(emm, ref_levels = NULL) {
   out
 }
 
+# Project directories -----------------------------------------------------
+
+exp_name <- "mowtivation"
+
+fig_dir <- here("output", "figures", exp_name)
+tab_dir <- here("output", "tables",  exp_name)
+
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(tab_dir, recursive = TRUE, showWarnings = FALSE)
 ```
 
 # Data import and preparation
