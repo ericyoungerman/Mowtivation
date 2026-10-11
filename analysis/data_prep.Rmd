@@ -90,10 +90,8 @@ raw_data |>
   filter(n_missing > 0)
 ```
 
-# Prepare analysis dataset
+# Prepare dataset
 
-The conversions will be added here after the source units for each response
-variable have been confirmed. The raw values will remain unchanged.
 
 ```{r prepare-data}
 processed_data <- raw_data |>
@@ -115,31 +113,118 @@ processed_data <- raw_data |>
   )
 ```
 
-# Conversion notes
+# Conversions
 
-The following source units still need to be confirmed before the conversion
-code is added:
+```{r convert-units}
+# Conversion constants
+biomass_sample_area_m2 <- 0.5
+row_spacing_m <- 0.762               # 30-inch rows
+ha_to_ac <- 2.47105
+kg_ha_to_lb_ac <- 0.892179
+lb_ac_to_kg_ha <- 1.12085
+lb_per_bu <- 60
+g_per_lb <- 454
+sqft_per_ac <- 43560
+bean_yield_area_ft2 <- 16.4          # 2 m of 30-inch row
 
-```{r conversion-notes, eval=FALSE}
-# bean_emergence
-# bean_biomass
-# inrow_weed_biomass
-# interrow_weed_biomass
-# weed_biomass
-# inrow_mulch_biomass
-# interrow_mulch_biomass
-# mulch_biomass
-# bean_population
-# bean_yield
-# seed_weight
+yield_moisture_factor <-
+  (100 - 0.00001) / (100 - 13)
+
+# Ensure measurement columns are numeric before calculating.
+# Blank cells and common text-coded missing values become NA.
+numeric_source_cols <- c(
+  "bean_emergence",
+  "bean_biomass",
+  "inrow_weed_biomass",
+  "interrow_weed_biomass",
+  "weed_biomass",
+  "inrow_mulch_biomass",
+  "interrow_mulch_biomass",
+  "mulch_biomass",
+  "bean_population",
+  "bean_yield",
+  "seed_weight"
+)
+
+processed_data <- processed_data |>
+  mutate(
+    across(
+      all_of(numeric_source_cols),
+      ~ {
+        x <- as.character(.x)
+        x[x %in% c("", "NA", "N/A")] <- NA_character_
+        as.numeric(x)
+      }
+    )
+  ) |>
+  mutate(
+    # Biomass: all measurements converted using the 0.5 m2 basis
+    bean_biomass_kg_ha =
+      (bean_biomass / .env$biomass_sample_area_m2) * 10,
+    bean_biomass_lb_ac =
+      bean_biomass_kg_ha * .env$kg_ha_to_lb_ac,
+
+    weed_biomass_kg_ha =
+      (weed_biomass / .env$biomass_sample_area_m2) * 10,
+    weed_biomass_lb_ac =
+      weed_biomass_kg_ha * .env$kg_ha_to_lb_ac,
+
+    inrow_weed_biomass_kg_ha =
+      (inrow_weed_biomass / .env$biomass_sample_area_m2) * 10,
+    inrow_weed_biomass_lb_ac =
+      inrow_weed_biomass_kg_ha * .env$kg_ha_to_lb_ac,
+
+    interrow_weed_biomass_kg_ha =
+      (interrow_weed_biomass / .env$biomass_sample_area_m2) * 10,
+    interrow_weed_biomass_lb_ac =
+      interrow_weed_biomass_kg_ha * .env$kg_ha_to_lb_ac,
+
+    mulch_biomass_kg_ha =
+      (mulch_biomass / .env$biomass_sample_area_m2) * 10,
+    mulch_biomass_lb_ac =
+      mulch_biomass_kg_ha * .env$kg_ha_to_lb_ac,
+
+    inrow_mulch_biomass_kg_ha =
+      (inrow_mulch_biomass / .env$biomass_sample_area_m2) * 10,
+    inrow_mulch_biomass_lb_ac =
+      inrow_mulch_biomass_kg_ha * .env$kg_ha_to_lb_ac,
+
+    interrow_mulch_biomass_kg_ha =
+      (interrow_mulch_biomass / .env$biomass_sample_area_m2) * 10,
+    interrow_mulch_biomass_lb_ac =
+      interrow_mulch_biomass_kg_ha * .env$kg_ha_to_lb_ac,
+
+    # Counts: plants per meter of row to plants per hectare and acre
+    bean_emergence_plants_ha =
+      (bean_emergence / .env$row_spacing_m) * 10000,
+    bean_emergence_plants_ac =
+      bean_emergence_plants_ha / .env$ha_to_ac,
+
+    bean_population_plants_ha =
+      (bean_population / .env$row_spacing_m) * 10000,
+    bean_population_plants_ac =
+      bean_population_plants_ha / .env$ha_to_ac,
+
+    # Yield: adjust near-zero-moisture sample weight to 13% moisture
+    bean_yield_adj_lbs_acre =
+      ((bean_yield / .env$g_per_lb) /
+         (.env$bean_yield_area_ft2 / .env$sqft_per_ac)) *
+      .env$yield_moisture_factor,
+
+    bean_yield_adj_bu_acre =
+      bean_yield_adj_lbs_acre / .env$lb_per_bu,
+
+    bean_yield_adj_kg_ha =
+      bean_yield_adj_lbs_acre * .env$lb_ac_to_kg_ha,
+
+    # Seed weight is already in grams per 100 seeds
+    seed_weight_g_100 = seed_weight
+  )
 ```
 
-# Save processed data
+# Save procecessed data
 
-After the source units and conversions have been confirmed, the processed
-dataset will be saved here:
-
-```{r save-processed-data, eval=FALSE}
+```{r save-processed-data}
 dir.create(processed_dir, showWarnings = FALSE, recursive = TRUE)
 
 saveRDS(
