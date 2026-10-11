@@ -1,0 +1,149 @@
+---
+title: "Mowtivation Data Preparation"
+output:
+  github_document:
+    toc: true
+always_allow_html: true
+---
+
+This document imports the raw Mowtivation plot-level dataset, checks its
+structure, applies documented data preparation steps, and saves the processed
+dataset used by the outcome-specific analyses.
+
+# Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+# Packages
+
+```{r packages}
+library(tidyverse)
+library(readxl)
+library(janitor)
+library(here)
+```
+
+# File paths
+
+```{r paths}
+raw_file <- here(
+  "data", "raw", "All Treatments", "combined_raw.xlsx"
+)
+
+processed_dir <- here("data", "processed")
+
+stopifnot(file.exists(raw_file))
+```
+
+# Import raw data
+
+```{r import-raw-data}
+raw_data <- read_excel(raw_file) |>
+  clean_names()
+
+glimpse(raw_data)
+```
+
+# Initial data checks
+
+## Site-year structure
+
+```{r site-year-checks}
+raw_data |>
+  count(location, year)
+
+raw_data |>
+  count(location, year, treatment)
+```
+
+## Identifier checks
+
+```{r identifier-checks}
+raw_data |>
+  summarise(
+    n_rows = n(),
+    n_unique_ids = n_distinct(id),
+    n_unique_plot_records = n_distinct(location, year, block, plot),
+    duplicate_ids = sum(duplicated(id)),
+    duplicate_plot_records = sum(
+      duplicated(paste(location, year, block, plot, sep = "_"))
+    )
+  )
+```
+
+## Missing values
+
+```{r missing-values}
+raw_data |>
+  summarise(across(everything(), ~ sum(is.na(.)))) |>
+  pivot_longer(
+    cols = everything(),
+    names_to = "variable",
+    values_to = "n_missing"
+  ) |>
+  filter(n_missing > 0)
+```
+
+# Prepare analysis dataset
+
+The conversions will be added here after the source units for each response
+variable have been confirmed. The raw values will remain unchanged.
+
+```{r prepare-data}
+processed_data <- raw_data |>
+  mutate(
+    cereal_rye_variety = recode(
+      cereal_rye_variety,
+      "aroostook" = "Aroostook",
+      "nd gardner" = "ND Gardner"
+    ),
+    site_year = paste(location, year, sep = "_"),
+    treatment = factor(
+      treatment,
+      levels = c("RNO", "RIM", "RIC", "TIM", "TIC")
+    ),
+    location = factor(location, levels = c("V", "O2W", "O2E")),
+    year = as.integer(year),
+    block = as.factor(block),
+    plot = as.integer(plot)
+  )
+```
+
+# Conversion notes
+
+The following source units still need to be confirmed before the conversion
+code is added:
+
+```{r conversion-notes, eval=FALSE}
+# bean_emergence
+# bean_biomass
+# inrow_weed_biomass
+# interrow_weed_biomass
+# weed_biomass
+# inrow_mulch_biomass
+# interrow_mulch_biomass
+# mulch_biomass
+# bean_population
+# bean_yield
+# seed_weight
+```
+
+# Save processed data
+
+After the source units and conversions have been confirmed, the processed
+dataset will be saved here:
+
+```{r save-processed-data, eval=FALSE}
+dir.create(processed_dir, showWarnings = FALSE, recursive = TRUE)
+
+saveRDS(
+  processed_data,
+  file = file.path(processed_dir, "combined_processed.rds")
+)
+```
