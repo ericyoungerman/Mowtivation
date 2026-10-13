@@ -325,7 +325,7 @@ The contrast tables, rather than overlap of these bars, quantify uncertainty
 in method differences. Retain experiment-specific estimates above so the
 overall figure does not hide variation among experiments.
 
-```{r primary-method-figure, fig.width=8, fig.height=6}
+```{r primary-method-figure, fig.width=10, fig.height=8}
 figure_top <- max(overall_means$emmean + overall_means$SE)
 bracket_y <- figure_top * 1.08
 bracket_tip <- figure_top * 0.02
@@ -360,7 +360,7 @@ fig_primary_method <- ggplot(overall_means,
 fig_primary_method
 dir.create(here("figures"), showWarnings = FALSE, recursive = TRUE)
 ggsave(here("figures", "soybean_establishment.png"), plot = fig_primary_method,
-       width = 8, height = 6, dpi = 300, bg = "white")
+       width = 10, height = 8, dpi = 300, bg = "white")
 ```
 
 # Interpretation and reporting notes
