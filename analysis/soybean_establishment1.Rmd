@@ -1,0 +1,372 @@
+---
+title: "Soybean stand establishment"
+output:
+  html_document:
+    toc: true
+    self_contained: true
+    code_folding: hide
+  github_document:
+    toc: true
+always_allow_html: true
+---
+
+# Question and experimental design
+
+This analysis asks whether soybean stand establishment differed between cereal rye termination methods (roller-crimping and moldboard plowing) and whether that difference varied among site-years. Stand was measured 15 days after planting, so it reflects establishment rather than emergence alone. The comparison also includes differences in seedbed conditions resulting from the two termination methods.
+
+Within each block, termination method was randomized to whole plots. Roller-crimped whole plots contained three subplots, and moldboard-plowed whole plots contained two. Because follow-up weed-control treatments had not occurred when stand was measured, subplot observations were averaged within each whole plot. This gives 24 experimental units: two termination methods × four blocks × three site-years. Analyses of later responses will also account for the applied subplot treatments.
+
+Site-year is treated as a fixed effect, with blocks nested within site-years treated as random effects. The overall termination-method comparison weights the three site-years equally and describes the average difference across these observed site-years.
+
+# Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = TRUE)
+```
+
+```{r packages-and-settings, message=FALSE}
+library(tidyverse)
+library(here)
+library(conflicted)
+library(WrensBookshelf)
+library(lmerTest)
+library(emmeans)
+# nlme is used via explicit namespace calls for the sensitivity analysis.
+
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(dplyr::select)
+
+method_levels <- c("Roller-crimper", "Moldboard plow")
+treatment_levels <- c("RNO", "RIM", "RIC", "TIM", "TIC")
+experiment_labels <- c(
+  V_2023 = "2023 – Field V",
+  O2E_2024 = "2024 – Field O2 East",
+  O2W_2024 = "2024 – Field O2 West"
+)
+method_lookup <- c(
+  RNO = "Roller-crimper", RIM = "Roller-crimper",
+  RIC = "Roller-crimper", TIM = "Moldboard plow", TIC = "Moldboard plow"
+)
+treatment_colors <- setNames(
+  WrensBookshelf::WB_brewer(name = "WhatWellBuild", n = 5, type = "discrete"),
+  treatment_levels
+)
+method_colors <- c(
+  "Roller-crimper" = treatment_colors[["RNO"]],
+  "Moldboard plow" = treatment_colors[["TIC"]]
+)
+theme_set(theme_classic(base_size = 16))
+
+# Plain tables render in both HTML and GitHub Markdown.
+show_table <- function(x, caption, digits = 0) {
+  knitr::kable(x, digits = digits, caption = caption)
+}
+# Use the same degrees-of-freedom method in ANOVA and estimated means.
+emm_options(lmer.df = "satterthwaite")
+fmt_stand <- function(x) formatC(x, format = "f", digits = 0, big.mark = ",")
+fmt_p <- function(x) if (x < 0.001) "< 0.001" else paste("=", formatC(x, format = "f", digits = 3))
+method_difference <- list("Moldboard plow - Roller-crimper" = c(-1, 1))
+```
+
+# Import and validate
+
+Checks stop the analysis if identifiers, plot counts, or stand values do not
+match the expected complete design. If future data contain missing records,
+review and document them before changing these checks; do not silently drop them.
+
+```{r import-and-check}
+processed_data <- readRDS(here("data", "processed", "combined_processed.rds"))
+required <- c("site_year", "block", "treatment", "bean_emergence_plants_ha")
+missing_columns <- setdiff(required, names(processed_data))
+if (length(missing_columns)) {
+  stop("Missing columns: ", paste(missing_columns, collapse = ", "))
+}
+plot_data <- processed_data |>
+  select(all_of(required)) |>
+  mutate(across(c(site_year, block, treatment), as.character))
+if (anyNA(plot_data[c("site_year", "block", "treatment")]) ||
+    any(vapply(plot_data[c("site_year", "block", "treatment")],
+               function(x) any(trimws(x) == ""), logical(1)))) {
+  stop("Missing or blank site-year, block, or treatment identifiers.")
+}
+if (!setequal(unique(plot_data$site_year), names(experiment_labels))) {
+  stop("Site-year identifiers do not match experiment_labels.")
+}
+if (!setequal(unique(plot_data$treatment), treatment_levels)) {
+  stop("Treatment identifiers do not match treatment_levels.")
+}
+y <- plot_data$bean_emergence_plants_ha
+if (!is.numeric(y) || any(!is.finite(y)) || any(y < 0)) {
+  stop("Stand must contain finite, nonnegative numeric values with no missing data.")
+}
+plot_counts <- plot_data |> count(site_year, block, treatment)
+block_counts <- plot_counts |> count(site_year, block, name = "n_treatments")
+experiment_counts <- block_counts |> count(site_year, name = "n_blocks")
+if (any(plot_counts$n != 1L) || any(block_counts$n_treatments != 5L) ||
+    any(experiment_counts$n_blocks != 4L)) {
+  stop("Expected one record per treatment, five treatments per block, and four blocks per site-year.")
+}
+plot_data <- plot_data |>
+  mutate(
+    site_year = factor(site_year, levels = names(experiment_labels)),
+    primary_method = factor(unname(method_lookup[treatment]), levels = method_levels),
+    block_id = interaction(site_year, block, drop = TRUE)
+  )
+validation_summary <- plot_data |>
+  group_by(site_year) |>
+  summarise(plots = n(), blocks = n_distinct(block_id),
+            min_stand = min(bean_emergence_plants_ha),
+            max_stand = max(bean_emergence_plants_ha), .groups = "drop")
+show_table(validation_summary, "Validated records and stand range (plants/ha)")
+```
+
+# Prepare whole-plot means
+
+Subplot observations are averaged within each whole plot. Whole plots receive equal weight; the additional rolled subplot is not an independent replicate of termination method.
+
+```{r prepare-whole-plots}
+stand_data <- plot_data |>
+  group_by(site_year, block_id, primary_method) |>
+  summarise(stand_mean = mean(bean_emergence_plants_ha),
+            n_subplots = n(), .groups = "drop")
+expected_n <- ifelse(stand_data$primary_method == "Roller-crimper", 3L, 2L)
+stopifnot(nrow(stand_data) == 24L, all(stand_data$n_subplots == expected_n))
+# Thousands of plants/ha improve numerical scaling; outputs are converted back.
+stand_data <- stand_data |> mutate(stand_k = stand_mean / 1000)
+contrasts(stand_data$primary_method) <- contr.sum(2)
+contrasts(stand_data$site_year) <- contr.sum(3)
+```
+
+# Describe the observations
+
+SD describes variation among whole-plot means. It is distinct from the
+model-based SE displayed in the final figure. Lines in the exploratory figure
+connect the two whole plots belonging to the same block.
+
+```{r observed-summary}
+stand_summary <- stand_data |>
+  group_by(site_year, primary_method) |>
+  summarise(n_blocks = n(), mean_stand = mean(stand_mean),
+            sd_stand = sd(stand_mean), .groups = "drop")
+show_table(stand_summary, "Observed whole-plot stand: mean and SD (plants/ha)")
+```
+
+```{r observed-figure, fig.width=11, fig.height=5}
+ggplot(stand_data, aes(primary_method, stand_mean)) +
+  geom_line(aes(group = block_id), color = "grey70", linewidth = 0.5) +
+  geom_point(aes(color = primary_method), size = 2.5) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 4) +
+  facet_wrap(~site_year, labeller = labeller(site_year = experiment_labels)) +
+  scale_color_manual(values = method_colors, guide = "none") +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(x = NULL, y = expression("Soybean establishment (plants ha"^{-1}*")"),
+       caption = "Colored points are whole-plot means; lines connect blocks; black diamonds are method means.") +
+  theme(strip.background = element_blank(), strip.text = element_text(face = "bold", size = 12),
+        axis.text.x = element_text(angle = 15, hjust = 1),
+        plot.caption = element_text(size = 10, hjust = 0))
+```
+
+# Fit the primary model
+
+The termination-method-by-site-year interaction allows the method difference to vary among site-years. A random intercept accounts for blocks nested within site-years. The model assumes a common residual variance across site-years and termination methods. The overall contrast averages the three site-year differences equally while retaining the interaction.
+
+```{r fit-model}
+stand_model <- lmerTest::lmer(
+  stand_k ~ primary_method * site_year + (1 | block_id),
+  data = stand_data, REML = TRUE
+)
+```
+
+# Check assumptions and block variance
+
+The plots assess residual shape and spread. A singular fit indicates a block-variance estimate at or near zero. The appendix checks sensitivity to treating blocks as fixed and allowing residual variance to differ among site-years.
+
+```{r variance-summary}
+variance_table <- as.data.frame(lme4::VarCorr(stand_model)) |>
+  transmute(component = grp, variance = vcov * 1000^2, SD = sdcor * 1000)
+show_table(variance_table, "Variance components on the plants/ha scale", digits = 1)
+cat("Singular fit:", lme4::isSingular(stand_model, tol = 1e-4), "\n")
+diag_data <- stand_data |>
+  mutate(fitted = fitted(stand_model) * 1000,
+         residual = residuals(stand_model) * 1000)
+```
+
+```{r residual-diagnostics, fig.width=9, fig.height=4.5}
+ggplot(diag_data, aes(fitted, residual, color = site_year)) +
+  geom_hline(yintercept = 0, color = "grey60") + geom_point(size = 2.5) +
+  labs(x = "Fitted stand (plants/ha)", y = "Residual (plants/ha)", color = "Site-year") +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma())
+ggplot(diag_data, aes(sample = residual)) +
+  stat_qq() + stat_qq_line() + labs(x = "Theoretical normal quantile", y = "Residual quantile")
+ggplot(diag_data, aes(site_year, residual, color = primary_method)) +
+  geom_hline(yintercept = 0, color = "grey60") +
+  geom_point(position = position_jitter(width = 0.08, height = 0, seed = 123), size = 2.5) +
+  scale_color_manual(values = method_colors) +
+  scale_x_discrete(labels = experiment_labels) +
+  labs(x = NULL, y = "Residual (plants/ha)", color = "Termination method")
+```
+
+# Tests and overall estimates
+
+The overall contrast describes the average termination-method difference across the three site-years. The interaction tests whether that difference varies among site-years; a nonsignificant interaction does not establish identical effects.
+
+```{r anova}
+anova_table <- anova(stand_model, type = 3, ddf = "Satterthwaite") |>
+  as.data.frame() |> tibble::rownames_to_column("Effect") |>
+  select(Effect, NumDF, DenDF, `F value`, `Pr(>F)`)
+show_table(anova_table, "Type III tests (Satterthwaite degrees of freedom)", digits = 4)
+```
+
+```{r estimated-means-and-contrasts}
+# Rescale reporting columns from thousands to plants/ha.
+plants_ha <- function(x) {
+  x <- as.data.frame(x)
+  for (nm in intersect(c("emmean", "estimate", "SE", "lower.CL", "upper.CL",
+                         "asymp.LCL", "asymp.UCL"), names(x))) x[[nm]] <- x[[nm]] * 1000
+  x
+}
+# Calculate once: use this same object for the overall table and final figure.
+emm_primary_method <- emmeans(stand_model, ~ primary_method, weights = "equal",
+                               lmer.df = "satterthwaite")
+overall_means <- plants_ha(confint(emm_primary_method))
+show_table(overall_means, "Overall estimated stand (plants/ha; equal site-year weights)", digits = 1)
+overall_difference <- plants_ha(summary(
+  contrast(emm_primary_method, method = method_difference),
+  infer = c(TRUE, TRUE), adjust = "none"
+))
+show_table(overall_difference, "Overall plow minus roller-crimper difference (plants/ha; 95% CI)", digits = 3)
+```
+
+# Final figure: model-estimated means ± SE
+
+Points show equally weighted model-estimated means across site-years, with ±1 SE bars. The bracket reports the overall termination-method contrast.
+
+```{r primary-method-figure, fig.width=10, fig.height=8}
+figure_top <- max(overall_means$emmean + overall_means$SE)
+bracket_y <- figure_top * 1.08
+bracket_tip <- figure_top * 0.02
+bracket_p <- overall_difference$p.value
+bracket_label <- if (bracket_p < 0.001) "***" else if (bracket_p < 0.01) "**" else if (bracket_p < 0.05) "*" else "ns"
+bracket_definition <- if (bracket_p < 0.001) {
+  "*** indicates p < 0.001"
+} else if (bracket_p < 0.01) {
+  "** indicates p < 0.01"
+} else if (bracket_p < 0.05) {
+  "* indicates p < 0.05"
+} else {
+  "ns indicates p ≥ 0.05"
+}
+fig_primary_method <- ggplot(overall_means,
+                             aes(primary_method, emmean, color = primary_method)) +
+  geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE),
+                width = 0.12, linewidth = 0.7) +
+  geom_point(size = 4) +
+  annotate("segment", x = 1, xend = 2, y = bracket_y, yend = bracket_y,
+           color = "black", linewidth = 0.6) +
+  annotate("segment", x = c(1, 2), xend = c(1, 2),
+           y = bracket_y - bracket_tip, yend = bracket_y,
+           color = "black", linewidth = 0.6) +
+  annotate("text", x = 1.5, y = bracket_y + bracket_tip,
+           label = bracket_label, color = "black", vjust = 0, size = 5) +
+  scale_color_manual(values = method_colors, guide = "none") +
+  scale_y_continuous(labels = scales::label_comma(),
+                     expand = expansion(mult = c(0, 0.08))) +
+  coord_cartesian(ylim = c(0, bracket_y + 3 * bracket_tip)) +
+  labs(x = NULL, y = expression("Soybean establishment (plants ha"^{-1}*")"),
+       title = "Soybean establishment by cereal rye termination method",
+       caption = paste(
+  "Points show model-estimated means averaged equally across site-years;",
+  paste("Error bars show ±1 SE;", bracket_definition, "for the overall comparison."),
+  sep = "\n"
+)) +
+  theme(axis.title.y = element_text(margin = margin(r = 8)),
+        plot.title = element_text(face = "bold"),
+        plot.caption = element_text(size = 10, hjust = 0))
+fig_primary_method
+dir.create(here("figures"), showWarnings = FALSE, recursive = TRUE)
+ggsave(here("figures", "soybean_establishment.png"), plot = fig_primary_method,
+       width = 10, height = 8, dpi = 300, bg = "white")
+```
+
+
+# Results summary
+
+Across the three site-years, estimated establishment was `r fmt_stand(overall_means$emmean[overall_means$primary_method == "Roller-crimper"])` plants/ha under roller-crimping and `r fmt_stand(overall_means$emmean[overall_means$primary_method == "Moldboard plow"])` plants/ha under moldboard plowing. The overall plow-minus-roller-crimper difference was `r fmt_stand(overall_difference$estimate)` plants/ha (95% CI: `r fmt_stand(overall_difference$lower.CL)` to `r fmt_stand(overall_difference$upper.CL)`; p `r fmt_p(overall_difference$p.value)`). The interaction test gave p `r fmt_p(anova_table[["Pr(>F)"]][anova_table$Effect == "primary_method:site_year"])`.
+
+This comparison includes seedbed differences associated with the termination methods. The appendix documents sensitivity to block and residual-variance specifications, with particular attention to site-year uncertainty.
+
+# Appendix: supporting analyses
+
+## Sensitivity to blocking and unequal variance
+
+The primary fit estimated zero block variance, and observed spread was smaller in 2023. These checks retain blocks as fixed effects and compare common versus site-year-specific residual variance. Block IDs absorb site-year main effects, so the fixed-block models use method-by-site-year slopes without an additional aliased site-year main effect.
+
+```{r sensitivity-models}
+# Numeric method indicator yields full-rank fixed-block models.
+stand_data <- stand_data |>
+  mutate(plow = as.numeric(primary_method == "Moldboard plow"))
+fixed_additive <- lm(stand_k ~ block_id + plow, data = stand_data)
+fixed_interaction <- lm(stand_k ~ block_id + plow:site_year, data = stand_data)
+show_table(as.data.frame(anova(fixed_additive, fixed_interaction)),
+           "Fixed-block test of variation in the method difference among site-years", digits = 4)
+
+# Same fixed effects in both GLS fits, so REML comparison is appropriate.
+gls_equal <- nlme::gls(stand_k ~ block_id + plow:site_year,
+                       data = stand_data, method = "REML")
+gls_unequal <- nlme::gls(stand_k ~ block_id + plow:site_year,
+                         weights = nlme::varIdent(form = ~1 | site_year),
+                         data = stand_data, method = "REML")
+show_table(as.data.frame(anova(gls_equal, gls_unequal)),
+           "Common versus site-year-specific residual variance, with fixed blocks", digits = 4)
+
+# Average the three method slopes directly. This avoids asking for predictions
+# at impossible combinations of nested blocks and site-years.
+extract_method_slopes <- function(model, label) {
+  b <- coef(model)
+  V <- vcov(model)
+  idx <- grep("plow", names(b))
+  stopifnot(length(idx) == 3L)
+  w <- rep(1 / 3, 3)
+  tibble(model = label, difference = sum(w * b[idx]) * 1000,
+         SE = sqrt(as.numeric(t(w) %*% V[idx, idx, drop = FALSE] %*% w)) * 1000)
+}
+sensitivity_summary <- bind_rows(
+  tibble(model = "Primary random-block model",
+         difference = overall_difference$estimate, SE = overall_difference$SE),
+  extract_method_slopes(fixed_interaction, "Fixed blocks, common variance"),
+  extract_method_slopes(gls_unequal, "Fixed blocks, variance by site-year")
+)
+show_table(sensitivity_summary,
+           "Sensitivity of the overall plow-minus-roller difference and SE (plants/ha)", digits = 1)
+```
+
+The estimated overall difference ranges from `r fmt_stand(min(sensitivity_summary$difference))` to `r fmt_stand(max(sensitivity_summary$difference))` plants/ha across these models, with SEs ranging from `r fmt_stand(min(sensitivity_summary$SE))` to `r fmt_stand(max(sensitivity_summary$SE))` plants/ha. Similar overall SEs do not establish equal residual variances: in this balanced design, the overall average can be stable while uncertainty within individual site-years changes substantially.
+
+## Site-year estimates from the primary model
+
+These tables retain the common-variance model's site-year estimates for reference. Their uncertainty is sensitive to the variance assumption and should not be treated as the final basis for site-year-specific conclusions. The three site-year tests use Holm adjustment; confidence intervals are pointwise 95% intervals.
+
+```{r site-year-estimates}
+stand_emmeans <- emmeans(stand_model, ~ primary_method | site_year,
+                         lmer.df = "satterthwaite")
+experiment_means <- plants_ha(confint(stand_emmeans))
+show_table(experiment_means, "Estimated stand by site-year (plants/ha; 95% CI)", digits = 1)
+
+experiment_contrasts <- contrast(stand_emmeans, method = method_difference)
+# Treat the three site-year-specific tests as one family for Holm adjustment.
+# CIs remain pointwise 95% intervals; label this distinction explicitly.
+experiment_differences <- plants_ha(summary(experiment_contrasts,
+                                           infer = c(TRUE, TRUE), adjust = "none")) |>
+  mutate(p_holm = p.adjust(p.value, method = "holm"))
+show_table(experiment_differences,
+           "Plow minus roller-crimper (plants/ha): pointwise 95% CIs, unadjusted p.value, and Holm-adjusted p_holm",
+           digits = 3)
+
+```
+
+## R session
+
+```{r session-info}
+sessionInfo()
+```
