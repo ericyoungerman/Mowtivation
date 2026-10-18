@@ -1,0 +1,890 @@
+---
+title: "Soybean crop biomass"
+output:
+  github_document:
+    toc: true
+always_allow_html: true
+---
+
+# Question and experimental design
+
+Did soybean aboveground biomass differ among five management systems, and did
+system differences vary among experiments (site-years)?
+
+The experiment was a split-plot design evaluating five management systems.
+Cereal rye termination method was assigned to whole plots within blocks:
+moldboard plowing (tilled) or roller-crimping (rolled). Within tilled whole
+plots, subplots received cultivation (TIC) or mowing (TIM). Within rolled whole
+plots, subplots received no supplemental weed control (RNO), mowing (RIM), or
+high-residue cultivation (RIC). One soybean biomass observation was collected
+per subplot. Thus, subplots are the observational units, while comparisons
+between systems with different termination methods depend on whole-plot
+replication. The five systems are not a fully crossed factorial treatment.
+
+The 2023 field layout had a documented implementation deviation; the realized
+2023 assignments should be used. The 2024 layout followed the planned design.
+RIC received only one late cultivation event, rather than the intended repeated
+cultivations. Interpret RIC as implemented, not as originally prescribed.
+
+# Analysis overview
+
+This analysis evaluates aboveground soybean crop biomass (kg/ha) across three
+site-years. Management system and its interaction with site-year are included
+as fixed effects. The random-effects structure reflects the split-plot
+randomization, with termination methods assigned to whole plots and management
+systems evaluated at the subplot level. Comparisons between termination methods
+must therefore account for whole-plot replication.
+
+Observed means and variability describe the field measurements. Model-based
+estimated marginal means, standard errors, and comparisons provide inference
+while accounting for the experimental design. Figures using both approaches
+are retained for transparent reporting.
+
+# Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r packages-and-settings, message=FALSE}
+library(tidyverse)
+library(here)
+library(conflicted)
+library(WrensBookshelf)
+library(lmerTest)
+library(emmeans)
+
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(dplyr::select)
+
+method_levels <- c("Roller-crimper", "Moldboard plow")
+treatment_levels <- c("RNO", "RIM", "RIC", "TIM", "TIC")
+treatment_labels <- c(
+  RNO = "Rolled,\nno control",
+  RIM = "Rolled,\nmowing",
+  RIC = "Rolled,\nhigh-residue cultivation",
+  TIM = "Tilled,\nmowing",
+  TIC = "Tilled,\ncultivation"
+)
+
+experiment_labels <- c(
+  V_2023 = "2023 – Field V",
+  O2E_2024 = "2024 – Field O2 East",
+  O2W_2024 = "2024 – Field O2 West"
+)
+
+experiment_colors <- setNames(
+  WrensBookshelf::WB_brewer(
+    name = "WhatWellBuild", n = 5, type = "discrete"
+  )[c(1, 3, 5)],
+  names(experiment_labels)
+)
+method_lookup <- c(
+  RNO = "Roller-crimper", RIM = "Roller-crimper",
+  RIC = "Roller-crimper", TIM = "Moldboard plow",
+  TIC = "Moldboard plow"
+)
+
+treatment_colors <- setNames(
+  WrensBookshelf::WB_brewer(name = "WhatWellBuild", n = 5, type = "discrete"),
+  treatment_levels
+)
+
+theme_set(theme_classic(base_size = 16))
+
+# Plain tables render in both HTML and GitHub Markdown.
+show_table <- function(x, caption, digits = 1) {
+  knitr::kable(x, digits = digits, caption = caption)
+}
+
+# Use the same degrees-of-freedom method in ANOVA and estimated means.
+emm_options(lmer.df = "satterthwaite")
+
+fmt_p <- function(x) {
+  if (x < 0.001) "< 0.001" else
+    paste("=", formatC(x, format = "f", digits = 3))
+}
+```
+
+
+
+# Import and validate
+
+The processed dataset is generated separately in the data preparation Rmd;
+this analysis uses its biomass values in kg/ha without additional conversions.
+Checks require one record per treatment in each of four blocks within each
+site-year and ensure that the response is finite and nonnegative.
+
+```{r import-and-check}
+processed_data <- readRDS(
+  here("data", "processed", "combined_processed.rds")
+)
+
+required <- c(
+  "site_year", "block", "treatment", "bean_biomass_kg_ha"
+)
+
+missing_columns <- setdiff(required, names(processed_data))
+
+if (length(missing_columns)) {
+  stop("Missing columns: ", paste(missing_columns, collapse = ", "))
+}
+
+plot_data <- processed_data |>
+  select(all_of(required)) |>
+  mutate(across(c(site_year, block, treatment), as.character))
+
+if (anyNA(plot_data[c("site_year", "block", "treatment")]) ||
+    any(vapply(
+      plot_data[c("site_year", "block", "treatment")],
+      function(x) any(trimws(x) == ""),
+      logical(1)
+    ))) {
+  stop("Missing or blank site-year, block, or treatment identifiers.")
+}
+
+if (!setequal(unique(plot_data$site_year), names(experiment_labels))) {
+  stop("Site-year identifiers do not match experiment_labels.")
+}
+
+if (!setequal(unique(plot_data$treatment), treatment_levels)) {
+  stop("Treatment identifiers do not match treatment_levels.")
+}
+
+y <- plot_data$bean_biomass_kg_ha
+
+if (!is.numeric(y) || any(!is.finite(y)) || any(y < 0)) {
+  stop("Biomass must contain finite, nonnegative numeric values with no missing data.")
+}
+
+plot_counts <- plot_data |>
+  count(site_year, block, treatment)
+
+block_counts <- plot_counts |>
+  count(site_year, block, name = "n_treatments")
+
+experiment_counts <- block_counts |>
+  count(site_year, name = "n_blocks")
+
+if (any(plot_counts$n != 1L) ||
+    any(block_counts$n_treatments != 5L) ||
+    any(experiment_counts$n_blocks != 4L)) {
+  stop(
+    "Expected one record per treatment, five treatments per block, ",
+    "and four blocks per site-year."
+  )
+}
+
+plot_data <- plot_data |>
+  mutate(
+    site_year = factor(site_year, levels = names(experiment_labels)),
+    treatment = factor(treatment, levels = treatment_levels),
+    primary_method = factor(
+      unname(method_lookup[as.character(treatment)]),
+      levels = method_levels
+    ),
+    block_id = interaction(site_year, block, drop = TRUE),
+    whole_plot_id = interaction(
+      block_id, primary_method, drop = TRUE
+    )
+  )
+
+validation_summary <- plot_data |>
+  group_by(site_year) |>
+  summarise(
+    plots = n(),
+    blocks = n_distinct(block_id),
+    whole_plots = n_distinct(whole_plot_id),
+    min_biomass = min(bean_biomass_kg_ha),
+    max_biomass = max(bean_biomass_kg_ha),
+    .groups = "drop"
+  )
+
+show_table(
+  validation_summary,
+  "Validated records and soybean biomass range (kg/ha)"
+)
+```
+
+
+
+# Prepare subplot observations
+
+Each subplot contributes one biomass observation, so no within-subplot
+averaging is needed. Sum contrasts support Type III fixed-effect tests in the
+model containing the management-system-by-site-year interaction.
+
+```{r prepare-subplots}
+biomass_data <- plot_data |>
+  mutate(
+    treatment = factor(treatment, levels = treatment_levels)
+  )
+
+contrasts(biomass_data$treatment) <- contr.sum(5)
+contrasts(biomass_data$site_year) <- contr.sum(3)
+```
+
+# Describe the observations
+
+The table summarizes observed means and standard deviations for each
+management system within each site-year. Standard deviations describe
+variation among the four subplot measurements and are not model-based
+standard errors.
+
+```{r observed-summary}
+biomass_summary <- biomass_data |>
+  group_by(site_year, treatment) |>
+  summarise(
+    n_plots = n(),
+    mean_biomass = mean(bean_biomass_kg_ha),
+    sd_biomass = sd(bean_biomass_kg_ha),
+    .groups = "drop"
+  )
+
+show_table(
+  biomass_summary,
+  "Observed subplot soybean biomass: mean and SD (kg/ha)"
+)
+```
+The exploratory figure displays individual observations and arithmetic
+means. It helps reveal site-year differences and differences in observed
+spread before fitting the mixed model.
+
+```{r observed-figure, fig.width=11, fig.height=5}
+ggplot(biomass_data, aes(treatment, bean_biomass_kg_ha)) +
+  geom_point(
+    aes(color = treatment),
+    position = position_jitter(width = 0.12, height = 0),
+    size = 2.5,
+    alpha = 0.8
+  ) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    shape = 18,
+    size = 4,
+    color = "black"
+  ) +
+  facet_wrap(
+    ~site_year,
+    labeller = labeller(site_year = experiment_labels)
+  ) +
+  scale_color_manual(values = treatment_colors, guide = "none") +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x = "Management system",
+    y = "Soybean crop biomass (kg/ha)",
+    caption = paste(
+      "Colored points are subplot observations;",
+      "black diamonds are treatment means."
+    )
+  ) +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12),
+    plot.caption = element_text(size = 10, hjust = 0)
+  )
+```
+
+# Fit the primary model
+
+The initial model includes block and termination whole-plot random intercepts.
+Management system and site-year, including their interaction, are fixed effects.
+The interaction is retained so that comparisons can be estimated separately by
+site-year or averaged equally across site-years, regardless of the interaction
+p-value. The model assumes homogeneous residual variance.
+
+```{r fit-model}
+biomass_model_full <- lmerTest::lmer(
+  bean_biomass_kg_ha ~ treatment * site_year +
+    (1 | block_id) + (1 | whole_plot_id),
+  data = biomass_data,
+  REML = TRUE
+)
+```
+
+# Evaluate random-effects structure
+
+The initial model estimated the additional block-level variance at zero and
+reported a singular fit. We retain it for documentation and fit a simpler
+model with the whole-plot intercept. The latter preserves within-whole-plot
+correlation and is used for the subsequent analysis. Singularity alone does
+not establish a treatment effect or its absence.
+
+```{r full-model-variance}
+show_table(
+  as.data.frame(lme4::VarCorr(biomass_model_full)) |>
+    transmute(component = grp, variance = vcov, SD = sdcor),
+  "Variance components for initial biomass model", digits = 1
+)
+cat("Initial model singular:", lme4::isSingular(biomass_model_full), "\n")
+```
+
+```{r simplified-model-check}
+biomass_model <- lmerTest::lmer(
+  bean_biomass_kg_ha ~ treatment * site_year +
+    (1 | whole_plot_id),
+  data = biomass_data,
+  REML = TRUE
+)
+
+cat(
+  "Biomass model singular:",
+  lme4::isSingular(biomass_model, tol = 1e-4),
+  "\n"
+)
+```
+
+# Sensitivity to the random-effects structure
+
+The initial model includes a block intercept whose estimated variance was zero.
+To check whether omitting it changes inference, compare the treatment estimated
+marginal means and their SEs from both models, averaging site-years equally.
+We also compare all pairwise treatment contrasts. This is a sensitivity check,
+not a new model-selection test. Subsequent results continue to use the simpler
+`biomass_model`.
+
+```{r random-structure-sensitivity}
+full_emm <- emmeans(biomass_model_full, ~ treatment, weights = "equal")
+simple_emm <- emmeans(biomass_model, ~ treatment, weights = "equal")
+
+sensitivity_means <- as.data.frame(summary(full_emm)) |>
+  select(treatment, full_mean = emmean, full_SE = SE) |>
+  left_join(
+    as.data.frame(summary(simple_emm)) |>
+      select(treatment, simple_mean = emmean, simple_SE = SE),
+    by = "treatment"
+  ) |>
+  mutate(
+    mean_difference = simple_mean - full_mean,
+    SE_difference = simple_SE - full_SE
+  )
+
+show_table(
+  sensitivity_means,
+  "Treatment EMM sensitivity to the random-effects structure (kg/ha)",
+  digits = 2
+)
+
+full_pairs <- as.data.frame(summary(pairs(full_emm, adjust = "none"))) |>
+  select(contrast, full_estimate = estimate, full_SE = SE)
+simple_pairs <- as.data.frame(summary(pairs(simple_emm, adjust = "none"))) |>
+  select(contrast, simple_estimate = estimate, simple_SE = SE)
+
+sensitivity_pairs <- full_pairs |>
+  left_join(simple_pairs, by = "contrast") |>
+  mutate(
+    estimate_difference = simple_estimate - full_estimate,
+    SE_difference = simple_SE - full_SE
+  )
+
+show_table(
+  sensitivity_pairs,
+  "Pairwise treatment-contrast sensitivity (kg/ha)",
+  digits = 2
+)
+
+cat(
+  "Maximum absolute EMM difference (kg/ha):",
+  round(max(abs(sensitivity_means$mean_difference)), 3), "\n",
+  "Maximum absolute EMM SE difference (kg/ha):",
+  round(max(abs(sensitivity_means$SE_difference)), 3), "\n",
+  "Maximum absolute contrast estimate difference (kg/ha):",
+  round(max(abs(sensitivity_pairs$estimate_difference)), 3), "\n",
+  "Maximum absolute contrast SE difference (kg/ha):",
+  round(max(abs(sensitivity_pairs$SE_difference)), 3), "\n"
+)
+```
+
+# Check model assumptions
+
+Variance components quantify the remaining between-whole-plot and residual
+variation **after accounting for the fixed effects**. They do not measure the
+amount of biomass variation caused by termination method. The plots assess
+residual spread and approximate normality; they do not prove the assumptions.
+
+```{r variance-summary}
+variance_table <- as.data.frame(lme4::VarCorr(biomass_model)) |>
+  transmute(
+    component = grp,
+    variance = vcov,
+    SD = sdcor
+  )
+
+show_table(
+  variance_table,
+  "Variance components for soybean biomass (kg/ha)",
+  digits = 1
+)
+
+cat(
+  "Singular fit:",
+  lme4::isSingular(biomass_model, tol = 1e-4),
+  "\n"
+)
+
+diag_data <- biomass_data |>
+  mutate(
+    fitted = fitted(biomass_model),
+    residual = residuals(biomass_model)
+  )
+```
+
+```{r residual-diagnostics, fig.width=9, fig.height=4.5}
+ggplot(diag_data, aes(fitted, residual, color = site_year)) +
+  geom_hline(yintercept = 0, color = "grey60") +
+  geom_point(size = 2.5) +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x = "Fitted soybean biomass (kg/ha)",
+    y = "Residual (kg/ha)",
+    color = "Site-year"
+  )
+
+ggplot(diag_data, aes(sample = residual)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(
+    x = "Theoretical normal quantile",
+    y = "Residual quantile"
+  )
+
+ggplot(diag_data, aes(site_year, residual, color = treatment)) +
+  geom_hline(yintercept = 0, color = "grey60") +
+  geom_point(
+    position = position_jitter(width = 0.08, height = 0, seed = 123),
+    size = 2.5
+  ) +
+  scale_color_manual(values = treatment_colors) +
+  scale_x_discrete(labels = experiment_labels) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    x = NULL,
+    y = "Residual (kg/ha)",
+    color = "Management system"
+  )
+```
+# Test management system, site-year, and their interaction
+
+Type III tests use Satterthwaite degrees of freedom with sum contrasts. The
+management-system test addresses mean differences averaged over the three
+site-years; the interaction assesses evidence that those differences vary
+across site-years.
+
+```{r model-anova}
+biomass_anova <- anova(
+  biomass_model,
+  type = 3,
+  ddf = "Satterthwaite"
+)
+
+show_table(
+  as.data.frame(biomass_anova) |>
+    tibble::rownames_to_column("term"),
+  "Type III ANOVA for soybean biomass",
+  digits = 3
+)
+```
+The reported ANOVA showed a management-system effect (F = 4.949,
+p = 0.003) and a site-year effect (F = 90.174, p < 0.001). The
+interaction was not significant (F = 1.248, p = 0.303). Lack of
+statistical significance is not evidence that system effects are identical
+across site-years. These figures are drawn from the model results reviewed
+for this analysis and should be checked again after any model or data change.
+
+# Estimated marginal means
+
+Model-based means average the three site-years equally. Because the design is
+balanced, these may coincide closely with the observed treatment means.
+Model-based SEs reflect the covariance structure and should not be confused
+with the descriptive SEs calculated from raw subplot observations.
+
+```{r estimated-means}
+biomass_emm <- emmeans(
+  biomass_model,
+  ~ treatment,
+  weights = "equal"
+)
+
+biomass_emm_table <- as.data.frame(summary(biomass_emm)) |>
+  select(treatment, emmean, SE, df, lower.CL, upper.CL)
+
+show_table(
+  biomass_emm_table,
+  "Estimated marginal mean soybean biomass by management system (kg/ha)",
+  digits = 1
+)
+```
+# Compare management systems
+
+Tukey-adjusted pairwise comparisons provide a family-wise error-controlled
+reference for all ten comparisons among five management systems.
+The split-plot model gives different standard errors for within-termination
+and across-termination comparisons.
+
+```{r treatment-comparisons}
+biomass_pairs <- pairs(
+  biomass_emm,
+  adjust = "tukey"
+)
+
+biomass_pairs_table <- as.data.frame(summary(biomass_pairs)) |>
+  select(contrast, estimate, SE, df, t.ratio, p.value)
+
+show_table(
+  biomass_pairs_table,
+  "Pairwise comparisons among soybean management systems (kg/ha)",
+  digits = 3
+)
+```
+
+The targeted contrasts compare supplemental management options within the
+same termination method. Holm adjustment is applied to this four-contrast
+family. These contrasts avoid conflating different termination methods with
+supplemental weed management.
+
+```{r within-method-comparisons}
+within_method <- contrast(
+  biomass_emm,
+  method = list(
+    "TIM - TIC" = c(0, 0, 0, 1, -1),
+    "RIM - RIC" = c(0, 1, -1, 0, 0),
+    "RNO - RIM" = c(1, -1, 0, 0, 0),
+    "RNO - RIC" = c(1, 0, -1, 0, 0)
+  )
+)
+
+show_table(
+  as.data.frame(summary(within_method, adjust = "holm")) |>
+    select(contrast, estimate, SE, df, t.ratio, p.value),
+  "Within-termination management comparisons (kg/ha)",
+  digits = 3
+)
+```
+# Fisher's LSD and letter groups
+
+Unadjusted Fisher's LSD comparisons are reported for continuity with the
+laboratory's established reporting practice. The overall management-system
+ANOVA was significant; however, *protected* LSD still does not provide the
+same family-wise error control as Tukey across ten pairwise comparisons.
+The corresponding compact letter display (CLD) assigns `a` to the highest
+estimated mean. Shared letters indicate that a difference was not detected
+at the chosen threshold, **not** that treatments are equivalent.
+
+```{r crop-biomass-fisher-lsd}
+# Fisher's LSD: unadjusted pairwise comparisons.
+crop_biomass_lsd <- pairs(biomass_emm, adjust = "none")
+
+show_table(
+  as.data.frame(summary(crop_biomass_lsd)) |>
+    select(contrast, estimate, SE, df, t.ratio, p.value),
+  "Fisher's LSD comparisons among management systems (kg/ha)",
+  digits = 3
+)
+
+# Compact letter display, ordered from highest to lowest biomass.
+crop_biomass_cld <- multcomp::cld(
+  biomass_emm,
+  adjust = "none",
+  Letters = letters,
+  sort = TRUE,
+  reversed = TRUE
+) |>
+  as.data.frame() |>
+  mutate(
+    .group = gsub("\\s+", "", .group),
+    treatment = factor(treatment, levels = treatment_levels)
+  )
+
+show_table(
+  crop_biomass_cld |>
+    select(treatment, emmean, SE, .group),
+  "Fisher's LSD groupings for soybean crop biomass",
+  digits = 1
+)
+```
+# Model-estimated biomass figures
+
+The first figure shows management-system estimated marginal means with
+model-based SEs and model-derived Fisher's LSD groupings. Its error bars
+reflect precision under the fitted model, not the observed within-treatment
+spread. The interaction remains in the model when means are averaged over
+site-years.
+
+```{r crop-biomass-treatment-figure, fig.width=9, fig.height=6}
+crop_biomass_treatment_data <- crop_biomass_cld |>
+  mutate(label_y = emmean + SE + 250)
+
+crop_biomass_treatment_fig <- ggplot(
+  crop_biomass_treatment_data,
+  aes(x = treatment, y = emmean, fill = treatment)
+) +
+  geom_col(width = 0.7, color = "black", linewidth = 0.3) +
+  geom_errorbar(
+    aes(ymin = emmean - SE, ymax = emmean + SE),
+    width = 0.15,
+    linewidth = 0.8
+  ) +
+  geom_text(
+    aes(y = label_y, label = .group),
+    size = 6,
+    color = "black"
+  ) +
+  scale_fill_manual(values = treatment_colors, guide = "none") +
+scale_x_discrete(labels = treatment_labels) +
+scale_y_continuous(
+  labels = scales::label_comma(),
+  limits = c(0, NA),
+  expand = expansion(mult = c(0, 0.08))
+) +
+  labs(
+    x = "Management system",
+    y = "Soybean crop biomass (kg/ha)"
+  ) +
+  theme_classic(base_size = 16)
+
+crop_biomass_treatment_fig
+
+dir.create(here("figures"), showWarnings = FALSE, recursive = TRUE)
+ggsave(
+  here("figures", "soybean_crop_biomass_treatment_model.png"),
+  plot = crop_biomass_treatment_fig,
+  width = 10, height = 8, dpi = 300, bg = "white"
+)
+```
+# Alternative figures: observed means and descriptive SEs
+
+These figures show arithmetic means and descriptive SEs calculated from the
+observations. They reuse the **model-derived** Fisher's LSD letters rather
+than testing differences using raw SEs. The error bars and letters thus
+represent different quantities. In particular, subplot measurements within
+a site-year are not fully independent because subplots share whole plots.
+
+```{r crop-biomass-treatment-raw-figure, fig.width=9, fig.height=6}
+crop_biomass_treatment_raw <- biomass_data |>
+  group_by(treatment) |>
+  summarise(
+    n = n(),
+    mean_biomass = mean(bean_biomass_kg_ha),
+    sd_biomass = sd(bean_biomass_kg_ha),
+    se_biomass = sd_biomass / sqrt(n),
+    .groups = "drop"
+  ) |>
+  left_join(
+    crop_biomass_cld |>
+      select(treatment, .group),
+    by = "treatment"
+  ) |>
+  mutate(label_y = mean_biomass + se_biomass + 250)
+
+crop_biomass_treatment_raw_fig <- ggplot(
+  crop_biomass_treatment_raw,
+  aes(x = treatment, y = mean_biomass, fill = treatment)
+) +
+  geom_col(width = 0.7, color = "black", linewidth = 0.3) +
+  geom_errorbar(
+    aes(
+      ymin = mean_biomass - se_biomass,
+      ymax = mean_biomass + se_biomass
+    ),
+    width = 0.15,
+    linewidth = 0.8
+  ) +
+  geom_text(
+    aes(y = label_y, label = .group),
+    size = 6
+  ) +
+  scale_fill_manual(values = treatment_colors, guide = "none") +
+  scale_x_discrete(labels = treatment_labels) +
+  scale_y_continuous(
+    labels = scales::label_comma(),
+    limits = c(0, NA),
+    expand = expansion(mult = c(0, 0.08))
+  ) +
+  labs(
+    x = "Management system",
+    y = "Soybean crop biomass (kg/ha)"
+  ) +
+  theme_classic(base_size = 16)
+
+crop_biomass_treatment_raw_fig
+
+dir.create(here("figures"), showWarnings = FALSE, recursive = TRUE)
+ggsave(
+  here("figures", "soybean_crop_biomass_treatment_raw.png"),
+  plot = crop_biomass_treatment_raw_fig,
+  width = 10, height = 8, dpi = 300, bg = "white"
+)
+```
+# Site-year comparisons
+
+Site-year estimated marginal means average equally across the five management
+systems. Fisher's LSD letters summarize model-based comparisons among the
+three experiments; these should be understood as comparisons among the
+observed site-years rather than an isolated causal effect of calendar year.
+
+```{r crop-biomass-site-year-figure, fig.width=9, fig.height=6}
+crop_biomass_year_emm <- emmeans(
+  biomass_model,
+  ~ site_year,
+  weights = "equal"
+)
+
+crop_biomass_year_lsd <- pairs(
+  crop_biomass_year_emm,
+  adjust = "none"
+)
+
+show_table(
+  as.data.frame(summary(crop_biomass_year_lsd)) |>
+    select(contrast, estimate, SE, df, t.ratio, p.value),
+  "Fisher's LSD comparisons among site-years (kg/ha)",
+  digits = 3
+)
+
+crop_biomass_year_data <- multcomp::cld(
+  crop_biomass_year_emm,
+  adjust = "none",
+  Letters = letters,
+  sort = TRUE,
+  reversed = TRUE
+) |>
+  as.data.frame() |>
+  mutate(
+    site_year = factor(site_year, levels = names(experiment_labels)),
+    .group = gsub("\\s+", "", .group),
+    label_y = emmean + SE + 250
+  )
+
+crop_biomass_year_fig <- ggplot(
+  crop_biomass_year_data,
+  aes(x = site_year, y = emmean, fill = site_year)
+) +
+  geom_col(width = 0.65, color = "black", linewidth = 0.3) +
+  geom_errorbar(
+    aes(ymin = emmean - SE, ymax = emmean + SE),
+    width = 0.15,
+    linewidth = 0.8
+  ) +
+  geom_text(
+    aes(y = label_y, label = .group),
+    size = 6
+  ) +
+  scale_fill_manual(values = experiment_colors, guide = "none") +
+  scale_x_discrete(labels = experiment_labels) +
+  scale_y_continuous(
+    labels = scales::label_comma(),
+    limits = c(0, NA),
+    expand = expansion(mult = c(0, 0.08))
+  ) +
+  labs(
+    x = "Site-year",
+    y = "Soybean crop biomass (kg/ha)"
+  ) +
+  theme_classic(base_size = 16)
+
+crop_biomass_year_fig
+
+dir.create(here("figures"), showWarnings = FALSE, recursive = TRUE)
+ggsave(
+  here("figures", "soybean_crop_biomass_site_year_model.png"),
+  plot = crop_biomass_year_fig,
+  width = 10, height = 8, dpi = 300, bg = "white"
+)
+```
+For comparison, the observed site-year figure uses the 20 subplot values
+per experiment. Its descriptive SE ignores within-whole-plot correlation,
+so it should not be interpreted as design-adjusted precision for testing
+site-year differences.
+
+```{r crop-biomass-site-year-raw-figure, fig.width=9, fig.height=6}
+crop_biomass_year_raw <- biomass_data |>
+  group_by(site_year) |>
+  summarise(
+    n = n(),
+    mean_biomass = mean(bean_biomass_kg_ha),
+    sd_biomass = sd(bean_biomass_kg_ha),
+    se_biomass = sd_biomass / sqrt(n),
+    .groups = "drop"
+  ) |>
+  left_join(
+    crop_biomass_year_data |>
+      select(site_year, .group),
+    by = "site_year"
+  ) |>
+  mutate(label_y = mean_biomass + se_biomass + 250)
+
+crop_biomass_year_raw_fig <- ggplot(
+  crop_biomass_year_raw,
+  aes(x = site_year, y = mean_biomass, fill = site_year)
+) +
+  geom_col(width = 0.65, color = "black", linewidth = 0.3) +
+  geom_errorbar(
+    aes(
+      ymin = mean_biomass - se_biomass,
+      ymax = mean_biomass + se_biomass
+    ),
+    width = 0.15,
+    linewidth = 0.8
+  ) +
+  geom_text(
+    aes(y = label_y, label = .group),
+    size = 6
+  ) +
+  scale_fill_manual(values = experiment_colors, guide = "none") +
+  scale_x_discrete(labels = experiment_labels) +
+  scale_y_continuous(
+    labels = scales::label_comma(),
+    limits = c(0, NA),
+    expand = expansion(mult = c(0, 0.08))
+  ) +
+  labs(
+    x = "Site-year",
+    y = "Soybean crop biomass (kg/ha)"
+  ) +
+  theme_classic(base_size = 16)
+
+crop_biomass_year_raw_fig
+
+dir.create(here("figures"), showWarnings = FALSE, recursive = TRUE)
+ggsave(
+  here("figures", "soybean_crop_biomass_site_year_raw.png"),
+  plot = crop_biomass_year_raw_fig,
+  width = 10, height = 8, dpi = 300, bg = "white"
+)
+```
+
+
+
+# Summary and interpretation
+
+Across the three site-years, the estimated means were approximately 8,020
+kg/ha for TIC, 7,807 for TIM, 7,027 for RIC, 7,024 for RNO, and 6,736 for
+RIM. The tilled systems generally had higher estimated biomass than the
+roller-crimped systems. In contrast, the within-termination management
+comparisons did not detect differences after Holm adjustment. These results
+are consistent with a production-system difference, but do not independently
+isolate the causal contribution of rye termination from other management and
+field conditions.
+
+Soybean biomass also differed strongly among site-years, with lower biomass
+in 2023 Field V than in either 2024 experiment. Soybean biomass need not
+predict grain yield, so its biological implications should be evaluated
+together with establishment, weed biomass, and yield analyses. Competition
+from living rye before termination, residue effects, planting conditions,
+and early crop establishment are plausible explanations for system
+differences, but were not directly tested by this model.
+
+# Items for final review
+
+- Confirm the realized 2023 field assignments and the exact timing and
+  implementation of RIC across site-years against field records.
+- Review the random-effects sensitivity tables and document whether treatment
+  estimates and uncertainty remain stable after dropping the block intercept.
+- Reassess homogeneous residual variance across site-years and systems if
+  diagnostics or subsequent sensitivity fits suggest differences.
+- Confirm that the planned contrasts and LSD comparison family match the
+  manuscript's stated questions; retain Tukey results as a reference.
+- Decide which descriptive or model-based figures to show in the manuscript,
+  ensuring captions explain the type of mean, SE, and letter test.
