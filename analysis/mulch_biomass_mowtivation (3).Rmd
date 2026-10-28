@@ -1,0 +1,269 @@
+---
+title: "Total rolled mulch biomass at peak weed sampling"
+output:
+  github_document:
+    toc: true
+  html_document:
+    toc: true
+    code_folding: hide
+always_allow_html: true
+---
+
+# Question and experimental design
+
+Does supplemental inter-row weed management affect the amount of cereal rye
+mulch remaining at peak weed sampling? The primary planned comparison is
+inter-row mowing (RIM) versus rolled rye with no supplemental management (RNO).
+High-residue cultivation (RIC) versus RNO is a secondary comparison, and RIM
+versus RIC describes differences between the two supplemental practices.
+
+Only the three rolled treatments have mulch measurements. Total mulch biomass
+was measured in 2023 Field V, 2024 O2 East, and 2024 O2 West, with four
+randomized blocks per site-year. Each plot contributes one independent
+observation (3 site-years × 4 blocks × 3 treatments = 36 plots). The response
+is **remaining mulch biomass**, not a direct pre/post estimate of biomass
+removed by an operation.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(here)
+library(lmerTest)
+library(emmeans)
+library(multcomp)
+library(WrensBookshelf)
+```
+
+# Import and prepare data
+
+Set `data_path` to the location of the processed dataset in your Mowtivation
+repository if none of these common locations applies. The analysis uses the
+already converted `mulch_biomass_kg_ha` field, so no second unit conversion
+is performed.
+
+```{r import}
+candidate_paths <- c(
+  here("data", "processed", "combined_processed.rds"),
+  here("data", "combined_processed.rds"),
+  here("combined_processed.rds"),
+  here("upload", "combined_processed(2).rds")
+)
+existing_paths <- candidate_paths[file.exists(candidate_paths)]
+if (length(existing_paths) == 0) {
+  stop("Cannot find combined_processed.rds. Set data_path to its location.")
+}
+data_path <- existing_paths[1]
+combined <- readRDS(data_path)
+
+mulch <- combined %>%
+  filter(as.character(treatment) %in% c("RNO", "RIM", "RIC")) %>%
+  transmute(
+    site_year = factor(as.character(site_year),
+                       levels = c("V_2023", "O2E_2024", "O2W_2024"),
+                       labels = c("2023 Field V", "2024 O2 East", "2024 O2 West")),
+    block = factor(block),
+    treatment = factor(as.character(treatment), levels = c("RNO", "RIM", "RIC")),
+    mulch_kg_ha = as.numeric(mulch_biomass_kg_ha)
+  )
+
+stopifnot(nrow(mulch) == 36, !anyNA(mulch),
+          all(mulch$mulch_kg_ha > 0),
+          all(as.vector(table(mulch$site_year, mulch$treatment)) == 4),
+          all(as.vector(table(mulch$site_year, mulch$block)) == 3))
+
+mulch %>% count(site_year, treatment)
+```
+
+# Descriptive summaries
+
+The tables and figures below show **observed plot means ± standard errors**.
+They are not model-adjusted estimates. With a balanced design, each site-year
+contributes equally to the overall treatment means.
+
+```{r summaries}
+summary_by_site <- mulch %>%
+  group_by(site_year, treatment) %>%
+  summarise(n = n(), mean = mean(mulch_kg_ha),
+            sd = sd(mulch_kg_ha), se = sd / sqrt(n), .groups = "drop")
+
+summary_overall <- mulch %>%
+  group_by(treatment) %>%
+  summarise(n = n(), mean = mean(mulch_kg_ha),
+            sd = sd(mulch_kg_ha), se = sd / sqrt(n), .groups = "drop")
+
+knitr::kable(summary_by_site, digits = 1)
+knitr::kable(summary_overall, digits = 1)
+```
+
+The across-site-year raw SE above includes between-site-year variability.
+Because treatment was randomized *within* site-year and block, that SE is
+descriptive and should not be used to test treatment differences. Inference
+comes from the blocked model below.
+
+# Fit the primary model
+
+Site-year and treatment are fixed effects, including their interaction; block
+nested in site-year is a random intercept. We retain the interaction to assess
+whether mowing effects vary by site-year. We start with a Gaussian model on
+the original kg/ha scale and inspect its assumptions rather than assuming a
+transformation is needed.
+
+```{r model}
+options(contrasts = c("contr.sum", "contr.poly"))
+mulch_model <- lmer(
+  mulch_kg_ha ~ site_year * treatment + (1 | site_year:block),
+  data = mulch, REML = TRUE
+)
+
+summary(mulch_model)
+anova(mulch_model, type = 3, ddf = "Satterthwaite")
+```
+
+# Model diagnostics
+
+Inspect the residual-versus-fitted plot for changing variance or systematic
+patterns, and the Q-Q plot for substantial departures from normality. Site-year
+residual spreads are also summarized. If serious heterogeneity appears, revisit
+the residual variance structure before drawing conclusions.
+
+```{r diagnostics, fig.width=10, fig.height=4.5}
+diagnostics <- tibble(
+  fitted = fitted(mulch_model),
+  residual = resid(mulch_model),
+  site_year = mulch$site_year
+)
+
+p_resid <- ggplot(diagnostics, aes(fitted, residual, color = site_year)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+  geom_point(size = 2.5) +
+  labs(x = "Fitted mulch biomass (kg/ha)", y = "Residual (kg/ha)", color = "Site-year") +
+  theme_classic(base_size = 14)
+
+p_qq <- ggplot(diagnostics, aes(sample = residual)) +
+  stat_qq(size = 2) + stat_qq_line() +
+  labs(x = "Theoretical quantiles", y = "Sample residual quantiles") +
+  theme_classic(base_size = 14)
+
+print(p_resid)
+print(p_qq)
+
+diagnostics %>% group_by(site_year) %>%
+  summarise(residual_sd = sd(residual), .groups = "drop") %>%
+  knitr::kable(digits = 1)
+```
+
+# Planned treatment comparisons
+
+The main inferential question is **RIM − RNO** averaged equally over the three
+site-years. We also report RIC − RNO, adjusting these two control comparisons
+using Dunnett's method. A negative difference means less remaining mulch than
+RNO. If the treatment × site-year interaction is important, interpret the
+site-year-specific differences alongside (or instead of) the pooled average.
+
+```{r contrasts}
+emm_treatment <- emmeans(mulch_model, ~ treatment, weights = "equal")
+planned_vs_rno <- contrast(emm_treatment, method = "trt.vs.ctrl", ref = 1)
+summary(planned_vs_rno, infer = c(TRUE, TRUE), adjust = "dunnettx")
+
+# Supplementary comparison of mowing and cultivation, without a multiplicity
+# adjustment for this single separately defined comparison.
+contrast(emm_treatment, method = list("RIM - RIC" = c(0, 1, -1))) %>%
+  summary(infer = c(TRUE, TRUE))
+
+# Simple contrasts of each rolled management practice against RNO by site-year.
+emm_by_site <- emmeans(mulch_model, ~ treatment | site_year)
+summary(
+  contrast(emm_by_site, method = "trt.vs.ctrl", ref = 1),
+  infer = c(TRUE, TRUE), adjust = "dunnettx"
+)
+```
+
+# Figures: raw means ± SE
+
+Letters are based on Tukey-adjusted pairwise comparisons among all three
+treatments from the fitted model. They are displayed with raw means ± raw SE,
+so the figure caption should distinguish descriptive error bars from
+model-based tests. A shared letter denotes no detected difference, not proof
+of equality. The planned RIM–RNO comparison above remains the primary test.
+
+```{r figure-data}
+cld_overall <- multcomp::cld(emm_treatment, adjust = "tukey", Letters = letters) %>%
+  as.data.frame() %>%
+  transmute(treatment, cld = gsub(" ", "", .group))
+
+cld_by_site <- multcomp::cld(emm_by_site, adjust = "tukey", Letters = letters) %>%
+  as.data.frame() %>%
+  transmute(site_year, treatment, cld = gsub(" ", "", .group))
+
+plot_overall <- left_join(summary_overall, cld_overall, by = "treatment")
+plot_by_site <- left_join(summary_by_site, cld_by_site,
+                          by = c("site_year", "treatment"))
+
+treatment_codes <- c("RNO", "RIM", "RIC", "TIM", "TIC")
+treatment_colors <- setNames(
+  WrensBookshelf::WB_brewer(name = "WhatWellBuild", n = 5, type = "discrete"),
+  treatment_codes
+)
+rolled_colors <- treatment_colors[c("RNO", "RIM", "RIC")]
+rolled_labels <- c("RNO" = "Rolled only", "RIM" = "Inter-row mowing",
+                   "RIC" = "High-residue cultivation")
+```
+
+```{r overall-figure, fig.width=8, fig.height=6}
+mulch_overall_fig <- ggplot(plot_overall, aes(treatment, mean, fill = treatment)) +
+  geom_col(width = 0.65, color = "black", linewidth = 0.3) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                width = 0.16, linewidth = 0.7) +
+  geom_text(aes(y = mean + se + 230, label = cld), size = 5) +
+  scale_fill_manual(values = rolled_colors, guide = "none") +
+  scale_x_discrete(labels = rolled_labels) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.16))) +
+  labs(x = "Rolled rye treatment", y = "Remaining mulch biomass (kg/ha)") +
+  theme_classic(base_size = 16) +
+  theme(axis.text.x = element_text(size = 13))
+
+mulch_overall_fig
+```
+
+```{r site-year-figure, fig.width=11, fig.height=6}
+mulch_site_year_fig <- ggplot(plot_by_site,
+                             aes(treatment, mean, fill = treatment)) +
+  geom_col(width = 0.65, color = "black", linewidth = 0.3) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                width = 0.16, linewidth = 0.7) +
+  geom_text(aes(y = mean + se + 220, label = cld), size = 5) +
+  facet_wrap(~ site_year, nrow = 1) +
+  scale_fill_manual(values = rolled_colors, guide = "none") +
+  scale_x_discrete(labels = c("RNO", "RIM", "RIC")) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(x = "Rolled rye treatment", y = "Remaining mulch biomass (kg/ha)") +
+  theme_classic(base_size = 16) +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(face = "bold", size = 14))
+
+mulch_site_year_fig
+```
+
+```{r save-figures, eval=FALSE}
+# Run this chunk when ready to export publication-quality figures.
+dir.create(here("figures"), showWarnings = FALSE, recursive = TRUE)
+ggsave(here("figures", "total_mulch_biomass_overall.png"),
+       mulch_overall_fig, width = 8, height = 6, dpi = 300, bg = "white")
+ggsave(here("figures", "total_mulch_biomass_by_site_year.png"),
+       mulch_site_year_fig, width = 11, height = 6, dpi = 300, bg = "white")
+```
+
+# Interpretation notes
+
+- Report the interaction test first to describe whether treatment effects
+  differ among site-years.
+- Prioritize the estimated RIM − RNO difference, confidence interval, and
+  adjusted *p*-value. Report RIC − RNO as the other comparison against the
+  undisturbed control.
+- Distinguish **remaining mulch biomass** from mulch *loss*. Because this is a
+  single sampling occasion, the data do not directly quantify loss caused by
+  mowing or cultivation.
+- The pooled raw SE includes site-year variation; use the model-based contrast
+  interval for treatment inference.
+- Follow-up analyses can examine 2024 in-row/inter-row mulch distribution and
+  associations with weed biomass, accounting for site-year and block.
