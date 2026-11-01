@@ -1,0 +1,240 @@
+---
+title: "Mowtivation: Musgrave weather history"
+output:
+  html_document:
+    toc: true
+    self_contained: true
+    code_folding: hide
+  github_document:
+    toc: true
+always_allow_html: true
+---
+
+# Purpose and data source
+
+Daily air temperature and precipitation from the **Musgrave Research Farm weather station**, obtained through the Cornell NEWA [All Weather Data Query](https://newa.cornell.edu/all-weather-data-query), are plotted for two cereal rye–soybean production cycles. This is station-based observational weather, not treatment-level weather data. The two 2024 fields share the same weather series.
+
+**Data acquisition:** Three original NEWA Daily Summary CSVs cover September–December 2022, calendar year 2023, and calendar year 2024. Keep the exported files unchanged in `data/raw/weather/`, along with the station name/ID and download date. The original files contain Fahrenheit temperatures and precipitation in inches; conversion occurs below.
+
+This Rmd reads the original files directly: `musgrave_weather_2022.csv`, `musgrave_weather_2023.csv`, and `musgrave_weather_2024.csv`. Their recorded headers include `date`, `Avg Air Temp (˚F)`, and `Total Precipitation`. No cleaned intermediary file is required. Do not silently replace missing observations with zero or interpolate them.
+
+The **September 1 rye planting dates are provisional** until field records confirm them. These dates only set the display-window starts and are not presented as planting markers.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(lubridate)
+library(here)
+
+figure_dir <- here::here("output", "figures", "weather_history")
+table_dir <- here::here("output", "tables", "weather_history")
+dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(table_dir, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Read and check NEWA observations
+
+```{r import-weather}
+weather_paths <- here::here(
+  "data", "raw", "weather",
+  paste0("musgrave_weather_", 2022:2024, ".csv")
+)
+if (!all(file.exists(weather_paths))) {
+  stop("Missing NEWA CSVs. Place musgrave_weather_2022.csv, musgrave_weather_2023.csv, and musgrave_weather_2024.csv in data/raw/weather/.")
+}
+
+read_newa <- function(path) {
+  raw <- readr::read_csv(path, show_col_types = FALSE)
+  required <- c("date", "Avg Air Temp (˚F)", "Total Precipitation")
+  if (!all(required %in% names(raw))) {
+    stop("Unexpected NEWA columns in ", basename(path),
+         ". Check the CSV export before proceeding.")
+  }
+  raw |>
+    transmute(
+      date = lubridate::mdy(date),
+      temp_c = (`Avg Air Temp (˚F)` - 32) * 5 / 9,
+      precip_mm = `Total Precipitation` * 25.4
+    )
+}
+
+weather <- dplyr::bind_rows(lapply(weather_paths, read_newa)) |>
+  arrange(date)
+
+if (anyNA(weather$date) || anyDuplicated(weather$date)) {
+  stop("Invalid or duplicate dates: inspect the input CSV.")
+}
+if (any(weather$precip_mm < 0, na.rm = TRUE)) {
+  stop("Negative precipitation values found: inspect missing-data codes and units.")
+}
+if (any(weather$temp_c < -50 | weather$temp_c > 50, na.rm = TRUE)) {
+  stop("Unusual temperatures: verify the input uses degrees Celsius.")
+}
+```
+
+# Define the two production cycles
+
+```{r production-cycles}
+cycles <- tibble::tibble(
+  cycle = c("2023 rye–soybean cycle", "2024 rye–soybean cycle"),
+  start = as.Date(c("2022-09-01", "2023-09-01")),
+  end = as.Date(c("2023-10-26", "2024-10-23"))
+)
+
+weather_cycles <- dplyr::bind_rows(lapply(seq_len(nrow(cycles)), function(i) {
+  span <- seq(cycles$start[i], cycles$end[i], by = "day")
+  tibble::tibble(date = span) |>
+    left_join(weather, by = "date") |>
+    mutate(cycle = cycles$cycle[i])
+})) |>
+  mutate(cycle = factor(cycle, levels = cycles$cycle))
+
+coverage <- weather_cycles |>
+  group_by(cycle) |>
+  summarise(
+    expected_days = n(),
+    missing_temperature_days = sum(is.na(temp_c)),
+    missing_precipitation_days = sum(is.na(precip_mm)),
+    mean_temp_c = if (all(is.na(temp_c))) NA_real_ else mean(temp_c, na.rm = TRUE),
+    observed_precip_mm = if (all(is.na(precip_mm))) NA_real_ else sum(precip_mm, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+knitr::kable(coverage, digits = 1,
+             caption = "Weather coverage and descriptive summaries. Precipitation totals exclude missing days and must not be treated as complete-cycle totals if days are missing.")
+
+readr::write_csv(coverage, file.path(table_dir, "musgrave_weather_coverage.csv"))
+```
+
+# Monthly and full-cycle weather summaries
+
+Monthly totals and means are computed **within each rye–soybean cycle**. The
+September start and October end months are therefore partial if the confirmed
+field-operation dates change. The two cycles overlap in September–October
+2023, so those observations intentionally appear in each applicable cycle.
+
+```{r weather-summaries}
+monthly_weather <- weather_cycles |>
+  mutate(month = lubridate::floor_date(date, unit = "month")) |>
+  group_by(cycle, month) |>
+  summarise(
+    days_in_period = n(),
+    days_with_temperature = sum(!is.na(temp_c)),
+    days_with_precipitation = sum(!is.na(precip_mm)),
+    mean_temp_c = if (all(is.na(temp_c))) NA_real_ else mean(temp_c, na.rm = TRUE),
+    total_precip_mm = if (all(is.na(precip_mm))) NA_real_ else sum(precip_mm, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    complete_temperature = days_with_temperature == days_in_period,
+    complete_precipitation = days_with_precipitation == days_in_period
+  )
+
+cycle_weather <- weather_cycles |>
+  group_by(cycle) |>
+  summarise(
+    start_date = min(date),
+    end_date = max(date),
+    days_in_period = n(),
+    days_with_temperature = sum(!is.na(temp_c)),
+    days_with_precipitation = sum(!is.na(precip_mm)),
+    mean_temp_c = if (all(is.na(temp_c))) NA_real_ else mean(temp_c, na.rm = TRUE),
+    total_precip_mm = if (all(is.na(precip_mm))) NA_real_ else sum(precip_mm, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    complete_temperature = days_with_temperature == days_in_period,
+    complete_precipitation = days_with_precipitation == days_in_period
+  )
+
+knitr::kable(
+  cycle_weather,
+  digits = 1,
+  caption = "Full-cycle descriptive weather summaries. Totals cover the stated dates, not a standardized 365-day year."
+)
+
+knitr::kable(
+  monthly_weather,
+  digits = 1,
+  caption = "Monthly weather summaries within each cycle. Completeness columns distinguish observed zeros from missing data."
+)
+
+readr::write_csv(monthly_weather,
+                 file.path(table_dir, "musgrave_monthly_weather.csv"))
+readr::write_csv(cycle_weather,
+                 file.path(table_dir, "musgrave_cycle_weather.csv"))
+```
+
+These are descriptive summaries only. Full-cycle average temperature and total
+precipitation are useful for context, but can conceal the timing of spring rain
+or summer drought; consult the monthly summaries and daily figure before
+attributing crop or weed responses to particular weather conditions.
+
+# Daily temperature and precipitation
+
+Precipitation bars descend from the top of each panel, as in the reference figure. The right-hand scale is reversed and uses a fixed linear transformation; both panels therefore have identical temperature and precipitation scales. Daily values are not smoothed.
+
+```{r weather-figure, fig.width=12, fig.height=8}
+temp_top <- 40
+temp_bottom <- -25
+mm_per_degree <- 1.25
+
+weather_plot <- ggplot(weather_cycles, aes(x = date)) +
+  geom_rect(
+    aes(
+      xmin = date - 0.43,
+      xmax = date + 0.43,
+      ymin = temp_top - precip_mm / mm_per_degree,
+      ymax = temp_top
+    ),
+    fill = "#76B6CC", color = NA, na.rm = TRUE
+  ) +
+  geom_line(aes(y = temp_c), color = "black", linewidth = 0.45,
+            na.rm = TRUE) +
+  facet_wrap(~ cycle, ncol = 1, scales = "free_x") +
+  scale_x_date(date_breaks = "2 months", date_labels = "%b %Y",
+               expand = expansion(mult = c(0.01, 0.01))) +
+  scale_y_continuous(
+    name = "Mean air temperature (°C)",
+    limits = c(temp_bottom, temp_top),
+    breaks = seq(-20, 40, 10),
+    sec.axis = sec_axis(
+      ~ (temp_top - .) * mm_per_degree,
+      name = "Daily precipitation (mm)",
+      breaks = seq(0, 80, 20)
+    )
+  ) +
+  labs(x = "Date") +
+  theme_classic(base_size = 16) +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing.y = grid::unit(1.2, "lines")
+  )
+
+weather_plot
+
+ggsave(
+  filename = file.path(figure_dir, "musgrave_temperature_precipitation_cycles.png"),
+  plot = weather_plot,
+  width = 12, height = 8, units = "in", dpi = 300, bg = "white"
+)
+
+ggsave(
+  filename = file.path(figure_dir, "musgrave_temperature_precipitation_cycles.pdf"),
+  plot = weather_plot,
+  width = 12, height = 8, units = "in", bg = "white"
+)
+```
+
+# Manuscript note
+
+Suggested caption (revise once the station identifier and dates are verified):
+
+*Daily mean air temperature (black line) and daily precipitation (blue bars) at Musgrave Research Farm, Aurora, NY, during the 2023 and 2024 cereal rye–soybean production cycles. Weather observations were obtained from the Cornell Network for Environment and Weather Applications (NEWA) station at Musgrave Research Farm. Precipitation is displayed on the reversed right-hand axis.*
+
+Before publication, verify the station's full name/ID, the exact planting dates, any missing observations, and whether the NEWA export includes estimated or substituted values.

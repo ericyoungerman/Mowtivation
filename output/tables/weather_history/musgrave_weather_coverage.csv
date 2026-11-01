@@ -1,0 +1,3 @@
+cycle,expected_days,missing_temperature_days,missing_precipitation_days,mean_temp_c,observed_precip_mm
+2023 rye–soybean cycle,421,0,0,11.286883082607552,996.6960000000005
+2024 rye–soybean cycle,419,0,0,11.640546274197828,1063.4979999999991
