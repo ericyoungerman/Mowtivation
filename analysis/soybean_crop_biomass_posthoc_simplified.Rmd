@@ -214,9 +214,11 @@ plot_data <- plot_data |>
       unname(method_lookup[as.character(treatment)]),
       levels = method_levels
     ),
-    block_id = interaction(site_year, block, drop = TRUE),
-    whole_plot_id = interaction(
-      block_id, primary_method, drop = TRUE
+    block_id = interaction(site_year, block, drop = TRUE)
+
+main_plot_id = interaction(
+  block_id, termination_method, drop = TRUE
+
     )
   )
 
