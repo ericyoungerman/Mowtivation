@@ -4,14 +4,14 @@ Soybean stand establishment
 - [Question and experimental design](#question-and-experimental-design)
 - [Setup](#setup)
 - [Import and validate](#import-and-validate)
-- [Prepare whole-plot means](#prepare-whole-plot-means)
+- [Prepare main-plot means](#prepare-main-plot-means)
 - [Describe the observations](#describe-the-observations)
 - [Fit the primary model](#fit-the-primary-model)
 - [Check assumptions and block
   variance](#check-assumptions-and-block-variance)
 - [Tests and overall estimates](#tests-and-overall-estimates)
-- [Final figure: model-estimated means ±
-  SE](#final-figure-model-estimated-means--se)
+- [Final figure: observed main-plot means ±
+  SE](#final-figure-observed-main-plot-means--se)
 - [Results summary](#results-summary)
 - [Appendix: supporting analyses](#appendix-supporting-analyses)
   - [Sensitivity to blocking and unequal
@@ -80,6 +80,13 @@ theme_set(theme_classic(base_size = 16))
 
 # Plain tables render in both HTML and GitHub Markdown.
 show_table <- function(x, caption, digits = 0) {
+  p_cols <- intersect(names(x), c("p.value", "Pr(>F)", "p_holm"))
+  for (nm in p_cols) {
+    x[[nm]] <- ifelse(
+      is.na(x[[nm]]), NA_character_,
+      ifelse(x[[nm]] < 0.001, "<0.001", sprintf("%.3f", x[[nm]]))
+    )
+  }
   knitr::kable(x, digits = digits, caption = caption)
 }
 # Use the same degrees-of-freedom method in ANOVA and estimated means.
@@ -131,8 +138,9 @@ if (any(plot_counts$n != 1L) || any(block_counts$n_treatments != 5L) ||
 plot_data <- plot_data |>
   mutate(
     site_year = factor(site_year, levels = names(experiment_labels)),
-    primary_method = factor(unname(method_lookup[treatment]), levels = method_levels),
-    block_id = interaction(site_year, block, drop = TRUE)
+    termination_method = factor(unname(method_lookup[treatment]), levels = method_levels),
+    block_id = interaction(site_year, block, drop = TRUE),
+    main_plot_id = interaction(block_id, termination_method, drop = TRUE)
   )
 validation_summary <- plot_data |>
   group_by(site_year) |>
@@ -150,54 +158,56 @@ show_table(validation_summary, "Validated records and stand range (plants/ha)")
 
 Validated records and stand range (plants/ha)
 
-# Prepare whole-plot means
+# Prepare main-plot means
 
-Subplot observations are averaged within each whole plot. Whole plots
-receive equal weight; the additional rolled subplot is not an
-independent replicate of termination method.
+Subplot observations are averaged within each main plot, the
+experimental unit for termination method. Main plots receive equal
+weight; the additional rolled subplot does not provide another
+independent replicate.
 
 ``` r
 stand_data <- plot_data |>
-  group_by(site_year, block_id, primary_method) |>
+  group_by(site_year, block_id, main_plot_id, termination_method) |>
   summarise(stand_mean = mean(bean_emergence_plants_ha),
             n_subplots = n(), .groups = "drop")
-expected_n <- ifelse(stand_data$primary_method == "Roller-crimper", 3L, 2L)
+expected_n <- ifelse(stand_data$termination_method == "Roller-crimper", 3L, 2L)
 stopifnot(nrow(stand_data) == 24L, all(stand_data$n_subplots == expected_n))
 # Thousands of plants/ha improve numerical scaling; outputs are converted back.
 stand_data <- stand_data |> mutate(stand_k = stand_mean / 1000)
-contrasts(stand_data$primary_method) <- contr.sum(2)
+contrasts(stand_data$termination_method) <- contr.sum(2)
 contrasts(stand_data$site_year) <- contr.sum(3)
 ```
 
 # Describe the observations
 
-SD describes variation among whole-plot means. It is distinct from the
-model-based SE displayed in the final figure. Lines in the exploratory
-figure connect the two whole plots belonging to the same block.
+SD describes variation among main-plot means. The final figure displays
+observed means ± SE calculated across main plots. Lines in the
+exploratory figure connect the two whole plots belonging to the same
+block.
 
 ``` r
 stand_summary <- stand_data |>
-  group_by(site_year, primary_method) |>
+  group_by(site_year, termination_method) |>
   summarise(n_blocks = n(), mean_stand = mean(stand_mean),
             sd_stand = sd(stand_mean), .groups = "drop")
 show_table(stand_summary, "Observed whole-plot stand: mean and SD (plants/ha)")
 ```
 
-| site_year | primary_method | n_blocks | mean_stand | sd_stand |
-|:----------|:---------------|---------:|-----------:|---------:|
-| V_2023    | Roller-crimper |        4 |     507437 |     7577 |
-| V_2023    | Moldboard plow |        4 |     581529 |     8202 |
-| O2E_2024  | Roller-crimper |        4 |     567038 |    31412 |
-| O2E_2024  | Moldboard plow |        4 |     614337 |    47270 |
-| O2W_2024  | Roller-crimper |        4 |     586724 |    48330 |
-| O2W_2024  | Moldboard plow |        4 |     610236 |    18559 |
+| site_year | termination_method | n_blocks | mean_stand | sd_stand |
+|:----------|:-------------------|---------:|-----------:|---------:|
+| V_2023    | Roller-crimper     |        4 |     507437 |     7577 |
+| V_2023    | Moldboard plow     |        4 |     581529 |     8202 |
+| O2E_2024  | Roller-crimper     |        4 |     567038 |    31412 |
+| O2E_2024  | Moldboard plow     |        4 |     614337 |    47270 |
+| O2W_2024  | Roller-crimper     |        4 |     586724 |    48330 |
+| O2W_2024  | Moldboard plow     |        4 |     610236 |    18559 |
 
 Observed whole-plot stand: mean and SD (plants/ha)
 
 ``` r
-ggplot(stand_data, aes(primary_method, stand_mean)) +
+ggplot(stand_data, aes(termination_method, stand_mean)) +
   geom_line(aes(group = block_id), color = "grey70", linewidth = 0.5) +
-  geom_point(aes(color = primary_method), size = 2.5) +
+  geom_point(aes(color = termination_method), size = 2.5) +
   stat_summary(fun = mean, geom = "point", shape = 18, size = 4) +
   facet_wrap(~site_year, labeller = labeller(site_year = experiment_labels)) +
   scale_color_manual(values = method_colors, guide = "none") +
@@ -215,14 +225,15 @@ ggplot(stand_data, aes(primary_method, stand_mean)) +
 
 The termination-method-by-site-year interaction allows the method
 difference to vary among site-years. A random intercept accounts for
-blocks nested within site-years. The model assumes a common residual
-variance across site-years and termination methods. The overall contrast
-averages the three site-year differences equally while retaining the
-interaction.
+blocks nested within site-years. Since there is one averaged observation
+per main plot, no separate main-plot random intercept is fitted. The
+model assumes a common residual variance across site-years and
+termination methods. The overall contrast averages the three site-year
+differences equally while retaining the interaction.
 
 ``` r
 stand_model <- lmerTest::lmer(
-  stand_k ~ primary_method * site_year + (1 | block_id),
+  stand_k ~ termination_method * site_year + (1 | block_id),
   data = stand_data, REML = TRUE
 )
 ```
@@ -231,10 +242,9 @@ stand_model <- lmerTest::lmer(
 
 # Check assumptions and block variance
 
-The plots assess residual shape and spread. A singular fit indicates a
-block-variance estimate at or near zero. The appendix checks sensitivity
-to treating blocks as fixed and allowing residual variance to differ
-among site-years.
+Residual plots assess distribution and spread. The appendix assesses
+sensitivity to the near-zero block variance and unequal residual
+variance across site-years.
 
 ``` r
 variance_table <- as.data.frame(lme4::VarCorr(stand_model)) |>
@@ -279,7 +289,7 @@ ggplot(diag_data, aes(sample = residual)) +
 ![](soybean_establishment_files/figure-gfm/residual-diagnostics-2.png)<!-- -->
 
 ``` r
-ggplot(diag_data, aes(site_year, residual, color = primary_method)) +
+ggplot(diag_data, aes(site_year, residual, color = termination_method)) +
   geom_hline(yintercept = 0, color = "grey60") +
   geom_point(position = position_jitter(width = 0.08, height = 0, seed = 123), size = 2.5) +
   scale_color_manual(values = method_colors) +
@@ -303,11 +313,11 @@ anova_table <- anova(stand_model, type = 3, ddf = "Satterthwaite") |>
 show_table(anova_table, "Type III tests (Satterthwaite degrees of freedom)", digits = 4)
 ```
 
-| Effect                   | NumDF | DenDF | F value | Pr(\>F) |
-|:-------------------------|------:|------:|--------:|--------:|
-| primary_method           |     1 |    18 | 13.9377 |  0.0015 |
-| site_year                |     2 |    18 |  6.7857 |  0.0064 |
-| primary_method:site_year |     2 |    18 |  1.2751 |  0.3035 |
+| Effect                       | NumDF | DenDF | F value | Pr(\>F) |
+|:-----------------------------|------:|------:|--------:|:--------|
+| termination_method           |     1 |    18 | 13.9377 | 0.002   |
+| site_year                    |     2 |    18 |  6.7857 | 0.006   |
+| termination_method:site_year |     2 |    18 |  1.2751 | 0.303   |
 
 Type III tests (Satterthwaite degrees of freedom)
 
@@ -320,46 +330,66 @@ plants_ha <- function(x) {
   x
 }
 # Calculate once: use this same object for the overall table and final figure.
-emm_primary_method <- emmeans(stand_model, ~ primary_method, weights = "equal",
+emm_termination_method <- emmeans(stand_model, ~ termination_method, weights = "equal",
                                lmer.df = "satterthwaite")
 ```
 
     ## NOTE: Results may be misleading due to involvement in interactions
 
 ``` r
-overall_means <- plants_ha(confint(emm_primary_method))
+overall_means <- plants_ha(confint(emm_termination_method))
 show_table(overall_means, "Overall estimated stand (plants/ha; equal site-year weights)", digits = 1)
 ```
 
-| primary_method |   emmean |     SE |  df | lower.CL | upper.CL |
-|:---------------|---------:|-------:|----:|---------:|---------:|
-| Roller-crimper | 553732.9 | 9148.5 |  18 | 534512.7 | 572953.1 |
-| Moldboard plow | 602034.1 | 9148.5 |  18 | 582813.9 | 621254.3 |
+| termination_method |   emmean |     SE |  df | lower.CL | upper.CL |
+|:-------------------|---------:|-------:|----:|---------:|---------:|
+| Roller-crimper     | 553732.9 | 9148.5 |  18 | 534512.7 | 572953.1 |
+| Moldboard plow     | 602034.1 | 9148.5 |  18 | 582813.9 | 621254.3 |
 
 Overall estimated stand (plants/ha; equal site-year weights)
 
 ``` r
 overall_difference <- plants_ha(summary(
-  contrast(emm_primary_method, method = method_difference),
+  contrast(emm_termination_method, method = method_difference),
   infer = c(TRUE, TRUE), adjust = "none"
 ))
 show_table(overall_difference, "Overall plow minus roller-crimper difference (plants/ha; 95% CI)", digits = 3)
 ```
 
 | contrast | estimate | SE | df | lower.CL | upper.CL | t.ratio | p.value |
-|:---|---:|---:|---:|---:|---:|---:|---:|
+|:---|---:|---:|---:|---:|---:|---:|:---|
 | Moldboard plow - Roller-crimper | 48301.25 | 12937.88 | 18 | 21119.77 | 75482.73 | 3.733 | 0.002 |
 
 Overall plow minus roller-crimper difference (plants/ha; 95% CI)
 
-# Final figure: model-estimated means ± SE
+``` r
+dir.create(here("output", "tables", "soybean_establishment"),
+           showWarnings = FALSE, recursive = TRUE)
+readr::write_csv(overall_difference,
+                 here("output", "tables", "soybean_establishment",
+                      "termination_method_comparison.csv"))
+```
 
-Points show equally weighted model-estimated means across site-years,
-with ±1 SE bars. The bracket reports the overall termination-method
-contrast.
+# Final figure: observed main-plot means ± SE
+
+Points show observed arithmetic means across 12 main plots per
+termination method (four blocks in each of three site-years); error bars
+are descriptive SEs across main plots. The bracket uses the
+**model-based** overall contrast averaged equally across site-years. The
+descriptive SEs do not represent uncertainty in that contrast.
 
 ``` r
-figure_top <- max(overall_means$emmean + overall_means$SE)
+figure_data <- stand_data |>
+  group_by(termination_method) |>
+  summarise(
+    n_main_plots = n(),
+    mean_stand = mean(stand_mean),
+    se_stand = sd(stand_mean) / sqrt(n()),
+    .groups = "drop"
+  )
+stopifnot(all(figure_data$n_main_plots == 12L))
+
+figure_top <- max(figure_data$mean_stand + figure_data$se_stand)
 bracket_y <- figure_top * 1.08
 bracket_tip <- figure_top * 0.02
 bracket_p <- overall_difference$p.value
@@ -373,9 +403,13 @@ bracket_definition <- if (bracket_p < 0.001) {
 } else {
   "ns indicates p ≥ 0.05"
 }
-fig_primary_method <- ggplot(overall_means,
-                             aes(primary_method, emmean, color = primary_method)) +
-  geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE),
+
+fig_termination_method <- ggplot(
+  figure_data,
+  aes(termination_method, mean_stand, color = termination_method)
+) +
+  geom_errorbar(aes(ymin = mean_stand - se_stand,
+                    ymax = mean_stand + se_stand),
                 width = 0.12, linewidth = 0.7) +
   geom_point(size = 4) +
   annotate("segment", x = 1, xend = 2, y = bracket_y, yend = bracket_y,
@@ -389,25 +423,33 @@ fig_primary_method <- ggplot(overall_means,
   scale_y_continuous(labels = scales::label_comma(),
                      expand = expansion(mult = c(0, 0.08))) +
   coord_cartesian(ylim = c(0, bracket_y + 3 * bracket_tip)) +
-  labs(x = NULL, y = expression("Soybean establishment (plants ha"^{-1}*")"),
-       title = "Soybean establishment by cereal rye termination method",
-       caption = paste(
-  "Points show model-estimated means averaged equally across site-years;",
-  paste("Error bars show ±1 SE;", bracket_definition, "for the overall comparison."),
-  sep = "\n"
-)) +
-  theme(axis.title.y = element_text(margin = margin(r = 8)),
-        plot.title = element_text(face = "bold"),
-        plot.caption = element_text(size = 10, hjust = 0))
-fig_primary_method
+  labs(
+    x = NULL,
+    y = expression("Soybean establishment (plants ha"^{-1}*")"),
+    title = "Soybean establishment by cereal rye termination method",
+    caption = paste(
+      "Points and SEs are observed main-plot summaries (n = 12 per method).",
+      paste("Bracket: model-based, equally weighted site-year comparison;", bracket_definition),
+      sep = "\n"
+    )
+  ) +
+  theme(
+    axis.title.y = element_text(margin = margin(r = 8)),
+    plot.title = element_text(face = "bold"),
+    plot.caption = element_text(size = 10, hjust = 0)
+  )
+
+fig_termination_method
 ```
 
-![](soybean_establishment_files/figure-gfm/primary-method-figure-1.png)<!-- -->
+![](soybean_establishment_files/figure-gfm/termination-method-figure-1.png)<!-- -->
 
 ``` r
-dir.create(here("figures"), showWarnings = FALSE, recursive = TRUE)
-ggsave(here("figures", "soybean_establishment.png"), plot = fig_primary_method,
-       width = 10, height = 8, dpi = 300, bg = "white")
+dir.create(here("figures", "soybean_establishment"), showWarnings = FALSE, recursive = TRUE)
+ggsave(
+  here("figures", "soybean_establishment", "termination_method_observed.png"),
+  plot = fig_termination_method, width = 10, height = 8, dpi = 300, bg = "white"
+)
 ```
 
 # Results summary
@@ -420,8 +462,7 @@ gave p = 0.303.
 
 This comparison includes seedbed differences associated with the
 termination methods. The appendix documents sensitivity to block and
-residual-variance specifications, with particular attention to site-year
-uncertainty.
+residual-variance specifications.
 
 # Appendix: supporting analyses
 
@@ -437,7 +478,7 @@ effect.
 ``` r
 # Numeric method indicator yields full-rank fixed-block models.
 stand_data <- stand_data |>
-  mutate(plow = as.numeric(primary_method == "Moldboard plow"))
+  mutate(plow = as.numeric(termination_method == "Moldboard plow"))
 fixed_additive <- lm(stand_k ~ block_id + plow, data = stand_data)
 fixed_interaction <- lm(stand_k ~ block_id + plow:site_year, data = stand_data)
 show_table(as.data.frame(anova(fixed_additive, fixed_interaction)),
@@ -445,9 +486,9 @@ show_table(as.data.frame(anova(fixed_additive, fixed_interaction)),
 ```
 
 | Res.Df |       RSS |  Df | Sum of Sq |      F | Pr(\>F) |
-|-------:|----------:|----:|----------:|-------:|--------:|
-|     11 | 12168.999 |  NA |        NA |     NA |      NA |
-|      9 |  9607.687 |   2 |  2561.312 | 1.1997 |  0.3453 |
+|-------:|----------:|----:|----------:|-------:|:--------|
+|     11 | 12168.999 |  NA |        NA |     NA | NA      |
+|      9 |  9607.687 |   2 |  2561.312 | 1.1997 | 0.345   |
 
 Fixed-block test of variation in the method difference among site-years
 
@@ -508,50 +549,46 @@ within individual site-years changes substantially.
 
 ## Site-year estimates from the primary model
 
-These tables retain the common-variance model’s site-year estimates for
-reference. Their uncertainty is sensitive to the variance assumption and
-should not be treated as the final basis for site-year-specific
-conclusions. The three site-year tests use Holm adjustment; confidence
-intervals are pointwise 95% intervals.
+Model-estimated stand and method differences by site-year are retained
+as descriptive context. The primary hypothesis concerns the equally
+weighted overall difference; without using a separate site-year omnibus
+test as a gate, we do not add a separate family of site-year post-hoc
+significance tests. These pointwise confidence intervals rely on the
+primary model’s common-variance assumption.
 
 ``` r
-stand_emmeans <- emmeans(stand_model, ~ primary_method | site_year,
-                         lmer.df = "satterthwaite")
+stand_emmeans <- emmeans(stand_model, ~ termination_method | site_year,
+                        lmer.df = "satterthwaite")
 experiment_means <- plants_ha(confint(stand_emmeans))
 show_table(experiment_means, "Estimated stand by site-year (plants/ha; 95% CI)", digits = 1)
 ```
 
-| primary_method | site_year |   emmean |      SE |  df | lower.CL | upper.CL |
-|:---------------|:----------|---------:|--------:|----:|---------:|---------:|
-| Roller-crimper | V_2023    | 507436.6 | 15845.6 |  18 | 474146.2 | 540726.9 |
-| Moldboard plow | V_2023    | 581528.9 | 15845.6 |  18 | 548238.5 | 614819.2 |
-| Roller-crimper | O2E_2024  | 567038.5 | 15845.6 |  18 | 533748.1 | 600328.9 |
-| Moldboard plow | O2E_2024  | 614337.3 | 15845.6 |  18 | 581046.9 | 647627.6 |
-| Roller-crimper | O2W_2024  | 586723.5 | 15845.6 |  18 | 553433.2 | 620013.9 |
-| Moldboard plow | O2W_2024  | 610236.2 | 15845.6 |  18 | 576945.8 | 643526.6 |
+| termination_method | site_year |   emmean |      SE |  df | lower.CL | upper.CL |
+|:-------------------|:----------|---------:|--------:|----:|---------:|---------:|
+| Roller-crimper     | V_2023    | 507436.6 | 15845.6 |  18 | 474146.2 | 540726.9 |
+| Moldboard plow     | V_2023    | 581528.9 | 15845.6 |  18 | 548238.5 | 614819.2 |
+| Roller-crimper     | O2E_2024  | 567038.5 | 15845.6 |  18 | 533748.1 | 600328.9 |
+| Moldboard plow     | O2E_2024  | 614337.3 | 15845.6 |  18 | 581046.9 | 647627.6 |
+| Roller-crimper     | O2W_2024  | 586723.5 | 15845.6 |  18 | 553433.2 | 620013.9 |
+| Moldboard plow     | O2W_2024  | 610236.2 | 15845.6 |  18 | 576945.8 | 643526.6 |
 
 Estimated stand by site-year (plants/ha; 95% CI)
 
 ``` r
 experiment_contrasts <- contrast(stand_emmeans, method = method_difference)
-# Treat the three site-year-specific tests as one family for Holm adjustment.
-# CIs remain pointwise 95% intervals; label this distinction explicitly.
-experiment_differences <- plants_ha(summary(experiment_contrasts,
-                                           infer = c(TRUE, TRUE), adjust = "none")) |>
-  mutate(p_holm = p.adjust(p.value, method = "holm"))
+experiment_differences <- plants_ha(confint(experiment_contrasts))
 show_table(experiment_differences,
-           "Plow minus roller-crimper (plants/ha): pointwise 95% CIs, unadjusted p.value, and Holm-adjusted p_holm",
-           digits = 3)
+           "Site-year plow-minus-roller differences (plants/ha; pointwise 95% CIs)",
+           digits = 1)
 ```
 
-| contrast | site_year | estimate | SE | df | lower.CL | upper.CL | t.ratio | p.value | p_holm |
-|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Moldboard plow - Roller-crimper | V_2023 | 74092.30 | 22409.07 | 18 | 27012.596 | 121172.01 | 3.306 | 0.004 | 0.012 |
-| Moldboard plow - Roller-crimper | O2E_2024 | 47298.78 | 22409.07 | 18 | 219.071 | 94378.48 | 2.111 | 0.049 | 0.098 |
-| Moldboard plow - Roller-crimper | O2W_2024 | 23512.69 | 22409.07 | 18 | -23567.019 | 70592.39 | 1.049 | 0.308 | 0.308 |
+| contrast | site_year | estimate | SE | df | lower.CL | upper.CL |
+|:---|:---|---:|---:|---:|---:|---:|
+| Moldboard plow - Roller-crimper | V_2023 | 74092.3 | 22409.1 | 18 | 27012.6 | 121172.0 |
+| Moldboard plow - Roller-crimper | O2E_2024 | 47298.8 | 22409.1 | 18 | 219.1 | 94378.5 |
+| Moldboard plow - Roller-crimper | O2W_2024 | 23512.7 | 22409.1 | 18 | -23567.0 | 70592.4 |
 
-Plow minus roller-crimper (plants/ha): pointwise 95% CIs, unadjusted
-p.value, and Holm-adjusted p_holm
+Site-year plow-minus-roller differences (plants/ha; pointwise 95% CIs)
 
 ## R session
 
@@ -561,7 +598,7 @@ sessionInfo()
 
     ## R version 4.5.2 (2025-10-31)
     ## Platform: aarch64-apple-darwin20
-    ## Running under: macOS Tahoe 26.7.1
+    ## Running under: macOS 27.2.1
     ## 
     ## Matrix products: default
     ## BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
@@ -588,21 +625,23 @@ sessionInfo()
     ##  [1] gtable_0.3.6        xfun_0.61           lattice_0.22-7     
     ##  [4] tzdb_0.5.0          numDeriv_2016.8-1.1 vctrs_0.6.5        
     ##  [7] tools_4.5.2         Rdpack_2.6.4        generics_0.1.4     
-    ## [10] sandwich_3.1-1      pkgconfig_2.0.3     RColorBrewer_1.1-3 
-    ## [13] S7_0.2.0            lifecycle_1.0.4     compiler_4.5.2     
-    ## [16] farver_2.1.2        textshaping_1.0.4   codetools_0.2-20   
-    ## [19] htmltools_0.5.8.1   yaml_2.3.10         pillar_1.11.1      
-    ## [22] nloptr_2.2.1        MASS_7.3-65         cachem_1.1.0       
-    ## [25] reformulas_0.4.4    boot_1.3-32         multcomp_1.4-29    
-    ## [28] nlme_3.1-168        tidyselect_1.2.1    digest_0.6.37      
-    ## [31] mvtnorm_1.3-3       stringi_1.8.7       labeling_0.4.3     
-    ## [34] splines_4.5.2       rprojroot_2.1.1     fastmap_1.2.0      
-    ## [37] grid_4.5.2          cli_3.6.5           magrittr_2.0.4     
-    ## [40] survival_3.8-3      TH.data_1.1-4       withr_3.0.2        
-    ## [43] scales_1.4.0        timechange_0.3.0    estimability_1.5.1 
-    ## [46] rmarkdown_2.30      ragg_1.5.0          zoo_1.8-14         
-    ## [49] hms_1.1.4           memoise_2.0.1       coda_0.19-4.1      
-    ## [52] evaluate_1.0.5      knitr_1.50          rbibutils_2.3      
-    ## [55] rlang_1.1.6         Rcpp_1.1.0          xtable_1.8-4       
-    ## [58] glue_1.8.0          rstudioapi_0.17.1   minqa_1.2.8        
-    ## [61] R6_2.6.1            systemfonts_1.3.1
+    ## [10] parallel_4.5.2      sandwich_3.1-1      pkgconfig_2.0.3    
+    ## [13] RColorBrewer_1.1-3  S7_0.2.0            lifecycle_1.0.4    
+    ## [16] compiler_4.5.2      farver_2.1.2        textshaping_1.0.4  
+    ## [19] codetools_0.2-20    htmltools_0.5.8.1   yaml_2.3.10        
+    ## [22] crayon_1.5.3        pillar_1.11.1       nloptr_2.2.1       
+    ## [25] MASS_7.3-65         cachem_1.1.0        reformulas_0.4.4   
+    ## [28] boot_1.3-32         multcomp_1.4-29     nlme_3.1-168       
+    ## [31] tidyselect_1.2.1    digest_0.6.37       mvtnorm_1.3-3      
+    ## [34] stringi_1.8.7       labeling_0.4.3      splines_4.5.2      
+    ## [37] rprojroot_2.1.1     fastmap_1.2.0       grid_4.5.2         
+    ## [40] cli_3.6.5           magrittr_2.0.4      survival_3.8-3     
+    ## [43] TH.data_1.1-4       withr_3.0.2         scales_1.4.0       
+    ## [46] bit64_4.6.0-1       timechange_0.3.0    estimability_1.5.1 
+    ## [49] rmarkdown_2.30      bit_4.6.0           ragg_1.5.0         
+    ## [52] zoo_1.8-14          hms_1.1.4           memoise_2.0.1      
+    ## [55] coda_0.19-4.1       evaluate_1.0.5      knitr_1.50         
+    ## [58] rbibutils_2.3       rlang_1.1.6         Rcpp_1.1.0         
+    ## [61] xtable_1.8-4        glue_1.8.0          vroom_1.6.6        
+    ## [64] rstudioapi_0.17.1   minqa_1.2.8         R6_2.6.1           
+    ## [67] systemfonts_1.3.1
