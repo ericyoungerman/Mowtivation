@@ -1,0 +1,908 @@
+---
+title: "Weed biomass"
+output:
+  github_document:
+    toc: true
+always_allow_html: true
+---
+
+# Question and experimental design
+
+Did weed biomass differ among five soybean management systems, and did system
+responses vary among site-years? Total weed biomass is the primary outcome.
+Inter-row weed biomass is a secondary modeled outcome, while in-row biomass is
+reported descriptively because exploratory inferential models were unstable or
+showed residual problems.
+
+The experiment included three site-years and four blocks per site-year. Cereal
+rye termination was assigned to whole plots within blocks: roller-crimped
+(rolled) or moldboard-plowed (tilled). Within rolled whole plots, management
+subplots received no supplemental weed control (RNO), inter-row mowing (RIM),
+or high-residue cultivation (RIC). Within tilled whole plots, subplots received
+mowing (TIM) or cultivation (TIC). Thus, the five systems are not a fully
+crossed factorial. Comparisons involving different termination methods require
+whole-plot replication; comparisons within a termination method use subplot
+replication.
+
+In 2023, an operations error caused one subplot randomized to RNO to receive
+RIC (high-residue cultivation). The primary analysis retains its original
+randomized treatment label. RIC received one late cultivation rather than the
+intended repeated cultivation schedule. Interpretation therefore concerns
+management as implemented; subplot assignments should be cross-checked against
+the field randomization map.
+
+# Analysis overview
+
+Total weed biomass is the primary response, analyzed with a split-plot Tweedie
+GLMM with site-year-specific dispersion. Inter-row weed biomass is a secondary
+response analyzed with a full treatment × site-year Tweedie GLMM and common
+dispersion. In-row biomass is summarized descriptively because exploratory
+inferential fits were unstable or showed residual problems.
+
+The three original hypothesis-driven comparisons are TIC versus TIM, RIM versus
+RNO, and RIC versus RNO. Because the treatment × site-year interactions are
+retained, these contrasts are estimated within site-years. They use unadjusted,
+two-sided Wald tests (LSD-style); exploratory all-pairs comparisons are used
+only to annotate figures with compact-letter displays (CLDs). These CLDs are
+unadjusted, not familywise-error controlled, and do not establish equivalence.
+
+Observed means and SEs describe measurements, while estimated means and tests
+come from the fitted models. All zone biomass values are expressed per hectare
+of the **entire 0.5 m² quadrat**, so in-row and inter-row components sum to
+total weed biomass.
+
+# Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = TRUE, warning = TRUE, error = FALSE)
+```
+
+```{r packages-and-settings, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+library(conflicted)
+library(glmmTMB)
+library(DHARMa)
+library(emmeans)
+library(WrensBookshelf)
+
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(dplyr::select)
+
+method_levels <- c("Roller-crimper", "Moldboard plow")
+treatment_levels <- c("RNO", "RIM", "RIC", "TIM", "TIC")
+experiment_labels <- c(
+  V_2023 = "2023 – Field V",
+  O2E_2024 = "2024 – Field O2 East",
+  O2W_2024 = "2024 – Field O2 West"
+)
+method_lookup <- c(
+  RNO = "Roller-crimper", RIM = "Roller-crimper",
+  RIC = "Roller-crimper", TIM = "Moldboard plow", TIC = "Moldboard plow"
+)
+treatment_colors <- setNames(
+  WrensBookshelf::WB_brewer(name = "WhatWellBuild", n = 5, type = "discrete"),
+  treatment_levels
+)
+theme_set(theme_classic(base_size = 16))
+show_table <- function(x, caption, digits = 1) {
+  # Format p-values for display only; CSV exports retain numeric precision.
+  p_cols <- intersect(names(x), c("p.value", "Pr(>Chisq)"))
+  for (nm in p_cols) {
+    x[[nm]] <- ifelse(
+      is.na(x[[nm]]), NA_character_,
+      ifelse(x[[nm]] < 0.001, "<0.001", sprintf("%.3f", x[[nm]]))
+    )
+  }
+  knitr::kable(x, caption = caption, digits = digits)
+}
+
+tab_dir <- here("output", "tables", "weed_biomass")
+dir.create(tab_dir, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Import and validate
+
+The processed data are assumed already converted to kg/ha. Do not convert
+these quantities again. Check the source and units against `data_prep.Rmd`.
+
+```{r import-and-check, message=FALSE, warning=FALSE}
+processed_file <- here("data", "processed", "combined_processed.rds")
+processed_data <- readRDS(processed_file)
+
+show_table(
+  tibble(input = "data/processed/combined_processed.rds",
+         MD5 = unname(tools::md5sum(processed_file))),
+  "Processed-data provenance"
+)
+
+responses <- c(
+  "weed_biomass_kg_ha",
+  "inrow_weed_biomass_kg_ha",
+  "interrow_weed_biomass_kg_ha"
+)
+required <- c("site_year", "block", "treatment", responses)
+missing_columns <- setdiff(required, names(processed_data))
+if (length(missing_columns)) {
+  stop("Missing processed-data columns: ", paste(missing_columns, collapse = ", "),
+       ". Confirm the names and units in data_prep.Rmd before proceeding.")
+}
+
+weed_data <- processed_data |>
+  select(all_of(required)) |>
+  mutate(across(c(site_year, block, treatment), as.character))
+
+if (anyNA(weed_data[c("site_year", "block", "treatment")]) ||
+    any(vapply(weed_data[c("site_year", "block", "treatment")],
+               function(x) any(trimws(x) == ""), logical(1)))) {
+  stop("Missing or blank experimental identifiers.")
+}
+if (!setequal(unique(weed_data$site_year), names(experiment_labels))) {
+  stop("Site-year codes do not match experiment_labels.")
+}
+if (!setequal(unique(weed_data$treatment), treatment_levels)) {
+  stop("Treatment codes do not match treatment_levels.")
+}
+for (response in responses) {
+  y <- weed_data[[response]]
+  if (!is.numeric(y) || anyNA(y) || any(!is.finite(y)) || any(y < 0)) {
+    stop(response, " must contain finite, nonnegative values without missing data.")
+  }
+}
+
+plot_counts <- weed_data |> count(site_year, block, treatment)
+block_counts <- plot_counts |> count(site_year, block, name = "n_treatments")
+experiment_counts <- block_counts |> count(site_year, name = "n_blocks")
+if (any(plot_counts$n != 1L) || any(block_counts$n_treatments != 5L) ||
+    any(experiment_counts$n_blocks != 4L)) {
+  stop("Expected one subplot per treatment and four blocks in each site-year.")
+}
+
+weed_data <- weed_data |>
+  mutate(
+    site_year = factor(site_year, levels = names(experiment_labels)),
+    treatment = factor(treatment, levels = treatment_levels),
+    termination_method = factor(
+      unname(method_lookup[as.character(treatment)]), levels = method_levels
+    ),
+    block_id = interaction(site_year, block, drop = TRUE),
+    main_plot_id = interaction(block_id, termination_method, drop = TRUE)
+  )
+
+show_table(
+  weed_data |>
+    group_by(site_year) |>
+    summarise(
+      n_plots = n(), n_blocks = n_distinct(block_id),
+      n_main_plots = n_distinct(main_plot_id),
+      zero_total = sum(weed_biomass_kg_ha == 0),
+      .groups = "drop"
+    ),
+  "Validated weed biomass observations"
+)
+```
+
+```{r validate-zone-sum}
+# The two zone components must sum to total biomass on the same area basis.
+zone_discrepancy <- with(
+  weed_data,
+  weed_biomass_kg_ha - inrow_weed_biomass_kg_ha - interrow_weed_biomass_kg_ha
+)
+stopifnot(max(abs(zone_discrepancy)) < 1e-5)
+```
+
+# Total weed biomass
+
+## Observed summaries
+
+```{r observed-total-summary, message=FALSE, warning=FALSE}
+total_summary <- weed_data |>
+  group_by(site_year, treatment) |>
+  summarise(
+    n_plots = n(),
+    n_zeros = sum(weed_biomass_kg_ha == 0),
+    mean_biomass = mean(weed_biomass_kg_ha),
+    sd_biomass = sd(weed_biomass_kg_ha),
+    .groups = "drop"
+  )
+show_table(total_summary, "Observed total weed biomass (kg/ha)")
+```
+
+## Primary Tweedie model
+
+The model retains block and termination whole-plot intercepts for the split-plot
+design, even if estimated variance components approach zero. A near-zero
+estimate is a boundary estimate, not proof that whole-plot uncertainty is
+negligible; including random intercepts does not by itself calibrate
+asymptotic tests for four blocks per site-year. Sum contrasts
+support joint Type III tests. The site-year dispersion model is retained after
+the initial common-dispersion model showed heterogeneous dispersion.
+
+```{r total-weed-models, message=FALSE, warning=FALSE}
+contrasts(weed_data$treatment) <- contr.sum(5)
+contrasts(weed_data$site_year) <- contr.sum(3)
+
+total_weed_model_full <- glmmTMB(
+  weed_biomass_kg_ha ~ treatment * site_year +
+    (1 | block_id) + (1 | main_plot_id),
+  family = tweedie(link = "log"),
+  data = weed_data
+)
+
+weed_model_disp <- glmmTMB(
+  weed_biomass_kg_ha ~ treatment * site_year +
+    (1 | block_id) + (1 | main_plot_id),
+  dispformula = ~ site_year,
+  family = tweedie(link = "log"),
+  data = weed_data
+)
+
+show_table(
+  as.data.frame(AIC(total_weed_model_full, weed_model_disp)) |>
+    tibble::rownames_to_column("model"),
+  "Comparison of Tweedie dispersion specifications", digits = 2
+)
+anova(total_weed_model_full, weed_model_disp)
+```
+
+## Model diagnostics
+
+Simulation-based checks and convergence are reported for the retained model.
+With only four blocks per site-year, asymptotic Wald tests (df = Inf) and
+particularly borderline comparisons across termination systems warrant caution.
+Estimated variance components near zero are reported, not interpreted as
+proof of negligible whole-plot uncertainty.
+
+```{r total-weed-model-checks, fig.width=9, fig.height=5.5}
+stopifnot(weed_model_disp$fit$convergence == 0L)
+stopifnot(isTRUE(weed_model_disp$sdr$pdHess))
+cat("Optimizer message:", weed_model_disp$fit$message, "\n")
+print(VarCorr(weed_model_disp))
+print(glmmTMB::family_params(weed_model_disp))
+
+set.seed(123)
+total_weed_resid <- DHARMa::simulateResiduals(weed_model_disp, n = 1000)
+plot(total_weed_resid)
+DHARMa::testDispersion(total_weed_resid)
+DHARMa::testZeroInflation(total_weed_resid)
+DHARMa::testUniformity(total_weed_resid)
+DHARMa::plotResiduals(total_weed_resid, form = weed_data$site_year)
+```
+
+## Management effects and hypothesis-driven comparisons
+
+The Type III tests assess treatment, site-year, and their interaction. The three
+original hypothesis-driven comparisons are evaluated within site-years using
+unadjusted, two-sided Wald tests (LSD-style). The contrasts are specified in the
+same direction as the soybean biomass Rmd. Model estimates are ratios after
+back-transformation because the Tweedie models use a log link. These tests do
+not control the familywise error rate, and tests involving different
+termination methods rely on whole-plot replication.
+
+```{r total-weed-effects, message=FALSE, warning=FALSE}
+total_weed_anova <- car::Anova(weed_model_disp, type = 3, component = "cond")
+show_table(as.data.frame(total_weed_anova) |>
+             tibble::rownames_to_column("Effect"),
+           "Total weed biomass: Type III tests", digits = 3)
+
+total_weed_emm <- emmeans::emmeans(
+  weed_model_disp, ~ treatment | site_year, component = "cond"
+)
+show_table(
+  as.data.frame(summary(total_weed_emm, type = "response")),
+  "Estimated total weed biomass by treatment and site-year", digits = 2
+)
+
+# Treatment order: RNO, RIM, RIC, TIM, TIC.
+hypothesis_contrast_weights <- list(
+  "TIC - TIM" = c(0, 0, 0, -1, 1),
+  "RIM - RNO" = c(-1, 1, 0, 0, 0),
+  "RIC - RNO" = c(-1, 0, 1, 0, 0)
+)
+stopifnot(identical(levels(weed_data$treatment), treatment_levels))
+total_weed_contrasts <- emmeans::contrast(
+  total_weed_emm, method = hypothesis_contrast_weights, by = "site_year"
+)
+total_weed_targeted_table <- as.data.frame(summary(
+  total_weed_contrasts, type = "response", infer = c(TRUE, TRUE), adjust = "none"
+))
+show_table(total_weed_targeted_table,
+           "Hypothesis-driven total weed biomass comparisons (unadjusted)", digits = 3)
+
+readr::write_csv(as.data.frame(total_weed_anova) |>
+                   tibble::rownames_to_column("Effect"),
+                 file.path(tab_dir, "total_model_anova.csv"))
+readr::write_csv(as.data.frame(summary(total_weed_emm, type = "response")),
+                 file.path(tab_dir, "total_site_year_treatment_model_means.csv"))
+readr::write_csv(total_weed_targeted_table,
+                 file.path(tab_dir, "total_hypothesis_aligned_comparisons_unadjusted.csv"))
+
+# Descriptive model-based marginal summaries, averaged equally across factors.
+# Interpret these in the context of the treatment × site-year interaction.
+total_site_year_means <- emmeans::emmeans(
+  weed_model_disp, ~ site_year, component = "cond", weights = "equal"
+)
+total_treatment_means <- emmeans::emmeans(
+  weed_model_disp, ~ treatment, component = "cond", weights = "equal"
+)
+readr::write_csv(as.data.frame(summary(total_site_year_means, type = "response")),
+                 file.path(tab_dir, "total_site_year_model_means.csv"))
+readr::write_csv(as.data.frame(summary(total_treatment_means, type = "response")),
+                 file.path(tab_dir, "total_treatment_model_means.csv"))
+```
+
+# Inter-row weed biomass
+
+## Observed summaries
+
+```{r interrow-weed-summary, message=FALSE, warning=FALSE}
+# Observed inter-row weed biomass
+
+interrow_summary <- weed_data |>
+  group_by(site_year, treatment) |>
+  summarise(
+    n_plots = n(),
+    n_zeros = sum(interrow_weed_biomass_kg_ha == 0),
+    mean_biomass = mean(interrow_weed_biomass_kg_ha),
+    sd_biomass = sd(interrow_weed_biomass_kg_ha),
+    .groups = "drop"
+  )
+
+show_table(
+  interrow_summary,
+  "Observed inter-row weed biomass (kg/ha)"
+)
+
+# Number of zero observations by site-year
+interrow_zeros <- weed_data |>
+  group_by(site_year) |>
+  summarise(
+    n_plots = n(),
+    n_zeros = sum(interrow_weed_biomass_kg_ha == 0),
+    percent_zeros = 100 * n_zeros / n_plots,
+    .groups = "drop"
+  )
+
+show_table(
+  interrow_zeros,
+  "Inter-row weed biomass: zero observations"
+)
+```
+
+## Split-plot Tweedie model and diagnostics
+
+The retained treatment × site-year Tweedie model uses common dispersion.
+
+```{r interrow-weed-model, message=FALSE, warning=FALSE}
+interrow_weed_model_full <- glmmTMB(
+  interrow_weed_biomass_kg_ha ~
+    treatment * site_year +
+    (1 | block_id) +
+    (1 | main_plot_id),
+  family = tweedie(link = "log"),
+  data = weed_data
+)
+
+# Convergence checks (fail early if the retained model is not regular)
+stopifnot(interrow_weed_model_full$fit$convergence == 0L)
+stopifnot(isTRUE(interrow_weed_model_full$sdr$pdHess))
+cat("Optimizer message:", interrow_weed_model_full$fit$message, "\n")
+
+# Random-effect variance estimates
+VarCorr(interrow_weed_model_full)
+
+# Tweedie power parameter
+glmmTMB::family_params(interrow_weed_model_full)
+```
+
+```{r interrow-weed-diagnostics, fig.width=9, fig.height=5.5}
+# Residual diagnostics for inter-row weed biomass
+
+set.seed(123)
+
+interrow_sim_full <- DHARMa::simulateResiduals(
+  fittedModel = interrow_weed_model_full,
+  n = 1000
+)
+
+# Standard DHARMa diagnostic plots
+plot(interrow_sim_full)
+
+# Formal diagnostic tests
+DHARMa::testDispersion(interrow_sim_full)
+DHARMa::testZeroInflation(interrow_sim_full)
+DHARMa::testUniformity(interrow_sim_full)
+
+# Residuals grouped by site-year
+DHARMa::plotResiduals(
+  interrow_sim_full,
+  form = weed_data$site_year
+)
+```
+
+## Joint tests, estimates, and contrasts
+
+The Type III tests and within-site-year marginal means come from the retained
+Tweedie GLMM. The same three original hypothesis-driven contrasts are reported
+using unadjusted, two-sided Wald tests, consistent with total weed biomass.
+These are ratios on the response scale; comparisons across termination methods
+warrant caution with four blocks per site-year.
+
+```{r interrow-weed-fixed-effects, message=FALSE, warning=FALSE}
+# Fixed-effect tests for inter-row weed biomass
+
+interrow_weed_anova <- car::Anova(
+  interrow_weed_model_full, type = 3, component = "cond"
+)
+show_table(
+  as.data.frame(interrow_weed_anova) |>
+    tibble::rownames_to_column("Effect"),
+  "Inter-row weed biomass: Type III tests", digits = 3
+)
+
+# Estimated marginal means within each site-year
+interrow_weed_emm <- emmeans::emmeans(
+  interrow_weed_model_full,
+  ~ treatment | site_year,
+  component = "cond"
+)
+
+readr::write_csv(as.data.frame(interrow_weed_anova) |>
+                   tibble::rownames_to_column("Effect"),
+                 file.path(tab_dir, "interrow_model_anova.csv"))
+readr::write_csv(as.data.frame(summary(interrow_weed_emm, type = "response")),
+                 file.path(tab_dir, "interrow_site_year_treatment_model_means.csv"))
+# Additional marginal summaries for the working results table; no new tests.
+interrow_site_year_means <- emmeans::emmeans(
+  interrow_weed_model_full, ~ site_year, component = "cond", weights = "equal"
+)
+interrow_treatment_means <- emmeans::emmeans(
+  interrow_weed_model_full, ~ treatment, component = "cond", weights = "equal"
+)
+readr::write_csv(as.data.frame(summary(interrow_site_year_means, type = "response")),
+                 file.path(tab_dir, "interrow_site_year_model_means.csv"))
+readr::write_csv(as.data.frame(summary(interrow_treatment_means, type = "response")),
+                 file.path(tab_dir, "interrow_treatment_model_means.csv"))
+```
+
+```{r interrow-weed-final-contrasts, message=FALSE, warning=FALSE}
+# Reuse the same three hypothesis-driven contrasts and treatment order.
+interrow_contrasts <- emmeans::contrast(
+  interrow_weed_emm, method = hypothesis_contrast_weights, by = "site_year"
+)
+interrow_targeted_table <- as.data.frame(summary(
+  interrow_contrasts, type = "response", adjust = "none", infer = c(TRUE, TRUE)
+))
+show_table(interrow_targeted_table,
+           "Hypothesis-driven inter-row weed biomass comparisons (unadjusted)",
+           digits = 3)
+readr::write_csv(interrow_targeted_table,
+                 file.path(tab_dir, "interrow_hypothesis_aligned_comparisons_unadjusted.csv"))
+```
+
+## Inter-row weed biomass figure
+
+Bars and error bars show observed arithmetic means ± SE (four plots per
+management system and site-year). Lowercase letters come from unadjusted
+pairwise comparisons of model-estimated inter-row biomass within site-years.
+Shared letters indicate no detected difference, not equivalence.
+
+```{r interrow-weed-final-figure, fig.width=11, fig.height=6, out.width="100%", message=FALSE, warning=FALSE}
+# Observed means and SE, matching the other Mowtivation figures.
+interrow_fig_data <- weed_data |>
+  group_by(site_year, treatment) |>
+  summarise(
+    mean_biomass = mean(interrow_weed_biomass_kg_ha),
+    se_biomass = sd(interrow_weed_biomass_kg_ha) / sqrt(n()),
+    .groups = "drop"
+  ) |>
+  mutate(
+    lower_se = pmax(0, mean_biomass - se_biomass),
+    upper_se = mean_biomass + se_biomass
+  )
+
+# Unadjusted model-based pairwise CLDs (LSD-style; no multiplicity adjustment).
+# The a group is assigned to the highest estimated treatment mean.
+interrow_weed_cld <- multcomp::cld(
+  interrow_weed_emm,
+  by = "site_year",
+  adjust = "none",
+  alpha = 0.05,
+  Letters = letters,
+  reversed = TRUE
+) |>
+  as.data.frame() |>
+  transmute(
+    site_year,
+    treatment,
+    cld = trimws(.group)
+  )
+
+# Export the same within-site-year letters already used on the figure.
+readr::write_csv(interrow_weed_cld,
+                 file.path(tab_dir, "interrow_site_year_treatment_cld_unadjusted.csv"))
+
+interrow_fig_data <- interrow_fig_data |>
+  left_join(interrow_weed_cld, by = c("site_year", "treatment")) |>
+  mutate(
+    cld_y = mean_biomass + se_biomass +
+      0.05 * max(mean_biomass + se_biomass, na.rm = TRUE)
+  )
+
+interrow_weed_fig <- ggplot(
+  interrow_fig_data,
+  aes(x = treatment, y = mean_biomass, fill = treatment)
+) +
+  geom_col(
+    width = 0.7,
+    color = "black",
+    linewidth = 0.3
+  ) +
+  geom_errorbar(
+    aes(ymin = lower_se, ymax = upper_se),
+    width = 0.18,
+    linewidth = 0.65
+  ) +
+  geom_text(
+    aes(y = cld_y, label = cld),
+    size = 4.5,
+    fontface = "bold"
+  ) +
+  facet_wrap(
+    ~ site_year,
+    nrow = 1,
+    labeller = labeller(
+      site_year = experiment_labels
+    )
+  ) +
+  scale_fill_manual(
+    values = treatment_colors,
+    guide = "none"
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.12))
+  ) +
+  labs(
+    x = "Management system",
+    y = "Inter-row weed biomass (kg/ha)",
+    caption = "Bars and SE: observed biomass (n = 4); letters: unadjusted model-based comparisons."
+  ) +
+  theme_classic(base_size = 16) +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(
+      face = "bold",
+      size = 14
+    ),
+    axis.text.x = element_text(
+      size = 14,
+      margin = margin(t = 8)
+    ),
+    axis.text.y = element_text(size = 13),
+    axis.title = element_text(size = 16),
+    panel.spacing = grid::unit(1.2, "lines")
+  )
+
+interrow_weed_fig
+
+dir.create(here::here("figures", "weed_biomass"), showWarnings = FALSE, recursive = TRUE)
+ggsave(
+  filename = here::here(
+    "figures", "weed_biomass",
+    "interrow_raw_means.png"
+  ),
+  plot = interrow_weed_fig,
+  width = 11,
+  height = 6,
+  dpi = 300,
+  bg = "white"
+)
+```
+
+# In-row weed biomass: descriptive only
+
+Initial five-system Tweedie fits had unstable coefficients for the all-zero
+RNO group in O2 East; reduced interaction models imposed constant within-method
+ratios and did not reproduce some O2 West observations. Whole-plot Tweedie
+averages showed underdispersion (DHARMa p = 0.046), and a log1p linear mixed
+sensitivity analysis had appreciable tail departures. Because this is a
+secondary outcome, no in-row significance tests are retained.
+
+The matched-system whole-plot summary averages RIM/RIC and TIM/TIC separately,
+excluding RNO because it has no matched tilled counterpart. It is descriptive
+and respects termination as a whole-plot treatment.
+
+```{r inrow-whole-plot-summary, message=FALSE, warning=FALSE}
+# Whole-plot summaries for matched management systems
+
+inrow_main_plot <- weed_data |>
+  filter(treatment %in% c("RIM", "RIC", "TIM", "TIC")) |>
+  mutate(
+    termination = factor(
+      if_else(
+        treatment %in% c("RIM", "RIC"),
+        "Rolled",
+        "Tilled"
+      ),
+      levels = c("Rolled", "Tilled")
+    )
+  ) |>
+  group_by(
+    site_year,
+    block_id,
+    main_plot_id,
+    termination
+  ) |>
+  summarise(
+    mean_inrow_biomass = mean(
+      inrow_weed_biomass_kg_ha
+    ),
+    .groups = "drop"
+  )
+
+# Confirm number of whole plots
+inrow_main_plot |>
+  count(site_year, termination)
+
+# Descriptive summaries by termination system
+inrow_main_plot |>
+  group_by(site_year, termination) |>
+  summarise(
+    n = n(),
+    mean_biomass = mean(mean_inrow_biomass),
+    sd_biomass = sd(mean_inrow_biomass),
+    .groups = "drop"
+  )
+```
+
+```{r inrow-observed-summary}
+inrow_summary <- weed_data |>
+  group_by(site_year, treatment) |>
+  summarise(
+    n_plots = n(),
+    n_zeros = sum(inrow_weed_biomass_kg_ha == 0),
+    mean_biomass = mean(inrow_weed_biomass_kg_ha),
+    sd_biomass = sd(inrow_weed_biomass_kg_ha),
+    .groups = "drop"
+  )
+show_table(inrow_summary, "Observed in-row weed biomass (kg/ha)")
+```
+
+# Combined observed weed biomass figure
+
+The stacked treatment colors show observed arithmetic mean contributions from
+inter-row (darker) and in-row (lighter). Their sum equals observed total weed
+biomass. Error bars show the **observed total arithmetic mean ± SE** (four
+plots per treatment/site-year). Lowercase letters summarize **unadjusted model-based pairwise Wald tests**
+(Fisher LSD-style) of total weed biomass within each site-year. These letters
+apply to total biomass only, not to the components; shared letters do not
+establish equivalence. The SE bars are descriptive plot-to-plot variation,
+not model-based uncertainty for treatment contrasts.
+
+```{r weed-biomass-combined-final, fig.width=12, fig.height=6.5, out.width="100%", message=FALSE, warning=FALSE}
+
+lighten_color <- function(color, amount = 0.55) {
+  rgb <- grDevices::col2rgb(color) / 255
+  light <- rgb + (1 - rgb) * amount
+
+  grDevices::rgb(
+    light[1, ],
+    light[2, ],
+    light[3, ]
+  )
+}
+
+zone_colors <- c(
+  setNames(
+    treatment_colors,
+    paste0(names(treatment_colors), "_Inter-row")
+  ),
+  setNames(
+    vapply(
+      treatment_colors,
+      lighten_color,
+      character(1)
+    ),
+    paste0(names(treatment_colors), "_In-row")
+  )
+)
+
+
+weed_zone_means <- weed_data |>
+  group_by(site_year, treatment) |>
+  summarise(
+    inrow = mean(inrow_weed_biomass_kg_ha),
+    interrow = mean(interrow_weed_biomass_kg_ha),
+    total_mean = mean(weed_biomass_kg_ha),
+    total_se = sd(weed_biomass_kg_ha) / sqrt(n()),
+    n_plots = n(),
+    .groups = "drop"
+  )
+
+# Convert zone means to long format for stacked bars
+weed_zone_plot_data <- weed_zone_means |>
+  select(site_year, treatment, inrow, interrow) |>
+  pivot_longer(
+    cols = c(inrow, interrow),
+    names_to = "zone",
+    values_to = "mean_biomass"
+  ) |>
+  mutate(
+    zone = factor(
+      zone,
+      levels = c("inrow", "interrow"),
+      labels = c("In-row", "Inter-row")
+    ),
+    treatment_zone = paste(treatment, zone, sep = "_")
+  )
+
+
+# Reuse total_weed_emm calculated above.
+
+# Requires multcomp and multcompView packages.
+# Fisher's LSD-style CLDs use unadjusted pairwise tests within site-year.
+total_weed_cld <- multcomp::cld(
+  total_weed_emm,
+  by = "site_year",
+  adjust = "none",
+  alpha = 0.05,
+  Letters = letters,
+  reversed = TRUE
+) |>
+  as.data.frame() |>
+  transmute(
+    site_year,
+    treatment,
+    cld = trimws(.group)
+  )
+
+# Export the figure's existing unadjusted within-site-year letters.
+readr::write_csv(total_weed_cld,
+                 file.path(tab_dir, "total_site_year_treatment_cld_unadjusted.csv"))
+
+# Position letters above observed mean + SE
+weed_annotations <- weed_zone_means |>
+  left_join(
+    total_weed_cld,
+    by = c("site_year", "treatment")
+  ) |>
+  mutate(
+    cld_y = total_mean + total_se + 65
+  )
+
+
+combined_weed_model_fig <- ggplot() +
+
+  # Observed in-row and inter-row biomass
+  geom_col(
+    data = weed_zone_plot_data,
+    aes(
+      x = treatment,
+      y = mean_biomass,
+      fill = treatment_zone
+    ),
+    width = 0.72,
+    color = "black",
+    linewidth = 0.3
+  ) +
+
+  # Observed total weed biomass ± SE
+  geom_errorbar(
+    data = weed_zone_means,
+    aes(
+      x = treatment,
+      ymin = pmax(0, total_mean - total_se),
+      ymax = total_mean + total_se
+    ),
+    width = 0.18,
+    linewidth = 0.7,
+    color = "black"
+  ) +
+
+  # Total weed biomass significance groupings
+  geom_text(
+    data = weed_annotations,
+    aes(
+      x = treatment,
+      y = cld_y,
+      label = cld
+    ),
+    size = 4.5,
+    fontface = "bold"
+  ) +
+
+  facet_wrap(
+    ~ site_year,
+    nrow = 1,
+    labeller = labeller(
+      site_year = experiment_labels
+    )
+  ) +
+
+  scale_fill_manual(
+    values = zone_colors,
+    guide = "none"
+  ) +
+
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.12))
+  ) +
+
+  labs(
+    x = "Management system",
+    y = "Total weed biomass (kg/ha)",
+    caption = paste(
+      "Dark shading: inter-row; light shading: in-row.",
+      "Stacked bars and SE are observed totals (n = 4).",
+      "Lowercase letters: unadjusted model-based total-biomass comparisons."
+    )
+  ) +
+
+  theme_classic(base_size = 16) +
+
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(
+      face = "bold",
+      size = 14
+    ),
+    axis.text.x = element_text(
+      size = 14,
+      margin = margin(t = 8)
+    ),
+    axis.text.y = element_text(size = 13),
+    axis.title = element_text(size = 16),
+    plot.caption = element_text(
+      size = 11,
+      hjust = 0.5,
+      margin = margin(t = 15)
+    ),
+    panel.spacing = grid::unit(1.2, "lines")
+  )
+
+combined_weed_model_fig
+
+# Save figure
+dir.create(here::here("figures", "weed_biomass"), showWarnings = FALSE, recursive = TRUE)
+ggsave(
+  filename = here::here(
+    "figures", "weed_biomass",
+    "combined_raw_means.png"
+  ),
+  plot = combined_weed_model_fig,
+  width = 12,
+  height = 6.5,
+  dpi = 300,
+  bg = "white"
+)
+```
+
+# Interpretation and limitations
+
+Treatment × site-year interactions support presenting the three planned
+comparisons within site-years. The observed stacked
+figure displays arithmetic means and SE, with letters derived from unadjusted
+pairwise tests on the model-estimated total biomass means. The observed
+inter-row figure has separate letters based on the inter-row model. Figure
+letters are exploratory and do not establish equivalence.
+
+The three original, hypothesis-driven contrasts are reported separately for
+total and inter-row weed biomass. The unadjusted Wald p-values and confidence
+intervals should be interpreted cautiously because there are four blocks per
+site-year and comparisons across termination methods depend on main-plot
+replication. The current models retain both block and main-plot random
+intercepts, including when variance estimates approach the boundary.
+
+Before manuscript reporting, verify the treatment assignments against field
+maps, the documented 2023 implementation error, the RIC cultivation schedule,
+and processed-data units. The existing fitted-model specifications and figure
+exports are preserved in this revision; inferential results should be checked
+by knitting against the processed dataset.
+
+# Reproducibility
+
+Package versions and R session information for this analysis run:
+
+```{r session-information, message=FALSE, warning=FALSE}
+utils::sessionInfo()
+```
