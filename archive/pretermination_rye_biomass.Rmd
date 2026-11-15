@@ -1,0 +1,190 @@
+---
+title: "Pre-termination cereal rye biomass"
+output:
+  github_document:
+    toc: true
+    df_print: kable
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+# Question and sampling design
+
+How did cereal rye biomass immediately before termination differ among the three Mowtivation site-years? Rye was sampled within four blocks per site-year before tillage and again, on a later date, before roller-crimping. These are **different sampling occasions**, not a randomized comparison of termination methods. Analyze site-year differences **separately** for each occasion. Results describe the three observed site-years; they cannot isolate effects of rye variety, weather, or termination date.
+
+# Setup
+
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+library(emmeans)
+library(WrensBookshelf)
+
+theme_set(theme_classic(base_size = 16))
+
+out_dir <- here("output", "tables", "pretermination_rye_biomass")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+site_levels <- c("V_2023", "O2E_2024", "O2W_2024")
+event_levels <- c("pre-tillage", "pre-rolling")
+```
+
+# Import, convert, and validate
+
+The raw file contains quadrat dry biomass in grams and sampled area in square meters. Conversion: `kg/ha = g / m2 * 10` (equivalent to `g * 20` for a 0.5-m2 quadrat).
+
+```{r import-validate}
+raw <- readr::read_csv(here("data", "raw", "pretermination_rye_biomass.csv"),
+                       show_col_types = FALSE)
+required <- c("site_year", "block", "sampling_date", "event",
+              "cereal_rye_variety", "sampling_area_m2", "cereal_rye_biomass_g")
+missing_columns <- setdiff(required, names(raw))
+if (length(missing_columns)) stop("Missing columns: ", paste(missing_columns, collapse = ", "))
+
+rye <- raw |>
+  mutate(
+    site_year = factor(as.character(site_year), levels = site_levels),
+    block = factor(block),
+    event = factor(trimws(as.character(event)), levels = event_levels),
+    sampling_date = as.Date(sampling_date),
+    biomass_kg_ha = cereal_rye_biomass_g / sampling_area_m2 * 10
+  ) |>
+  arrange(site_year, event, block)
+
+stopifnot(
+  nrow(rye) == 24L,
+  !anyNA(rye[, c("site_year", "block", "event", "sampling_date",
+                  "cereal_rye_variety", "sampling_area_m2",
+                  "cereal_rye_biomass_g", "biomass_kg_ha")]),
+  all(rye$sampling_area_m2 == 0.5),
+  all(rye$biomass_kg_ha > 0),
+  all(as.vector(table(rye$site_year, rye$event)) == 4L),
+  all(as.vector(table(rye$site_year, rye$event, rye$block)) == 1L)
+)
+
+readr::write_csv(rye, file.path(out_dir, "block_level_biomass_kg_ha.csv"))
+knitr::kable(rye |> count(site_year, event), caption = "Validated quadrat observations")
+```
+
+# Descriptive summaries
+
+All means, SDs, and SEs are calculated from **four observed block values** per site-year and sampling event. These SEs are descriptive, not model-based.
+
+```{r summaries}
+summary_long <- rye |>
+  group_by(site_year, event) |>
+  summarise(
+    sampling_date = first(sampling_date),
+    cereal_rye_variety = first(cereal_rye_variety),
+    n_blocks = n(),
+    mean_kg_ha = mean(biomass_kg_ha),
+    sd_kg_ha = sd(biomass_kg_ha),
+    se_kg_ha = sd_kg_ha / sqrt(n_blocks),
+    .groups = "drop"
+  )
+
+group_checks <- rye |>
+  group_by(site_year, event) |>
+  summarise(n_dates = n_distinct(sampling_date),
+            n_varieties = n_distinct(cereal_rye_variety), .groups = "drop")
+stopifnot(all(group_checks$n_dates == 1L),
+          all(group_checks$n_varieties == 1L))
+
+summary_wide <- summary_long |>
+  mutate(
+    sampling_event = recode(as.character(event),
+                            `pre-tillage` = "before_tillage",
+                            `pre-rolling` = "before_rolling")
+  ) |>
+  select(site_year, cereal_rye_variety, sampling_event,
+         sampling_date, n_blocks, mean_kg_ha, sd_kg_ha, se_kg_ha) |>
+  pivot_wider(
+    names_from = sampling_event,
+    values_from = c(sampling_date, n_blocks, mean_kg_ha, sd_kg_ha, se_kg_ha),
+    names_glue = "{sampling_event}_{.value}"
+  )
+
+readr::write_csv(summary_long, file.path(out_dir, "rye_biomass_summary_long.csv"))
+readr::write_csv(summary_wide, file.path(out_dir, "rye_biomass_site_year_table.csv"))
+knitr::kable(summary_long |> mutate(across(ends_with("kg_ha"), ~ round(.x, 1))),
+             caption = "Observed pre-termination rye biomass (kg/ha)")
+knitr::kable(summary_wide |> mutate(across(ends_with("kg_ha"), ~ round(.x, 1))),
+             caption = "Wide site-year summary for manuscript table")
+```
+
+# Site-year comparisons
+
+Fit separate one-way linear models for the two events. Block is the observational replicate within each site-year (four blocks per site-year). Since each block contributes only one observation *within an event*, adding a block random intercept to these separate models would be unidentifiable from residual variance. We do not interpret differences between event dates as termination effects.
+
+```{r site-year-models}
+fit_event <- function(event_name) {
+  dat <- rye |> filter(event == event_name) |> droplevels()
+  model <- lm(biomass_kg_ha ~ site_year, data = dat)
+  test <- anova(model) |>
+    as.data.frame() |>
+    tibble::rownames_to_column("effect") |>
+    filter(effect == "site_year") |>
+    transmute(event = event_name, effect, df = Df,
+              F_value = `F value`, p_value = `Pr(>F)`)
+  means <- as.data.frame(confint(emmeans(model, ~ site_year))) |>
+    mutate(event = event_name, .before = 1)
+  list(model = model, test = test, means = means)
+}
+
+models <- setNames(lapply(event_levels, fit_event), event_levels)
+anova_results <- bind_rows(lapply(models, `[[`, "test"))
+model_means <- bind_rows(lapply(models, `[[`, "means"))
+
+knitr::kable(anova_results, digits = 4,
+             caption = "Separate site-year ANOVAs by sampling event")
+readr::write_csv(anova_results, file.path(out_dir, "site_year_anova.csv"))
+readr::write_csv(model_means, file.path(out_dir, "site_year_model_means.csv"))
+```
+
+# Residual checks
+
+With just four blocks per site-year, assess unusually influential observations or marked changes in spread cautiously. The standard linear-model assumptions apply to the **within-event** site-year tests.
+
+```{r diagnostics}
+diag_summary <- purrr::imap_dfr(models, function(obj, event_name) {
+  tibble(
+    event = event_name,
+    residual_sd = sigma(obj$model),
+    max_abs_standardized_residual = max(abs(rstandard(obj$model))),
+    shapiro_p = shapiro.test(resid(obj$model))$p.value
+  )
+})
+knitr::kable(diag_summary, digits = 3,
+             caption = "Simple residual diagnostics (Shapiro test is low-powered at n=12)")
+```
+
+# Post-hoc site-year comparisons
+
+Use unadjusted Fisher's LSD-style pairwise tests **only when the corresponding site-year omnibus test is significant** (p < 0.05). These comparisons apply to site-years *within the same sampling event*. Do not compare pre-tillage against pre-rolling as though they were randomized treatments.
+
+```{r posthoc}
+pair_tables <- list()
+for (event_name in event_levels) {
+  if (models[[event_name]]$test$p_value < 0.05) {
+    emm <- emmeans(models[[event_name]]$model, ~ site_year)
+    tab <- as.data.frame(summary(pairs(emm, adjust = "none"),
+                                 infer = c(TRUE, TRUE))) |>
+      mutate(event = event_name, .before = 1)
+    pair_tables[[event_name]] <- tab
+    cat("\n\n### ", event_name, "\n\n", sep = "")
+    print(knitr::kable(tab, digits = 3,
+                       caption = paste("Site-year comparisons:", event_name)))
+  } else {
+    cat("\n\n", event_name, ": omnibus site-year test not significant; no post-hoc tests.\n", sep = "")
+  }
+}
+if (length(pair_tables)) {
+  readr::write_csv(bind_rows(pair_tables),
+                   file.path(out_dir, "site_year_fisher_lsd.csv"))
+}
+```
+
+# Interpretation
+
+Use the wide descriptive table in the site-year characteristics section. Report significant differences **within each sampling event** if supported by the model and residual checks. Site-year is an observational comparison combining field, year, rye variety, and management timing; the results are not causal estimates of any of those factors. Do not interpret the difference between early and late termination samples as a termination-method effect or a direct estimate of rye growth.

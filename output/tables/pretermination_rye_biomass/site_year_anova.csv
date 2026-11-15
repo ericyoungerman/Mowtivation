@@ -1,0 +1,3 @@
+event,Effect,NumDF,DenDF,F value,Pr(>F)
+pre-tillage,site_year,2,9,14.077079955187807,0.0016945632579903945
+pre-rolling,site_year,2,9,7.810305159972868,0.010795596092703008

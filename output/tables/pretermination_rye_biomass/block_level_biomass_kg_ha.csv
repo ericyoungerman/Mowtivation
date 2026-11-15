@@ -1,0 +1,25 @@
+site_year,block,sampling_date,event,cereal_rye_variety,sampling_area_m2,cereal_rye_biomass_g,biomass_kg_ha,block_id
+V_2023,1,2023-05-15,pre-tillage,Aroostook,0.5,318.25,6365,V_2023.1
+V_2023,2,2023-05-15,pre-tillage,Aroostook,0.5,291.2,5824,V_2023.2
+V_2023,3,2023-05-15,pre-tillage,Aroostook,0.5,319.68,6393.6,V_2023.3
+V_2023,4,2023-05-15,pre-tillage,Aroostook,0.5,323.05,6461,V_2023.4
+V_2023,1,2023-05-31,pre-rolling,Aroostook,0.5,506.2,10124,V_2023.1
+V_2023,2,2023-05-31,pre-rolling,Aroostook,0.5,442.34,8846.8,V_2023.2
+V_2023,3,2023-05-31,pre-rolling,Aroostook,0.5,569.84,11396.800000000001,V_2023.3
+V_2023,4,2023-05-31,pre-rolling,Aroostook,0.5,458.78,9175.599999999999,V_2023.4
+O2E_2024,1,2024-04-29,pre-tillage,ND Gardner,0.5,240.28,4805.6,O2E_2024.1
+O2E_2024,2,2024-04-29,pre-tillage,ND Gardner,0.5,234.34,4686.8,O2E_2024.2
+O2E_2024,3,2024-04-29,pre-tillage,ND Gardner,0.5,309.18,6183.6,O2E_2024.3
+O2E_2024,4,2024-04-29,pre-tillage,ND Gardner,0.5,259.08,5181.5999999999995,O2E_2024.4
+O2E_2024,1,2024-05-21,pre-rolling,ND Gardner,0.5,506.09,10121.8,O2E_2024.1
+O2E_2024,2,2024-05-21,pre-rolling,ND Gardner,0.5,363.01,7260.2,O2E_2024.2
+O2E_2024,3,2024-05-21,pre-rolling,ND Gardner,0.5,390.04,7800.8,O2E_2024.3
+O2E_2024,4,2024-05-21,pre-rolling,ND Gardner,0.5,446.68,8933.6,O2E_2024.4
+O2W_2024,1,2024-04-29,pre-tillage,Aroostook,0.5,177.48,3549.6,O2W_2024.1
+O2W_2024,2,2024-04-29,pre-tillage,Aroostook,0.5,196.06,3921.2,O2W_2024.2
+O2W_2024,3,2024-04-29,pre-tillage,Aroostook,0.5,253.62,5072.4,O2W_2024.3
+O2W_2024,4,2024-04-29,pre-tillage,Aroostook,0.5,193.18,3863.6000000000004,O2W_2024.4
+O2W_2024,1,2024-05-21,pre-rolling,Aroostook,0.5,388.15,7763,O2W_2024.1
+O2W_2024,2,2024-05-21,pre-rolling,Aroostook,0.5,363.26,7265.2,O2W_2024.2
+O2W_2024,3,2024-05-21,pre-rolling,Aroostook,0.5,289.39,5787.799999999999,O2W_2024.3
+O2W_2024,4,2024-05-21,pre-rolling,Aroostook,0.5,245.57,4911.4,O2W_2024.4

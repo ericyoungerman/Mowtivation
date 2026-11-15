@@ -1,0 +1,276 @@
+---
+title: "Pre-termination cereal rye biomass"
+output:
+  github_document:
+    toc: true
+always_allow_html: true
+---
+
+# Question and sampling design
+
+How did cereal rye biomass immediately before termination differ among the three Mowtivation site-years? Rye was sampled from one 0.5-m² quadrat per block (four blocks per site-year) before tillage and, on a later date, before roller-crimping. The two sampling events are **not randomized termination treatments**. We test site-year differences separately for each event; results describe the observed site-years, not the isolated effects of rye variety, weather, or sampling date.
+
+# Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = FALSE)
+```
+
+```{r packages-and-settings, message=FALSE}
+library(tidyverse)
+library(here)
+library(emmeans)
+library(conflicted)
+
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(dplyr::select)
+theme_set(theme_classic(base_size = 16))
+
+site_labels <- c(
+  V_2023 = "2023 – Field V",
+  O2E_2024 = "2024 – Field O2 East",
+  O2W_2024 = "2024 – Field O2 West"
+)
+event_levels <- c("pre-tillage", "pre-rolling")
+tab_dir <- here("output", "tables", "pretermination_rye_biomass")
+dir.create(tab_dir, recursive = TRUE, showWarnings = FALSE)
+
+show_table <- function(x, caption, digits = 1) {
+  x <- as.data.frame(x)
+  p_cols <- intersect(names(x), c("p.value", "p_value", "Pr(>F)"))
+  for (nm in p_cols) {
+    x[[nm]] <- ifelse(is.na(x[[nm]]), NA_character_,
+                      ifelse(x[[nm]] < 0.001, "<0.001", sprintf("%.3f", x[[nm]])))
+  }
+  knitr::kable(x, digits = digits, caption = caption)
+}
+
+# Accept both ISO (2024-04-29) and month/day/year (4/29/24 or 4/29/2024).
+parse_sampling_date <- function(x) {
+  x <- trimws(as.character(x))
+  result <- as.Date(rep(NA_character_, length(x)))
+  formats <- list(
+    list(pattern = "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", format = "%Y-%m-%d"),
+    list(pattern = "^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$", format = "%m/%d/%Y"),
+    list(pattern = "^[0-9]{1,2}/[0-9]{1,2}/[0-9]{2}$", format = "%m/%d/%y")
+  )
+  for (spec in formats) {
+    matching <- !is.na(x) & grepl(spec$pattern, x)
+    result[matching] <- as.Date(x[matching], format = spec$format)
+  }
+  if (anyNA(result)) {
+    stop("Unrecognized sampling date(s): ",
+         paste(unique(x[is.na(result)]), collapse = ", "))
+  }
+  result
+}
+```
+
+# Import and validate
+
+Raw biomass is recorded in grams from 0.5-m² quadrats. Conversion is `g / area_m2 * 10`, or **g × 20** for the specified quadrat size. The CSV may contain an already converted column; we calculate biomass directly from the raw grams to avoid double conversion.
+
+```{r import-validate}
+raw <- readr::read_csv(here("data", "raw", "pretermination_rye_biomass.csv"),
+                       show_col_types = FALSE)
+required <- c("site_year", "block", "sampling_date", "event",
+              "cereal_rye_variety", "sampling_area_m2", "cereal_rye_biomass_g")
+missing_columns <- setdiff(required, names(raw))
+if (length(missing_columns)) {
+  stop("Missing raw-data columns: ", paste(missing_columns, collapse = ", "))
+}
+
+rye <- raw |>
+  transmute(
+    site_year = factor(trimws(as.character(site_year)), levels = names(site_labels)),
+    block = factor(block),
+    sampling_date = parse_sampling_date(sampling_date),
+    event = factor(trimws(as.character(event)), levels = event_levels),
+    cereal_rye_variety = trimws(as.character(cereal_rye_variety)),
+    sampling_area_m2 = as.numeric(sampling_area_m2),
+    cereal_rye_biomass_g = as.numeric(cereal_rye_biomass_g)
+  ) |>
+  mutate(
+    biomass_kg_ha = cereal_rye_biomass_g / sampling_area_m2 * 10,
+    block_id = interaction(site_year, block, drop = TRUE)
+  ) |>
+  arrange(site_year, event, block)
+
+stopifnot(
+  nrow(rye) == 24L,
+  !anyNA(rye),
+  all(rye$sampling_area_m2 == 0.5),
+  all(rye$cereal_rye_biomass_g > 0),
+  all(as.vector(table(rye$site_year, rye$event)) == 4L),
+  all(as.vector(table(rye$site_year, rye$event, rye$block)) == 1L),
+  all(as.integer(format(rye$sampling_date, "%Y")) ==
+        as.integer(sub(".*_", "", as.character(rye$site_year))))
+)
+
+group_checks <- rye |>
+  group_by(site_year, event) |>
+  summarise(n_dates = n_distinct(sampling_date),
+            n_varieties = n_distinct(cereal_rye_variety), .groups = "drop")
+stopifnot(all(group_checks$n_dates == 1L), all(group_checks$n_varieties == 1L))
+
+show_table(rye |> count(site_year, event), "Validated block-level rye observations")
+readr::write_csv(rye, file.path(tab_dir, "block_level_biomass_kg_ha.csv"))
+```
+
+# Describe the observations
+
+Observed means, SDs, and SEs use four block-level measurements per site-year and sampling event. These summaries are descriptive; statistical comparisons are based on the models below.
+
+```{r descriptive-summaries}
+summary_long <- rye |>
+  group_by(site_year, event) |>
+  summarise(
+    sampling_date = first(sampling_date),
+    cereal_rye_variety = first(cereal_rye_variety),
+    n_blocks = n(),
+    mean_kg_ha = mean(biomass_kg_ha),
+    sd_kg_ha = sd(biomass_kg_ha),
+    se_kg_ha = sd_kg_ha / sqrt(n_blocks),
+    .groups = "drop"
+  )
+
+show_table(summary_long, "Observed pre-termination rye biomass (kg/ha)")
+readr::write_csv(summary_long, file.path(tab_dir, "rye_biomass_summary_long.csv"))
+```
+
+# Fit the site-year models
+
+Fit separate Gaussian linear models for pre-tillage and pre-rolling biomass. Each event has 12 independent block-level sampling units, with one observation per block within a site-year. A block random intercept cannot be estimated separately from residual variance in these **event-specific** models. No pre-tillage versus pre-rolling treatment comparison is conducted.
+
+```{r models}
+fit_event <- function(event_name) {
+  dat <- rye |> filter(event == event_name) |> droplevels()
+  model <- lm(biomass_kg_ha ~ site_year, data = dat)
+  test <- anova(model) |>
+    as.data.frame() |>
+    tibble::rownames_to_column("Effect") |>
+    filter(Effect == "site_year") |>
+    transmute(event = event_name, Effect, NumDF = Df,
+              DenDF = df.residual(model), `F value` = `F value`,
+              `Pr(>F)` = `Pr(>F)`)
+  means <- as.data.frame(confint(emmeans(model, ~ site_year))) |>
+    mutate(event = event_name, .before = 1)
+  list(model = model, test = test, means = means)
+}
+
+models <- setNames(lapply(event_levels, fit_event), event_levels)
+anova_table <- bind_rows(lapply(models, `[[`, "test"))
+model_means <- bind_rows(lapply(models, `[[`, "means"))
+```
+
+# Check assumptions
+
+Review residual-versus-fitted and Q-Q plots for each event, with particular attention to marked heterogeneity or outlying blocks. With only four observations per site-year, formal normality testing has limited power.
+
+```{r diagnostics, fig.width=10, fig.height=5}
+diagnostics <- purrr::imap_dfr(models, function(obj, event_name) {
+  tibble(event = event_name, site_year = model.frame(obj$model)$site_year,
+         fitted = fitted(obj$model), residual = resid(obj$model),
+         standardized_residual = rstandard(obj$model))
+})
+
+ggplot(diagnostics, aes(fitted, residual, color = site_year)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+  geom_point(size = 2.5) +
+  facet_wrap(~ event, scales = "free_x") +
+  labs(x = "Fitted biomass (kg/ha)", y = "Residual (kg/ha)", color = "Site-year")
+
+ggplot(diagnostics, aes(sample = standardized_residual)) +
+  stat_qq(size = 2) + stat_qq_line() +
+  facet_wrap(~ event) +
+  labs(x = "Theoretical quantiles", y = "Standardized residual quantiles")
+```
+
+```{r diagnostics-summary}
+residual_spread <- diagnostics |>
+  group_by(event, site_year) |>
+  summarise(residual_sd = sd(residual), .groups = "drop")
+show_table(residual_spread, "Residual SD by sampling event and site-year (kg/ha)")
+```
+
+# Tests and site-year estimates
+
+Report each site-year omnibus F test. If significant at α = 0.05, use unadjusted Fisher's LSD-style pairwise site-year tests and model-based lowercase grouping letters. Comparisons are **within** sampling events only.
+
+```{r site-year-tests}
+show_table(anova_table, "Separate site-year ANOVAs", digits = 3)
+show_table(model_means, "Model-estimated site-year means (kg/ha)")
+readr::write_csv(anova_table, file.path(tab_dir, "site_year_anova.csv"))
+readr::write_csv(model_means, file.path(tab_dir, "site_year_model_means.csv"))
+```
+
+```{r posthoc-site-year, results='asis'}
+pair_tables <- list()
+letter_tables <- list()
+for (event_name in event_levels) {
+  p <- models[[event_name]]$test[["Pr(>F)"]]
+  cat("\n\n### ", event_name, "\n\n", sep = "")
+  if (p < 0.05) {
+    emm <- emmeans(models[[event_name]]$model, ~ site_year)
+    tab <- as.data.frame(summary(pairs(emm, adjust = "none"),
+                                 infer = c(TRUE, TRUE))) |>
+      mutate(event = event_name, .before = 1)
+    pair_tables[[event_name]] <- tab
+    print(show_table(tab, paste("Fisher's LSD-style comparisons:", event_name), 3))
+    letters_event <- multcomp::cld(emm, adjust = "none", Letters = letters,
+                                  reversed = TRUE) |>
+      as.data.frame() |>
+      transmute(event = event_name, site_year,
+                cld = gsub("\\s+", "", .group))
+    letter_tables[[event_name]] <- letters_event
+  } else {
+    cat("No post-hoc comparisons: omnibus site-year test not significant.\n\n")
+  }
+}
+if (length(pair_tables)) {
+  readr::write_csv(bind_rows(pair_tables),
+                   file.path(tab_dir, "site_year_fisher_lsd.csv"))
+}
+if (length(letter_tables)) {
+  readr::write_csv(bind_rows(letter_tables),
+                   file.path(tab_dir, "site_year_cld_unadjusted.csv"))
+}
+```
+
+# Final table for manuscript
+
+One row per site-year, with pre-tillage and pre-rolling biomass in separate columns. Means and SEs are **raw descriptive summaries**; any lowercase letters are derived from the event-specific models. Keep the numeric CSV for subsequent table construction.
+
+```{r manuscript-table}
+all_letters <- if (length(letter_tables)) bind_rows(letter_tables) else
+  tibble(event = character(), site_year = factor(levels = names(site_labels)),
+         cld = character())
+
+summary_with_letters <- summary_long |>
+  left_join(all_letters, by = c("site_year", "event"))
+
+summary_wide <- summary_with_letters |>
+  mutate(sampling_event = recode(as.character(event),
+                                 `pre-tillage` = "before_tillage",
+                                 `pre-rolling` = "before_rolling")) |>
+  select(site_year, cereal_rye_variety, sampling_event, sampling_date,
+         n_blocks, mean_kg_ha, sd_kg_ha, se_kg_ha, cld) |>
+  pivot_wider(names_from = sampling_event,
+              values_from = c(sampling_date, n_blocks, mean_kg_ha,
+                              sd_kg_ha, se_kg_ha, cld),
+              names_glue = "{sampling_event}_{.value}") |>
+  arrange(site_year)
+
+show_table(summary_wide, "Site-year characteristics: pre-termination rye biomass")
+readr::write_csv(summary_wide, file.path(tab_dir, "rye_biomass_site_year_table.csv"))
+```
+
+# Interpretation notes
+
+Pre-termination rye biomass is a useful measure of potential rye mulch production and a site-year characteristic relevant to weed suppression. Site-year contrasts combine differences in field, weather, variety, and sampling timing; these models do not isolate any of those factors. Because pre-tillage and pre-rolling measurements are taken on different dates and in distinct management areas, do not interpret their difference as a termination-method effect. No presentation figure is required.
+
+# R session
+
+```{r session-info}
+sessionInfo()
+```

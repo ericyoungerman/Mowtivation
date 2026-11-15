@@ -1,0 +1,4 @@
+site_year,cereal_rye_variety,before_tillage_sampling_date,before_rolling_sampling_date,before_tillage_n_blocks,before_rolling_n_blocks,before_tillage_mean_kg_ha,before_rolling_mean_kg_ha,before_tillage_sd_kg_ha,before_rolling_sd_kg_ha,before_tillage_se_kg_ha,before_rolling_se_kg_ha,before_tillage_cld,before_rolling_cld
+V_2023,Aroostook,2023-05-15,2023-05-31,4,4,6260.9,9885.8,294.0338529262688,1143.6440705044565,147.0169264631344,571.8220352522283,a,a
+O2E_2024,ND Gardner,2024-04-29,2024-05-21,4,4,5214.4,8529.1,679.6822002475373,1270.2810240257859,339.8411001237686,635.1405120128929,b,a
+O2W_2024,Aroostook,2024-04-29,2024-05-21,4,4,4101.7,6431.8499999999995,667.4190987178395,1315.6748775185054,333.70954935891973,657.8374387592527,c,b
